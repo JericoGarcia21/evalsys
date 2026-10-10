@@ -1,3 +1,4 @@
+import { notify } from '../../utils/notify';
 import { useEffect, useMemo, useState } from 'react';
 import api from '../../services/api';
 import { TableSkeleton } from '../../components/LoadingSkeleton';
@@ -120,16 +121,13 @@ export default function Results() {
   const maxTotal = criteriaColumns.reduce((sum, criteria) => sum + criteria.maxScore, 0);
 
   useEffect(() => {
-    setSelected(null);
-    setResults([]);
-    setViewFeedback(null);
     Promise.all([
       api.get('/sections'),
       api.get('/auth/me'),
     ]).then(([secRes, meRes]) => {
       setSections(secRes.data);
       setAccountCsvLocked(Boolean(meRes.data.csvExportLocked));
-    }).finally(() => setLoadingSections(false));
+    }).catch(() => notify('Unable to load results setup. Please try again.', { type: 'error' })).finally(() => setLoadingSections(false));
   }, [scopeVersion]);
 
   const loadResults = async (section: Section) => {

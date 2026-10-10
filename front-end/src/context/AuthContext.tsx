@@ -13,6 +13,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(() => Boolean(localStorage.getItem('token')));
 
   useEffect(() => {
+    const onUnauthorized = () => { setUser(null); setLoading(false); };
+    window.addEventListener('evalsys:unauthorized', onUnauthorized);
+    return () => window.removeEventListener('evalsys:unauthorized', onUnauthorized);
+  }, []);
+
+  useEffect(() => {
     const token = localStorage.getItem('token');
     if (!token) return;
 
@@ -21,9 +27,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       .catch((err) => {
         // Only clear token if it's actually invalid (401/403)
         // If it's 429 (Rate Limit), keep the token and maybe show an alert
-        if (err.response?.status !== 429) {
+        if (err.response?.status === 401 || err.response?.status === 403) {
           localStorage.removeItem('token');
-        } else {
+        } else if (err.response?.status === 429) {
           notify('Too many requests. Please wait a moment before refreshing again.', { type: 'error' });
         }
       })

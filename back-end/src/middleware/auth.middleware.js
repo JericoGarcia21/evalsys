@@ -62,7 +62,8 @@ const protect = async (req, res, next) => {
       });
     }
     next();
-  } catch {
+  } catch (error) {
+    if (!['JsonWebTokenError', 'TokenExpiredError', 'NotBeforeError'].includes(error.name)) return next(error);
     await recordAuditLog(req, {
       action: 'security.token.invalid',
       status: 'failed',

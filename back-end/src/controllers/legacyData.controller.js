@@ -93,33 +93,6 @@ exports.getLegacyData = async (_req, res) => {
     .sort({ createdAt: -1 }))
     .filter((panel) => !panel.createdBy);
 
-  const legacySectionIds = sections.map((section) => section._id);
-  const groupsInLegacySections = await Group.find({
-    section: { $in: legacySectionIds },
-  }).select('_id');
-  const legacyGroupIds = [
-    ...new Set([
-      ...groups.map((group) => group._id.toString()),
-      ...groupsInLegacySections.map((group) => group._id.toString()),
-    ]),
-  ];
-  const legacyPanelIds = panels.map((panel) => panel._id);
-  let autoArchivedResults = await archiveEvaluations({
-    $or: [
-      { group: { $in: legacyGroupIds } },
-      { panel: { $in: legacyPanelIds } },
-    ],
-  });
-  const remainingEvaluations = await Evaluation.find({
-    isLegacyArchived: { $ne: true },
-  }).select('_id group panel').populate('group', '_id').populate('panel', '_id');
-  const orphanedEvaluationIds = remainingEvaluations
-    .filter((evaluation) => !evaluation.group || !evaluation.panel)
-    .map((evaluation) => evaluation._id);
-  autoArchivedResults += await archiveEvaluations({
-    _id: { $in: orphanedEvaluationIds },
-  });
-
   const results = await Evaluation.find({ isLegacyArchived: true })
     .select('total comments scores isSubmitted legacySnapshot legacyArchivedAt updatedAt')
     .sort({ legacyArchivedAt: -1 });
@@ -129,7 +102,6 @@ exports.getLegacyData = async (_req, res) => {
     groups,
     panels,
     results,
-    autoArchivedResults,
     legacyBefore,
   });
 };
@@ -262,4 +234,23 @@ exports.deleteAllLegacyResults = async (req, res) => {
     message: `${deleted.deletedCount} old result${deleted.deletedCount === 1 ? '' : 's'} permanently deleted`,
     deletedResults: deleted.deletedCount,
   });
+};
+
+// Migration is explicit and audited; reading Archive must never change grades.
+exports.repairLegacyData = async (req, res) => {
+  const confirmationError = requireConfirmation(req, 'ARCHIVE LEGACY');
+  if (confirmationError) return res.status(400).json(confirmationError);
+  const { filter } = await getLegacyFilter();
+  const sections = await Section.find(filter).select('_id');
+  const groups = await Group.find({ $or: [filter, { section: { $in: sections.map(section => section._id) } }] }).select('_id');
+  const panels = (await Panel.find().populate('createdBy', '_id')).filter(panel => !panel.createdBy);
+  let archivedResults = await archiveEvaluations({ $or: [
+    { group: { $in: groups.map(group => group._id) } },
+    { panel: { $in: panels.map(panel => panel._id) } },
+  ] });
+  const remaining = await Evaluation.find({ isLegacyArchived: { $ne: true } }).select('_id group').populate('group', '_id');
+  // A deleted panel with a retained name snapshot does not make an active group's grade obsolete.
+  archivedResults += await archiveEvaluations({ _id: { $in: remaining.filter(evaluation => !evaluation.group).map(evaluation => evaluation._id) } });
+  await recordAuditLog(req, { action: 'legacy.results.archive', metadata: { archivedResults } });
+  res.json({ message: 'Old and orphaned results archived.', archivedResults });
 };

@@ -1,4 +1,4 @@
-const router = require('express').Router();
+const router = require('../utils/asyncRouter')();
 const {
   getRegistrationLinks,
   createRegistrationLink,
@@ -8,11 +8,12 @@ const {
   registerGroupWithLink,
 } = require('../controllers/registrationLink.controller');
 const { protect, adminOnly, superadminInstructorContext } = require('../middleware/auth.middleware');
+const maintenance = require('../middleware/maintenance.middleware');
 const proposalUpload = require('../middleware/proposalUpload.middleware');
 const { cacheResponse } = require('../middleware/cache.middleware');
 
 router.get('/public/:token', cacheResponse('registration-links:public', 10000), getPublicRegistrationLink);
-router.post('/public/:token/register', proposalUpload, registerGroupWithLink);
+router.post('/public/:token/register', maintenance, proposalUpload, registerGroupWithLink);
 
 router.use(protect, adminOnly, superadminInstructorContext);
 

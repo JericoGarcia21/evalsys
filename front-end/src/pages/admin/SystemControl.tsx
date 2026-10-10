@@ -1,3 +1,4 @@
+import { getApiMessage } from '../../utils/apiError';
 import { useEffect, useState } from 'react';
 import api from '../../services/api';
 import { notify } from '../../utils/notify';
@@ -42,7 +43,6 @@ export default function SystemControl() {
   const [now, setNow] = useState(0);
 
   const load = async () => {
-    setLoading(true);
     try {
       const res = await api.get('/settings');
       setNow(Date.now());
@@ -57,14 +57,16 @@ export default function SystemControl() {
           updatedAt: res.data.announcement?.updatedAt,
         },
       });
-    } catch (err: any) {
-      notify(err.response?.data?.message || 'Failed to load system controls', { type: 'error' });
+    } catch (err: unknown) {
+      notify(getApiMessage(err, 'Failed to load system controls'), { type: 'error' });
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
+    // This loader updates state only after awaited API responses.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     load();
   }, []);
 
@@ -92,8 +94,8 @@ export default function SystemControl() {
         },
       });
       notify(successMessage, { type: 'success' });
-    } catch (err: any) {
-      notify(err.response?.data?.message || 'Failed to update system controls', { type: 'error' });
+    } catch (err: unknown) {
+      notify(getApiMessage(err, 'Failed to update system controls'), { type: 'error' });
     } finally {
       setSaving(false);
     }

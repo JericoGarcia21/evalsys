@@ -141,7 +141,6 @@ export default function Rubrics() {
       .finally(() => setLoading(false));
   };
   useEffect(() => {
-    resetForm();
     api.get('/rubrics')
       .then((r) => setRubrics(r.data))
       .finally(() => setLoading(false));

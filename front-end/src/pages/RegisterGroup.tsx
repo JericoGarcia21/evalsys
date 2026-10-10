@@ -1,3 +1,4 @@
+import { getApiMessage } from '../utils/apiError';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import api from '../services/api';
@@ -23,13 +24,14 @@ export default function RegisterGroup() {
   const [agreedToPrivacy, setAgreedToPrivacy] = useState(false);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
-  const [error, setError] = useState('');
+  const [requestError, setError] = useState('');
+  const error = !token ? 'Registration is closed. Please use the registration link from your instructor.' : requestError;
   const [registrationClosed, setRegistrationClosed] = useState(!token);
   const [expiresAt, setExpiresAt] = useState('');
   const proposalInputRef = useRef<HTMLInputElement | null>(null);
   const { confirm, ConfirmDialog } = useConfirmDialog();
 
-  const [isWakingUp, setIsWakingUp] = useState(false);
+  const [isWakingUp, setIsWakingUp] = useState(Boolean(token));
 
   const addMember = () => setMembers((current) => [...current, emptyMember()]);
   const removeMember = (index: number) => {
@@ -52,12 +54,9 @@ export default function RegisterGroup() {
 
   useEffect(() => {
     if (!token) {
-      setRegistrationClosed(true);
-      setError('Registration is closed. Please use the registration link from your instructor.');
       return;
     }
 
-    setIsWakingUp(true);
     api.get(`/registration-links/public/${token}`)
       .then((res) => {
         setSubjects([res.data.subject]);
@@ -71,7 +70,7 @@ export default function RegisterGroup() {
       })
       .catch((err) => {
         setRegistrationClosed(true);
-        setError(err.response?.data?.message || 'Registration is closed. Please contact your instructor.');
+        setError(getApiMessage(err, 'Registration is closed. Please contact your instructor.'));
         setIsWakingUp(false);
       });
   }, [token]);
@@ -128,8 +127,8 @@ export default function RegisterGroup() {
 
       await api.post(`/registration-links/public/${token}/register`, payload);
       setSuccess(true);
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Registration failed. Please check your inputs.');
+    } catch (err: unknown) {
+      setError(getApiMessage(err, 'Registration failed. Please check your inputs.'));
     } finally {
       setLoading(false);
     }

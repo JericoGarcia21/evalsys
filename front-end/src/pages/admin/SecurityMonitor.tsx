@@ -1,3 +1,4 @@
+import { getApiMessage } from '../../utils/apiError';
 import { useEffect, useState } from 'react';
 import api from '../../services/api';
 import { notify } from '../../utils/notify';
@@ -76,21 +77,22 @@ export default function SecurityMonitor() {
   const [loading, setLoading] = useState(true);
   const [reviewItem, setReviewItem] = useState<SuspiciousRow | null>(null);
 
-  const load = async (showLoader = true) => {
-    if (showLoader) setLoading(true);
+  const load = async () => {
     try {
       const res = await api.get('/operations/security');
       setData(res.data);
-    } catch (err: any) {
-      notify(err.response?.data?.message || 'Failed to load security monitor', { type: 'error' });
+    } catch (err: unknown) {
+      notify(getApiMessage(err, 'Failed to load security monitor'), { type: 'error' });
     } finally {
-      if (showLoader) setLoading(false);
+      setLoading(false);
     }
   };
 
   useEffect(() => {
+    // This loader updates state only after awaited API responses.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     load();
-    const timer = window.setInterval(() => load(false), 60000);
+    const timer = window.setInterval(() => load(), 60000);
     return () => window.clearInterval(timer);
   }, []);
 

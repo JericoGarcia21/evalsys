@@ -1,3 +1,4 @@
+const escapeRegex = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const Group = require('../models/Group');
 const Section = require('../models/Section');
 const Admin = require('../models/Admin');
@@ -133,7 +134,7 @@ exports.createGroup = async (req, res) => {
   }
   const assignmentError = await validatePanelAssignments(req, assignedPanels, sectionDoc.subject);
   if (assignmentError) return res.status(400).json({ message: assignmentError });
-  
+
   // Check for duplication in the same section
   const existing = await Group.findOne({ name: { $regex: new RegExp(`^${name}$`, 'i') }, section });
   if (existing) {
@@ -253,17 +254,17 @@ exports.getGroups = async (req, res) => {
       const isInSection = gSecId && strSectionIds.includes(gSecId);
       const gSubjectId = g.section?.subject?._id?.toString() || g.section?.subject?.toString();
       const isOwnedSubject = !req.user.createdBy || (gSubjectId && allowedSubjectIds.includes(gSubjectId));
-      
+
       const gPanels = g.assignedPanels || [];
       const isAssignedDirectly = gPanels.some(p => (p._id || p).toString() === panelIdStr);
-      
+
       return isOwnedSubject && (isInSection || isAssignedDirectly);
     }).map(g => {
       const gObj = g.toObject();
       gObj.isGraded = gradedGroupIds.includes(g._id.toString());
       return gObj;
     });
-      
+
     const pagination = getPagination(req);
     if (!pagination) return res.json(groups);
     const items = groups.slice(pagination.skip, pagination.skip + pagination.limit);
@@ -429,14 +430,19 @@ exports.getGroupProposalUrl = async (req, res) => {
 
 exports.updateGroup = async (req, res) => {
   const { name, section } = req.body;
-  const current = await Group.findById(req.params.id);
+  const current = await Group.findById(req.params.id).populate('section', 'subject');
   if (!current) return res.status(404).json({ message: 'Group not found' });
   if (!current.createdBy || current.createdBy.toString() !== getOwnerId(req)?.toString()) {
     return res.status(403).json({ message: 'This group does not belong to the current instructor' });
   }
-  
+
+  const originalSubject = current.section?.subject;
+  if (!canAccessSubject(req, originalSubject)) return res.status(403).json({ message: 'You are not assigned to this subject' });
+  if (getSubjectId(req) && originalSubject?.toString() !== getSubjectId(req).toString()) {
+    return res.status(403).json({ message: 'This group does not belong to the current subject' });
+  }
   if (name || section) {
-    const currentSection = await Section.findById(section || current.section);
+    const currentSection = await Section.findById(section || current.section?._id || current.section);
     const selectedSubject = getSubjectId(req);
     if (selectedSubject && currentSection?.subject?.toString() !== selectedSubject.toString()) {
       return res.status(400).json({ message: 'Selected block does not belong to the current subject' });
@@ -448,21 +454,21 @@ exports.updateGroup = async (req, res) => {
       return res.status(403).json({ message: 'Selected block does not belong to the current instructor' });
     }
     const checkName = name || current.name;
-    const checkSection = section || current.section;
-    
-    const existing = await Group.findOne({ 
-      _id: { $ne: req.params.id }, 
-      name: { $regex: new RegExp(`^${checkName}$`, 'i') }, 
-      section: checkSection 
+    const checkSection = section || current.section?._id || current.section;
+
+    const existing = await Group.findOne({
+      _id: { $ne: req.params.id },
+      name: { $regex: new RegExp(`^${escapeRegex(checkName)}$`, 'i') },
+      section: checkSection
     });
-    
+
     if (existing) {
       return res.status(400).json({ message: `Another group with the name "${checkName}" already exists in this block.` });
     }
   }
 
   if (req.body.assignedPanels) {
-    const currentSection = await Section.findById(section || current.section);
+    const currentSection = await Section.findById(section || current.section?._id || current.section);
     const assignmentError = await validatePanelAssignments(req, req.body.assignedPanels, currentSection?.subject);
     if (assignmentError) return res.status(400).json({ message: assignmentError });
   }

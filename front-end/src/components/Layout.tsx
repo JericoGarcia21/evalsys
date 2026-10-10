@@ -29,6 +29,8 @@ const instructorLinks = [
   { to: '/assign-panels', label: 'Assign Panels' },
   { to: '/rubrics', label: 'Rubrics' },
   { to: '/registration-links', label: 'Registration Links' },
+  { to: '/results', label: 'Results' },
+  { to: '/ai-insights', label: 'AI Insights' },
 ];
 
 const panelLinks = [
@@ -246,8 +248,6 @@ export default function Layout({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (user?.role !== 'admin' && user?.role !== 'superadmin') return;
     if (user?.role === 'superadmin' && !currentInstructorId) {
-      setSubjects([]);
-      setCurrentSubjectId('');
       return;
     }
     api.get('/subjects')
@@ -272,6 +272,7 @@ export default function Layout({ children }: { children: ReactNode }) {
     if (!instructorId || instructorId === currentInstructorId) return;
     localStorage.setItem(currentInstructorKey, instructorId);
     localStorage.removeItem(currentSubjectKey);
+    setSubjects([]);
     setCurrentInstructorId(instructorId);
     setCurrentSubjectId('');
     notifyOperationalScopeChanged();

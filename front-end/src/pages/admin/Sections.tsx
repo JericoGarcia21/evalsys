@@ -1,3 +1,4 @@
+import { getApiMessage } from '../../utils/apiError';
 import { useEffect, useState } from 'react';
 import api from '../../services/api';
 import { TableSkeleton } from '../../components/LoadingSkeleton';
@@ -16,13 +17,13 @@ export default function Sections() {
   const { confirm, ConfirmDialog } = useConfirmDialog();
   const { version: scopeVersion } = useOperationalScope();
 
-  const load = () => {
-    setLoading(true);
+  const load = (showLoader = true) => {
+    if (showLoader) setLoading(true);
     api.get('/sections')
       .then((r) => setSections(r.data))
       .finally(() => setLoading(false));
   };
-  useEffect(() => { load(); }, [scopeVersion]);
+  useEffect(() => { api.get('/sections').then(r => setSections(r.data)).catch(err => setError(getApiMessage(err, 'Failed to load blocks'))).finally(() => setLoading(false)); }, [scopeVersion]);
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -31,8 +32,8 @@ export default function Sections() {
       await api.post('/sections', { name: block, block });
       setBlock('');
       load();
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Error');
+    } catch (err: unknown) {
+      setError(getApiMessage(err, 'Error'));
     }
   };
 
@@ -42,8 +43,8 @@ export default function Sections() {
       await api.put(`/sections/${id}`, { name: editValue, block: editValue });
       setEditingId(null);
       load();
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Error updating');
+    } catch (err: unknown) {
+      setError(getApiMessage(err, 'Error updating'));
     }
   };
 

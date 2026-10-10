@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { getApiMessage } from '../../utils/apiError';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import api from '../../services/api';
 import { TableSkeleton } from '../../components/LoadingSkeleton';
 import { notify } from '../../utils/notify';
@@ -49,15 +50,14 @@ export default function RegistrationLinks() {
 
   const linkUrl = (token: string) => `${window.location.origin}/register?token=${encodeURIComponent(token)}`;
 
-  const loadLinks = () => {
+  const loadLinks = useCallback(() => {
     if (!selectedSubject) return;
     api.get('/registration-links', { params: { subject: selectedSubject } })
       .then((res) => setLinks(res.data))
-      .catch((err) => setError(err.response?.data?.message || 'Failed to load registration links'));
-  };
+      .catch((err) => setError(getApiMessage(err, 'Failed to load registration links')));
+  }, [selectedSubject]);
 
   useEffect(() => {
-    setLoading(true);
     Promise.all([
       api.get('/subjects'),
       api.get('/sections'),
@@ -70,19 +70,18 @@ export default function RegistrationLinks() {
       setSubject(nextSubjectDoc);
       setSelectedSubject(nextSubject || '');
     }).catch((err) => {
-      setError(err.response?.data?.message || 'Failed to load registration setup');
+      setError(getApiMessage(err, 'Failed to load registration setup'));
     }).finally(() => setLoading(false));
   }, [scopeVersion, currentSubjectId]);
 
   useEffect(() => {
-    setSelectedSections([]);
     if (selectedSubject) {
       api.get('/sections', { params: { subject: selectedSubject } })
-        .then((res) => setSections(res.data))
-        .catch((err) => setError(err.response?.data?.message || 'Failed to load blocks for this subject'));
+        .then((res) => { setSelectedSections([]); setSections(res.data); })
+        .catch((err) => setError(getApiMessage(err, 'Failed to load blocks for this subject')));
     }
     loadLinks();
-  }, [selectedSubject]);
+  }, [selectedSubject, loadLinks]);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -96,8 +95,8 @@ export default function RegistrationLinks() {
       });
       setSelectedSections([]);
       loadLinks();
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to create registration link');
+    } catch (err: unknown) {
+      setError(getApiMessage(err, 'Failed to create registration link'));
     } finally {
       setSaving(false);
     }
@@ -121,8 +120,8 @@ export default function RegistrationLinks() {
     try {
       await api.patch(`/registration-links/${link._id}`, { isActive });
       loadLinks();
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to update registration link');
+    } catch (err: unknown) {
+      setError(getApiMessage(err, 'Failed to update registration link'));
     }
   };
 
@@ -134,14 +133,19 @@ export default function RegistrationLinks() {
       notify(res.data.message, { type: 'success', title: 'Link Removed' });
       setLinkToRemove(null);
       loadLinks();
-    } catch (err: any) {
-      notify(err.response?.data?.message || 'Failed to remove registration link', { type: 'error' });
+    } catch (err: unknown) {
+      notify(getApiMessage(err, 'Failed to remove registration link'), { type: 'error' });
     } finally {
       setRemoving(false);
     }
   };
 
-  const isExpired = (link: RegistrationLink) => new Date(link.expiresAt).getTime() <= Date.now();
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 30000);
+    return () => window.clearInterval(timer);
+  }, []);
+  const isExpired = (link: RegistrationLink) => new Date(link.expiresAt).getTime() <= now;
 
   return (
     <div>

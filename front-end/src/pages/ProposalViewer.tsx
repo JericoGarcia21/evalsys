@@ -4,11 +4,11 @@ import api from '../services/api';
 
 export default function ProposalViewer() {
   const { groupId } = useParams();
-  const [error, setError] = useState('');
+  const [requestError, setError] = useState('');
+  const error = !groupId ? 'Proposal group is missing.' : requestError;
 
   useEffect(() => {
     if (!groupId) {
-      setError('Proposal group is missing.');
       return;
     }
 

@@ -229,7 +229,7 @@ Backend syntax check:
 
 ```bash
 cd back-end
-node --check src/index.js
+npm run check
 ```
 
 Frontend production build:
@@ -247,3 +247,44 @@ npm run build
 
 MIT License.
 
+
+## Returning to development
+
+Use `dev` as your working branch; `main` is the release branch.
+
+```powershell
+git switch dev
+git status --short
+```
+
+Start the API in one terminal:
+
+```powershell
+cd back-end
+npm run dev
+```
+
+Start the React app in a second terminal from the repository root:
+
+```powershell
+cd front-end
+npm run dev
+```
+
+Open http://localhost:5173. The API defaults to http://localhost:5000. Keep your backend configuration in `back-end/.env`, using `.env.example` as the reference. Run `npm ci` in each application folder when dependencies are missing or the lockfile changes.
+
+Before committing, run `npm run check` in `back-end` and `npm run build` in `front-end`. The backend check validates syntax without starting the server or connecting to the database.
+
+The extra `frontend/` folder, empty root `index.php`, and local backend helper scripts are preserved local files. They are not needed to start the React/Express application. Inspect them before staging; avoid `git add .` while unrelated files remain untracked.
+
+## Repeatable QA
+
+Use Node.js 20.19+ (Node 24 recommended). Backend development uses native Node watch mode. The backend starts listening only after MongoDB connects. Optional DNS_SERVERS overrides DNS; leave it unset to use system DNS.
+
+Run in back-end: npm run check, npm test, npm audit --omit=dev. Run in front-end: npm run lint, npm run build, npm audit --omit=dev, npm run test:e2e. Install dependencies with npm ci in both folders first.
+
+API tests and browser tests create temporary local MongoDB databases and synthetic accounts. They do not load your backend .env or use production records. The first run downloads a MongoDB test binary and needs network access. Browser tests start their own API on port 5101 and Vite on port 5179; both ports must be free. Local browser tests use installed Google Chrome. CI installs Playwright Chromium. Reports are generated in front-end/playwright-report.
+
+See [QA_RESULTS.md](QA_RESULTS.md) for coverage, fixes, and remaining limits. GitHub Actions repeats the checks on dev/main pushes and pull requests once these changes are committed and pushed.
+
+The superadmin global system reset is an exception to result preservation: it deliberately deletes active data and archived results after explicit confirmation. Export a backup first. Opening Archive is read-only; migrating old unowned records requires the explicit Archive Old Records action and ARCHIVE LEGACY confirmation.

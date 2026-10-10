@@ -1,6 +1,7 @@
-const router = require('express').Router();
+const router = require('../utils/asyncRouter')();
 const {
   getLegacyData,
+  repairLegacyData,
   deleteLegacyGroup,
   deleteLegacyPanel,
   deleteLegacyResult,
@@ -11,6 +12,7 @@ const { protect, superadminOnly } = require('../middleware/auth.middleware');
 const { cacheResponse } = require('../middleware/cache.middleware');
 
 router.use(protect, superadminOnly);
+router.post('/repair', repairLegacyData);
 router.get('/', cacheResponse('legacy-data:list', 15000), getLegacyData);
 router.delete('/groups/:id', deleteLegacyGroup);
 router.delete('/panels/:id', deleteLegacyPanel);

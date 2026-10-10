@@ -1,4 +1,4 @@
-const router = require('express').Router();
+const router = require('../utils/asyncRouter')();
 const { login, getMe, changePassword, updateOwnPassword } = require('../controllers/auth.controller');
 const { protect } = require('../middleware/auth.middleware');
 

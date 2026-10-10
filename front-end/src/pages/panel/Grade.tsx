@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import { getApiMessage, getApiStatus } from '../../utils/apiError';
+import { useCallback, useEffect, useEffectEvent, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import api from '../../services/api';
 import ScoreInput from '../../components/ScoreInput';
@@ -90,7 +91,7 @@ export default function Grade() {
 
   const [sections, setSections] = useState<Section[]>([]);
   const [lockedSubjectIds, setLockedSubjectIds] = useState<string[]>([]);
-  const [gradingLockMessage, setGradingLockMessage] = useState('The instructor owner has temporarily disabled grading submissions for this subject.');
+  const gradingLockMessage = 'The instructor owner has temporarily disabled grading submissions for this subject.';
   const [submitting, setSubmitting] = useState(false);
   const [draftSavedAt, setDraftSavedAt] = useState<string | null>(null);
   const [hasCurrentDraft, setHasCurrentDraft] = useState(false);
@@ -110,7 +111,7 @@ export default function Grade() {
   const subjectGradingLocked = Boolean(selectedSubjectId) && lockedSubjectIds.includes(selectedSubjectId);
   const gradingLocked = subjectGradingLocked;
 
-  const cacheGroupStatus = (nextGroups: Group[]) => {
+  const cacheGroupStatus = useCallback((nextGroups: Group[]) => {
     const groupNames = nextGroups.reduce((acc: Record<string, string>, group: Group) => {
       acc[group._id] = group.name;
       return acc;
@@ -121,59 +122,19 @@ export default function Grade() {
     }, {});
     localStorage.setItem(groupNameCacheKey, JSON.stringify(groupNames));
     localStorage.setItem(groupStatusCacheKey(panelId), JSON.stringify(groupStatus));
-  };
+  }, [panelId]);
 
-  useEffect(() => {
-    api.get('/sections').then((r) => {
-      setSections(r.data);
-      if (r.data.length > 0) {
-        setSelectedSidebarSectionId(r.data[0]._id);
-      }
-    });
-
-    api.get('/groups').then((r) => {
-      setGroups(r.data);
-      cacheGroupStatus(r.data);
-      const initialGroupId = urlGroupId || localStorage.getItem(lastSelectedGroupKey(panelId));
-      if (initialGroupId) {
-        const found = r.data.find((g: Group) => g._id === initialGroupId);
-        if (found) {
-          selectGroup(found);
-          const sId = typeof found.section === 'string' ? found.section : found.section?._id;
-          if (sId) setSelectedSidebarSectionId(sId);
-        }
-      }
-    })
-      .finally(() => setLoadingSidebar(false));
-
-    refreshGradingLock();
+  const refreshGradingLock = useCallback(() => {
+    api.get('/auth/me').then(meRes => {
+      setLockedSubjectIds((meRes.data.gradingLockedSubjects || []).map((subject: string | { _id?: string }) => getRefId(subject)));
+    }).catch(() => undefined);
   }, []);
 
-  const refreshGradingLock = () => {
-    api.get('/auth/me')
-      .then((meRes) => {
-        const subjectIds = (meRes.data.gradingLockedSubjects || []).map((subject: string | { _id?: string }) => getRefId(subject));
-        const subjectLocked = Boolean(selectedSubjectId) && subjectIds.includes(selectedSubjectId);
-        setLockedSubjectIds(subjectIds);
-        setGradingLockMessage(
-          subjectLocked
-            ? 'The instructor owner has temporarily disabled grading submissions for this subject.'
-            : 'The instructor owner has temporarily disabled grading submissions for this subject.'
-        );
-      })
-      .catch(() => undefined);
-  };
-
   useEffect(() => {
-    if (subjectGradingLocked) {
-      setGradingLockMessage('The instructor owner has temporarily disabled grading submissions for this subject.');
-    }
-  }, [subjectGradingLocked]);
-
-  useEffect(() => {
+    refreshGradingLock();
     const timer = window.setInterval(refreshGradingLock, 30000);
     return () => window.clearInterval(timer);
-  }, []);
+  }, [refreshGradingLock]);
 
   useEffect(() => {
     const goOnline = () => setIsOnline(true);
@@ -263,53 +224,6 @@ export default function Grade() {
     });
   };
 
-  // Re-initialize scores when group or rubric changes
-  useEffect(() => {
-    if (selectedGroup && activeRubric) {
-      skipAutosaveRef.current = true;
-      const draft = restoreBackup(selectedGroup._id, activeRubric._id);
-      const matchingExisting = selectedExisting &&
-        getRefId(selectedExisting.rubric) === activeRubric._id
-        ? selectedExisting
-        : null;
-
-      if (matchingExisting) {
-        setScores(matchingExisting.scores);
-        setComments(matchingExisting.comments || '');
-        setDraftSavedAt(null);
-        setHasCurrentDraft(false);
-      } else if (draft) {
-        setScores(draft.scores);
-        setComments(draft.comments || '');
-        setDraftSavedAt(draft.updatedAt || null);
-        setHasCurrentDraft(true);
-      } else {
-        const init: Record<string, number | ''> = {};
-        activeRubric.criteria.forEach((c) => { init[c.key] = ''; });
-        setScores(init);
-        setComments('');
-        setDraftSavedAt(null);
-        setHasCurrentDraft(false);
-      }
-
-      setTimeout(() => {
-        skipAutosaveRef.current = false;
-      }, 0);
-    }
-  }, [selectedGroup, activeRubric, selectedExisting]);
-
-  useEffect(() => {
-    if (!selectedGroup || !selectedExisting || activeRubric) return;
-    skipAutosaveRef.current = true;
-    setScores(existingScores);
-    setComments(selectedExisting.comments || '');
-    setDraftSavedAt(null);
-    setHasCurrentDraft(false);
-    setTimeout(() => {
-      skipAutosaveRef.current = false;
-    }, 0);
-  }, [selectedGroup, selectedExisting, activeRubric]);
-
   const selectGroup = async (group: Group) => {
     if (group._id !== selectedGroup?._id && !(await confirmContinueWithDraft())) return;
     const requestId = evaluationRequestIdRef.current + 1;
@@ -354,14 +268,107 @@ export default function Grade() {
           setSelectedRubricId(active._id);
         }
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       if (requestId === evaluationRequestIdRef.current) {
-        setError(err.response?.data?.message || 'Failed to load this group subject and rubric.');
+        setError(getApiMessage(err, 'Failed to load this group subject and rubric.'));
       }
     } finally {
       if (requestId === evaluationRequestIdRef.current) setLoadingRubrics(false);
     }
   };
+
+  // Restore unsaved local draft when returning to a group.
+  const restoreBackup = useEffectEvent((groupId: string, rubricId: string) => {
+    const data = getStoredDraft(groupId);
+    if (data?.rubricId === rubricId && data.scores && (hasScoreValues(data.scores) || data.comments?.trim())) {
+      return data as {
+        groupId: string;
+        rubricId: string;
+        scores: Record<string, number | ''>;
+        comments?: string;
+        updatedAt?: string;
+      }
+    }
+    return null;
+  });
+
+  const onInitialGroup = useEffectEvent((group: Group) => { void selectGroup(group); });
+
+  useEffect(() => {
+    api.get('/sections').then((r) => {
+      setSections(r.data);
+      if (r.data.length > 0) {
+        setSelectedSidebarSectionId(r.data[0]._id);
+      }
+    }).catch(err => setError(getApiMessage(err, 'Failed to load assigned blocks')));
+
+    api.get('/groups').then((r) => {
+      setGroups(r.data);
+      cacheGroupStatus(r.data);
+      const initialGroupId = urlGroupId || localStorage.getItem(lastSelectedGroupKey(panelId));
+      if (initialGroupId) {
+        const found = r.data.find((g: Group) => g._id === initialGroupId);
+        if (found) {
+          onInitialGroup(found);
+          const sId = typeof found.section === 'string' ? found.section : found.section?._id;
+          if (sId) setSelectedSidebarSectionId(sId);
+        }
+      }
+    }).catch(err => setError(getApiMessage(err, 'Failed to load assigned groups')))
+      .finally(() => setLoadingSidebar(false));
+
+  }, [panelId, urlGroupId, cacheGroupStatus]);
+
+  // Re-initialize scores when group or rubric changes
+  useEffect(() => {
+    if (selectedGroup && activeRubric) {
+      skipAutosaveRef.current = true;
+      const draft = restoreBackup(selectedGroup._id, activeRubric._id);
+      const matchingExisting = selectedExisting &&
+        getRefId(selectedExisting.rubric) === activeRubric._id
+        ? selectedExisting
+        : null;
+
+      if (matchingExisting) {
+        // Restore a form from the submitted record or external local draft when selection changes.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setScores(matchingExisting.scores);
+        setComments(matchingExisting.comments || '');
+        setDraftSavedAt(null);
+        setHasCurrentDraft(false);
+      } else if (draft) {
+        setScores(draft.scores);
+        setComments(draft.comments || '');
+        setDraftSavedAt(draft.updatedAt || null);
+        setHasCurrentDraft(true);
+      } else {
+        const init: Record<string, number | ''> = {};
+        activeRubric.criteria.forEach((c) => { init[c.key] = ''; });
+        setScores(init);
+        setComments('');
+        setDraftSavedAt(null);
+        setHasCurrentDraft(false);
+      }
+
+      setTimeout(() => {
+        skipAutosaveRef.current = false;
+      }, 0);
+    }
+  }, [selectedGroup, activeRubric, selectedExisting, panelId]);
+
+  useEffect(() => {
+    if (!selectedGroup || !selectedExisting || activeRubric) return;
+    skipAutosaveRef.current = true;
+    // Synchronize the read-only form with its submitted record when its rubric is unavailable.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setScores(selectedExisting.scores);
+    setComments(selectedExisting.comments || '');
+    setDraftSavedAt(null);
+    setHasCurrentDraft(false);
+    setTimeout(() => {
+      skipAutosaveRef.current = false;
+    }, 0);
+  }, [selectedGroup, selectedExisting, activeRubric]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -411,13 +418,13 @@ export default function Grade() {
         g._id === selectedGroup!._id ? { ...g, isGraded: true } : g
       ));
       cacheGroupStatus(nextGroups);
-    } catch (err: any) {
-      if (!err.response) {
+    } catch (err: unknown) {
+      if (getApiStatus(err) === undefined) {
         setError('Server unavailable. Your scores are saved locally and can be submitted again when the connection returns.');
-      } else if (err.response.status === 403) {
-        setError(err.response?.data?.message || 'Grading is locked or you are not assigned to this group.');
+      } else if (getApiStatus(err) === 403) {
+        setError(getApiMessage(err, 'Grading is locked or you are not assigned to this group.'));
       } else {
-        setError(err.response?.data?.message || 'Submission failed. Your draft is saved locally.');
+        setError(getApiMessage(err, 'Submission failed. Your draft is saved locally.'));
       }
     } finally {
       setSubmitting(false);
@@ -425,6 +432,8 @@ export default function Grade() {
   };
 
   const pct = maxTotal > 0 ? Math.round((total / maxTotal) * 100) : 0;
+
+  const onSaveDraft = useEffectEvent(() => saveDraft());
 
   // AUTO-SAVE to localStorage to prevent data loss if browser crashes
   useEffect(() => {
@@ -434,30 +443,15 @@ export default function Grade() {
       !skipAutosaveRef.current &&
       (Object.keys(scores).length > 0 || comments.trim())
     ) {
-      saveDraft();
+      onSaveDraft();
     }
   }, [scores, comments, selectedGroup, activeRubric]);
 
   useEffect(() => {
-    const handleBeforeUnload = () => saveDraft();
+    const handleBeforeUnload = () => onSaveDraft();
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [selectedGroup, activeRubric, scores, comments]);
-
-  // Restore unsaved local draft when returning to a group.
-  const restoreBackup = (groupId: string, rubricId: string) => {
-    const data = getStoredDraft(groupId);
-    if (data?.rubricId === rubricId && data.scores && (hasScoreValues(data.scores) || data.comments?.trim())) {
-      return data as {
-        groupId: string;
-        rubricId: string;
-        scores: Record<string, number | ''>;
-        comments?: string;
-        updatedAt?: string;
-      }
-    }
-    return null;
-  };
 
   const clearCurrentDraft = async () => {
     if (!selectedGroup) return;

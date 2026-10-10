@@ -1,3 +1,4 @@
+const { getAssignedPanels } = require('../utils/panelAssignments');
 const Evaluation = require('../models/Evaluation');
 const Group = require('../models/Group');
 const Section = require('../models/Section');
@@ -149,7 +150,8 @@ exports.submitEvaluation = async (req, res) => {
   if (!group) return res.status(404).json({ message: 'Group not found' });
 
   // Check section-level panel assignment
-  const section = await Section.findById(group.section._id || group.section);
+  const section = group.section ? await Section.findById(group.section._id || group.section) : null;
+  if (!section) return res.status(404).json({ message: 'Group block not found' });
   if (req.user.role === 'panel') {
     const subjectId = section?.subject?.toString();
     if (
@@ -217,7 +219,7 @@ exports.submitEvaluation = async (req, res) => {
   if (!isAssigned && !isGroupAssigned)
     return res.status(403).json({ message: 'You are not assigned to this group\'s section' });
 
-  const total = Object.values(scores).reduce((sum, val) => sum + Number(val || 0), 0);
+  const total = rubric.criteria.reduce((sum, criterion) => sum + scores[criterion.key], 0);
 
   const evaluation = await Evaluation.findOneAndUpdate(
     { group: groupId, panel: req.user._id, isLegacyArchived: { $ne: true } },
@@ -263,6 +265,7 @@ exports.getGroupResult = async (req, res) => {
     return res.status(403).json({ message: 'This group belongs to another instructor' });
   }
   const selectedSubject = getSubjectId(req);
+  if (!canAccessSubject(req, group.section?.subject)) return res.status(403).json({ message: 'You are not assigned to this subject' });
   if (selectedSubject && group.section?.subject?.toString() !== selectedSubject.toString()) {
     return res.status(403).json({ message: 'This group does not belong to the current subject' });
   }
@@ -278,15 +281,7 @@ exports.getGroupResult = async (req, res) => {
 
   // Get the group to find the correct divisor (number of panels assigned to the block)
   const groupDoc = await Group.findById(req.params.groupId).populate('section');
-  let divisor = evaluations.length;
-  if (groupDoc) {
-    if (groupDoc.section && groupDoc.section.assignedPanels && groupDoc.section.assignedPanels.length > 0) {
-      divisor = groupDoc.section.assignedPanels.length;
-    } else if (groupDoc.assignedPanels && groupDoc.assignedPanels.length > 0) {
-      divisor = groupDoc.assignedPanels.length;
-    }
-  }
-  divisor = Math.max(divisor, evaluations.length, 1);
+  const divisor = Math.max(getAssignedPanels(groupDoc?.section?.assignedPanels || [], groupDoc?.assignedPanels || []).length, evaluations.length, 1);
 
   // Dynamically collect all categories used in these evaluations
   const averaged = {};
@@ -387,20 +382,8 @@ exports.getSectionResults = async (req, res) => {
 
       // if (!evaluations.length) return { group, averaged: null, finalTotal: null };
 
-      // Get the group to find the correct divisor (number of panels assigned to the block)
-      let divisor = evaluations.length;
-      let assignedPanelDocs = [];
-      const groupDoc = { section, assignedPanels: group.assignedPanels };
-      if (groupDoc) {
-        if (groupDoc.section && groupDoc.section.assignedPanels && groupDoc.section.assignedPanels.length > 0) {
-          assignedPanelDocs = groupDoc.section.assignedPanels;
-          divisor = groupDoc.section.assignedPanels.length;
-        } else if (groupDoc.assignedPanels && groupDoc.assignedPanels.length > 0) {
-          assignedPanelDocs = groupDoc.assignedPanels;
-          divisor = groupDoc.assignedPanels.length;
-        }
-      }
-      divisor = Math.max(divisor, evaluations.length, 1);
+      const assignedPanelDocs = getAssignedPanels(section.assignedPanels || [], group.assignedPanels || []);
+      const divisor = Math.max(assignedPanelDocs.length, evaluations.length, 1);
 
       // Determine who has NOT evaluated yet
       const evaluatedPanelIds = evaluations.map(ev => ev.panel?._id?.toString() || '');
@@ -458,6 +441,7 @@ exports.getSectionResults = async (req, res) => {
 
 // Admin: Export ALL results from ALL sections for archiving
 exports.exportAllResults = async (req, res) => {
+  if (req.user.role === 'admin' && req.user.csvExportLocked) return res.status(403).json({ message: 'CSV export is locked for this instructor' });
   const subject = getSubjectId(req);
   if (subject && !canAccessSubject(req, subject)) return res.status(403).json({ message: 'You are not assigned to this subject' });
 
@@ -513,12 +497,21 @@ exports.exportAllResults = async (req, res) => {
               as: 'evaluations',
             },
           },
+          {
+            $lookup: {
+              from: 'panel_acc',
+              localField: 'assignedPanels',
+              foreignField: '_id',
+              as: 'assignedPanelDocs',
+              pipeline: [{ $project: { name: 1 } }],
+            },
+          },
         ],
         as: 'groups',
       },
     },
     { $unwind: '$groups' },
-    { $match: { 'groups.evaluations.0': { $exists: true } } },
+
     {
       $lookup: {
         from: 'panel_acc',
@@ -533,14 +526,14 @@ exports.exportAllResults = async (req, res) => {
   const allResults = rows.map((row) => {
     const group = row.groups;
     const evaluations = group.evaluations || [];
-    const assignedPanelDocs = row.assignedPanelDocs || group.assignedPanels || [];
+    const assignedPanelDocs = getAssignedPanels(row.assignedPanelDocs || [], group.assignedPanelDocs || []);
     const divisor = Math.max(assignedPanelDocs.length, evaluations.length, 1);
 
     const evaluatedPanelIds = evaluations.map((ev) => (ev.panelDoc?._id || ev.panel)?.toString() || '');
     const missingPanels = assignedPanelDocs
       .filter((p) => p && !evaluatedPanelIds.includes(p._id.toString()))
       .map((p) => p.name || 'Unknown');
-    const isIncomplete = missingPanels.length > 0;
+    const isIncomplete = missingPanels.length > 0 || evaluations.length === 0;
 
     let totalScore = 0;
     evaluations.forEach((ev) => {

@@ -1,4 +1,4 @@
-const router = require('express').Router();
+const router = require('../utils/asyncRouter')();
 const { createUser, getUsers, toggleActive, deleteUser, bulkCreateUsers, resetPassword, updateSubjectLimit, updateCsvExportLock, updateGradingLock } = require('../controllers/user.controller');
 const { protect, adminOnly } = require('../middleware/auth.middleware');
 const { cacheResponse } = require('../middleware/cache.middleware');

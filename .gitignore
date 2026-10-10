@@ -16,3 +16,7 @@ pnpm-debug.log*
 Thumbs.db
 
 .vscode/
+
+# Local QA reports and browser artifacts
+playwright-report/
+test-results/

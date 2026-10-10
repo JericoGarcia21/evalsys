@@ -23,10 +23,11 @@ const findUsableLink = async (token) => {
   const link = await RegistrationLink.findOne({ token, isActive: true })
     .populate('subject', 'code title isActive')
     .populate('sections', 'name block subject')
-    .populate('createdBy', 'name email');
+    .populate('createdBy', 'name email isActive');
 
   if (!link) return { error: 'Registration link is invalid or closed' };
   if (link.expiresAt.getTime() <= Date.now()) return { error: 'Registration link has expired' };
+  if (!link.createdBy?.isActive) return { error: 'Registration instructor is inactive or unavailable' };
   if (!link.subject?.isActive) return { error: 'Subject is not accepting registration' };
   return { link };
 };

@@ -1,0 +1,45 @@
+name: QA
+on:
+  push:
+    branches: [dev, main]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  application:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: |
+            back-end/package-lock.json
+            front-end/package-lock.json
+      - run: npm ci
+        working-directory: back-end
+      - run: npm run check
+        working-directory: back-end
+      - run: npm test
+        working-directory: back-end
+      - run: npm audit --omit=dev
+        working-directory: back-end
+      - run: npm ci
+        working-directory: front-end
+      - run: npm run lint
+        working-directory: front-end
+      - run: npm run build
+        working-directory: front-end
+      - run: npm audit --omit=dev
+        working-directory: front-end
+      - run: npx playwright install --with-deps chromium
+        working-directory: front-end
+      - run: npm run test:e2e
+        working-directory: front-end
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: browser-qa-report
+          path: front-end/playwright-report/

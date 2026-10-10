@@ -1,3 +1,4 @@
+import { getApiMessage } from '../../utils/apiError';
 import { useEffect, useState } from 'react';
 import api from '../../services/api';
 import { TableSkeleton } from '../../components/LoadingSkeleton';
@@ -112,20 +113,17 @@ export default function Groups() {
 
 
 
-  const load = () => {
-    setLoading(true);
+  const load = (showLoader = true) => {
+    if (showLoader) setLoading(true);
     api.get('/groups')
       .then((r) => setGroups(r.data))
+      .catch(err => setError(getApiMessage(err, 'Failed to load groups')))
       .finally(() => setLoading(false));
   };
 
   useEffect(() => {
-    setForm({ name: '', section: '' });
-    setEditingGroup(null);
-    setFilterBlock('');
-    setPage(1);
-    load();
-    api.get('/sections').then((r) => setSections(r.data));
+    api.get('/groups').then(r => setGroups(r.data)).catch(err => setError(getApiMessage(err, 'Failed to load groups'))).finally(() => setLoading(false));
+    api.get('/sections').then((r) => setSections(r.data)).catch(err => setError(getApiMessage(err, 'Failed to load blocks')));
   }, [scopeVersion]);
 
   const handleAdd = async (e: React.FormEvent) => {
@@ -147,8 +145,8 @@ export default function Groups() {
       setForm({ name: '', section: '' });
       setMemberRows([emptyMember()]);
       load();
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Error');
+    } catch (err: unknown) {
+      setError(getApiMessage(err, 'Error'));
     }
   };
 
@@ -179,8 +177,8 @@ export default function Groups() {
       await api.put(`/groups/${editingGroup._id}`, { ...editForm, members });
       setEditingGroup(null);
       load();
-    } catch (err: any) {
-      notify(err.response?.data?.message || 'Update failed', { type: 'error' });
+    } catch (err: unknown) {
+      notify(getApiMessage(err, 'Update failed'), { type: 'error' });
     }
   };
 
@@ -263,8 +261,8 @@ export default function Groups() {
         const res = await api.post('/groups/bulk', { groups: data });
         notify(`Import Complete!\nCreated: ${res.data.created}\nSkipped: ${res.data.skipped}`, { type: 'success' });
         load();
-      } catch (err: any) {
-        notify(err.response?.data?.message || 'Error during bulk import', { type: 'error' });
+      } catch (err: unknown) {
+        notify(getApiMessage(err, 'Error during bulk import'), { type: 'error' });
       }
     };
     reader.readAsText(file);

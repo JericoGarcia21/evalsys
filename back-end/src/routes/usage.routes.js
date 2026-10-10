@@ -1,4 +1,4 @@
-const router = require('express').Router();
+const router = require('../utils/asyncRouter')();
 const { getPlatformUsage } = require('../controllers/usage.controller');
 const { protect, superadminOnly } = require('../middleware/auth.middleware');
 const { cacheResponse } = require('../middleware/cache.middleware');

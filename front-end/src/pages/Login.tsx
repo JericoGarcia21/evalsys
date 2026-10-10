@@ -81,15 +81,16 @@ export default function Login() {
 
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
-              <label className="evl-label" htmlFor="login-email">Email</label>
+              <label className="evl-label" htmlFor="login-email">Email or username</label>
               <input
                 id="login-email"
-                type="email"
+                autoComplete="username"
+                type="text"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 className="evl-input"
-                placeholder="you@example.com"
+                placeholder="username or username@evalsys.com"
               />
             </div>
             <PasswordField

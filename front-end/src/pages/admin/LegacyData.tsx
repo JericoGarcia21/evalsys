@@ -1,3 +1,4 @@
+import { useConfirmDialog } from '../../hooks/useConfirmDialog';
 import { useEffect, useState } from 'react';
 import api from '../../services/api';
 import { notify } from '../../utils/notify';
@@ -83,6 +84,8 @@ const normalizeLegacyData = (value: Partial<LegacyDataResponse>): LegacyDataResp
 const csvEscape = (value: unknown) => `"${String(value ?? '').replace(/"/g, '""')}"`;
 
 export default function LegacyData() {
+  const { confirm, ConfirmDialog } = useConfirmDialog();
+  const [repairing, setRepairing] = useState(false);
   const [activeTab, setActiveTab] = useState<'sections' | 'groups' | 'panels' | 'results'>('results');
   const [data, setData] = useState<LegacyDataResponse>({ sections: [], groups: [], panels: [], results: [] });
   const [loading, setLoading] = useState(true);
@@ -107,6 +110,17 @@ export default function LegacyData() {
       .catch((err: unknown) => notify(getErrorMessage(err, 'Failed to load archive'), { type: 'error' }))
       .finally(() => setLoading(false));
   }, []);
+
+  const repairArchive = async () => {
+    if (!(await confirm({ title: 'Archive Old Records?', message: 'Move old and orphaned evaluation records into Archive. Current group results with deleted-panel snapshots stay active.', confirmLabel: 'Archive Records' }))) return;
+    setRepairing(true);
+    try {
+      const result = await api.post('/legacy-data/repair', { confirmText: 'ARCHIVE LEGACY' });
+      notify(result.data.message, { type: 'success' });
+      await load();
+    } catch (error: unknown) { notify(getErrorMessage(error, 'Unable to archive old records'), { type: 'error' }); }
+    finally { setRepairing(false); }
+  };
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
@@ -169,6 +183,8 @@ export default function LegacyData() {
 
   return (
     <div>
+      <ConfirmDialog />
+      <button className="evl-btn-secondary mb-4" onClick={repairArchive} disabled={repairing}>{repairing ? 'Archiving...' : 'Archive Old Records'}</button>
       <div className="mb-6">
         <h2 className="evl-page-title">Archive</h2>
         <p className="evl-page-subtitle">

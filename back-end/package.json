@@ -3,10 +3,11 @@
   "version": "1.0.0",
   "type": "commonjs",
   "scripts": {
-    "dev": "nodemon src/index.js",
+    "dev": "node --watch src/index.js",
     "start": "node src/index.js",
-    "lint": "node --check src/index.js && echo 'Syntax OK'",
-    "check": "node -e \"require('./src/index.js')\" --dry-run 2>&1 || true"
+    "lint": "npm run check",
+    "check": "node scripts/check-syntax.js",
+    "test": "node --test test/*.test.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.107.0",
@@ -20,6 +21,10 @@
     "multer": "^2.1.1"
   },
   "devDependencies": {
-    "nodemon": "^3.1.14"
+    "mongodb-memory-server": "^11.3.0",
+    "supertest": "^7.3.1"
+  },
+  "engines": {
+    "node": ">=20.19.0"
   }
 }

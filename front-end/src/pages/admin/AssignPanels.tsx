@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { getApiMessage } from '../../utils/apiError';
+import { useCallback, useEffect, useState } from 'react';
 import api from '../../services/api';
 import { notify } from '../../utils/notify';
 import { useAuth } from '../../context/useAuth';
@@ -31,7 +32,7 @@ export default function AssignPanels() {
   const [loading, setLoading] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     const pRes = await api.get('/users');
     setPanels(pRes.data.filter((u: PanelUser) => u.role === 'panel' && u.isActive));
 
@@ -44,14 +45,13 @@ export default function AssignPanels() {
     
     const sRes = await api.get('/sections');
     setSections(sRes.data);
-  };
+  }, [isSuperadmin, currentSubjectId]);
 
   useEffect(() => {
-    setSelectedPanel(null);
-    setCheckedBlocks([]);
-    setSuccessMsg('');
-    loadData();
-  }, [scopeVersion]);
+    // Data and selection updates occur after awaited API responses.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    loadData().catch(err => notify(getApiMessage(err, 'Failed to load panel assignments'), { type: 'error' }));
+  }, [scopeVersion, loadData]);
 
   const selectPanel = (panel: PanelUser) => {
     setSelectedPanel(panel);
@@ -80,8 +80,8 @@ export default function AssignPanels() {
       });
       setSuccessMsg(`Assignments updated for ${selectedPanel.name}`);
       await loadData();
-    } catch (err: any) {
-      notify(err.response?.data?.message || 'Error saving assignments', { type: 'error' });
+    } catch (err: unknown) {
+      notify(getApiMessage(err, 'Error saving assignments'), { type: 'error' });
     } finally {
       setLoading(false);
     }

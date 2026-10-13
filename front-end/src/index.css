@@ -217,3 +217,23 @@ body {
     padding: 0.75rem 1rem;
   }
 }
+
+@media (max-width: 640px) {
+  .evl-groups-table thead { display: none; }
+  .evl-groups-table,
+  .evl-groups-table tbody,
+  .evl-groups-table tr,
+  .evl-groups-table td { display: block; width: 100%; }
+  .evl-groups-table td { white-space: normal; max-width: none; overflow-wrap: anywhere; }
+  .evl-groups-table td[data-label]::before {
+    content: attr(data-label);
+    display: block;
+    margin-bottom: 0.25rem;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    color: var(--color-text);
+  }
+  .evl-groups-table .col-actions { width: 100%; text-align: left; white-space: normal; }
+  .evl-groups-table .col-actions > div { justify-content: flex-start; }
+  .evl-groups-table .evl-btn-ghost { min-height: 2.5rem; }
+}

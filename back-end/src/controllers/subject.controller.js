@@ -99,10 +99,14 @@ exports.getSubjects = async (req, res) => {
   let filter = { _id: { $in: req.user.assignedSubjects || [] } };
   if (isSuperadmin(req.user)) {
     const instructorId = req.headers['x-instructor-id'] || req.query.instructor;
-    if (!instructorId) return res.json([]);
-    const instructor = await Admin.findOne({ _id: instructorId, role: 'admin', isActive: true }).select('assignedSubjects');
-    if (!instructor) return res.json([]);
-    filter = { _id: { $in: instructor.assignedSubjects || [] } };
+    if (req.query.scope === 'all') {
+      filter = {};
+    } else {
+      if (!instructorId) return res.json([]);
+      const instructor = await Admin.findOne({ _id: instructorId, role: 'admin', isActive: true }).select('assignedSubjects');
+      if (!instructor) return res.json([]);
+      filter = { _id: { $in: instructor.assignedSubjects || [] } };
+    }
   }
   const pagination = getPagination(req);
   const query = Subject.find(filter).sort({ createdAt: -1 });

@@ -270,7 +270,7 @@ export default function Rubrics() {
       <ConfirmDialog />
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h2 className="evl-page-title">Rubrics</h2>
+          <h2 data-tutorial="rubrics" className="evl-page-title">Rubrics</h2>
           <p className="evl-page-subtitle">Define grading criteria with score levels.</p>
         </div>
         {!showForm ? (

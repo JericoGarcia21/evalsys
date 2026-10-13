@@ -31,7 +31,7 @@ export function useConfirmDialog() {
     if (!options) return null;
 
     return (
-      <div className="fixed inset-0 z-[100] bg-dark/60 backdrop-blur-sm flex items-center justify-center p-4">
+      <div data-app-confirm role="dialog" aria-modal="true" aria-label={options.title} className="fixed inset-0 z-[100] bg-dark/60 backdrop-blur-sm flex items-center justify-center p-4">
         <div className="w-full max-w-md evl-card p-6 shadow-2xl">
           <p className={`text-xs font-black uppercase tracking-widest mb-2 ${options.danger ? 'text-danger' : 'text-primary'}`}>
             Confirm Action

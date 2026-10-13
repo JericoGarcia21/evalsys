@@ -64,7 +64,7 @@ export default function Subjects() {
   const [resetting, setResetting] = useState(false);
 
   const fetchSubjects = () =>
-    api.get('/subjects').then((r) => setSubjects(r.data));
+    api.get('/subjects', { params: isSuperadmin ? { scope: 'all' } : {} }).then((r) => setSubjects(r.data));
 
   const fetchAdmins = () =>
     api.get('/users').then((r) => setAdmins((r.data as UserRow[]).filter((u) => u.role === 'admin')));
@@ -72,7 +72,7 @@ export default function Subjects() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const subRes = await api.get('/subjects');
+        const subRes = await api.get('/subjects', { params: isSuperadmin ? { scope: 'all' } : {} });
         setSubjects(subRes.data);
       } catch {
         // subjects fetch failed; page still renders

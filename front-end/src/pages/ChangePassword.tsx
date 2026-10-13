@@ -94,7 +94,7 @@ export default function ChangePassword() {
           {error && <div className="evl-alert-error">{error}</div>}
 
           <div>
-            <PasswordField label="New Password" value={newPassword} onChange={setNewPassword} autoComplete="new-password" />
+            <PasswordField id="new-password" label="New Password" value={newPassword} onChange={setNewPassword} autoComplete="new-password" />
             <div className="mt-3">
               <div className="h-2 rounded-full bg-muted/30 overflow-hidden">
                 <div
@@ -117,7 +117,7 @@ export default function ChangePassword() {
           </div>
 
           <div>
-            <PasswordField label="Confirm New Password" value={confirmPassword} onChange={setConfirmPassword} autoComplete="new-password" />
+            <PasswordField id="confirm-new-password" label="Confirm New Password" value={confirmPassword} onChange={setConfirmPassword} autoComplete="new-password" />
             {passwordsMatch && (
               <p className="text-[11px] text-success font-semibold mt-2">Passwords match.</p>
             )}

@@ -18,9 +18,27 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+const detectBackendUpdate = (version: unknown) => {
+  if (typeof version !== 'string' || !version) return;
+  const key = 'evalsys_backend_version';
+  try {
+    const previous = localStorage.getItem(key);
+    localStorage.setItem(key, version);
+    if (previous && previous !== version) {
+      window.dispatchEvent(new Event('evalsys:backend-updated'));
+    }
+  } catch {
+    // Storage can be unavailable in restricted browser sessions.
+  }
+};
+
 api.interceptors.response.use(
-  (res) => res,
+  (res) => {
+    detectBackendUpdate(res.headers['x-evalsys-version']);
+    return res;
+  },
   (err) => {
+    detectBackendUpdate(err.response?.headers?.['x-evalsys-version']);
     if (err.response?.status === 503 && err.response?.data?.maintenanceMode) {
       window.dispatchEvent(new CustomEvent('evalsys:maintenance-mode', {
         detail: {

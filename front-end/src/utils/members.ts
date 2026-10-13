@@ -1,3 +1,5 @@
+import { compareNames } from './alphabetical';
+
 export interface StructuredMember {
   lastName: string;
   firstName: string;
@@ -23,4 +25,10 @@ export const memberSearchText = (member: Member) => {
     .filter(Boolean)
     .join(' ')
     .toLowerCase();
+};
+
+export const compareMembers = (a: Member, b: Member) => {
+  const left = typeof a === 'string' ? { lastName: a, firstName: '', middleName: '' } : a;
+  const right = typeof b === 'string' ? { lastName: b, firstName: '', middleName: '' } : b;
+  return compareNames(left.lastName, right.lastName) || compareNames(left.firstName, right.firstName) || compareNames(left.middleName, right.middleName);
 };

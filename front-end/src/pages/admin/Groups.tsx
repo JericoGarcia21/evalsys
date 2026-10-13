@@ -2,7 +2,7 @@ import { getApiMessage } from '../../utils/apiError';
 import { useEffect, useState } from 'react';
 import api from '../../services/api';
 import { TableSkeleton } from '../../components/LoadingSkeleton';
-import { formatMemberList, memberSearchText, type Member, type StructuredMember } from '../../utils/members';
+import { formatMemberList, formatMemberName, memberSearchText, type Member, type StructuredMember } from '../../utils/members';
 import { notify } from '../../utils/notify';
 import { useConfirmDialog } from '../../hooks/useConfirmDialog';
 import { useOperationalScope } from '../../hooks/useOperationalScope';
@@ -292,12 +292,12 @@ export default function Groups() {
   return (
     <div>
       <ConfirmDialog />
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6">
         <div>
           <h2 className="evl-page-title">Groups</h2>
           <p className="evl-page-subtitle">Create groups and add members. Panel judges are managed per block via the Sections page.</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <button onClick={downloadTemplate} className="evl-btn-secondary !text-xs !py-1.5">
             Download Template
           </button>
@@ -391,8 +391,8 @@ export default function Groups() {
       {loading ? (
         <TableSkeleton rows={8} cols={4} />
       ) : (
-        <div className="evl-card overflow-hidden">
-          <table className="evl-table">
+        <div className="evl-card overflow-x-auto">
+          <table data-tutorial="instructor-groups" className="evl-table evl-groups-table">
             <thead>
               <tr>
                 <th>Group</th>
@@ -404,13 +404,24 @@ export default function Groups() {
             <tbody>
               {paginatedGroups.map((g) => (
                 <tr key={g._id}>
-                  <td className="font-semibold text-text">{g.name}</td>
-                  <td className="text-text/70">{g.section?.block}</td>
-                  <td className="text-text/70 text-xs max-w-[200px] truncate">{formatMemberList(g.members) || '—'}</td>
-                  <td className="col-actions">
-                    <div className="flex justify-end gap-1">
+                  <td data-label="Group" className="font-semibold text-text">{g.name}</td>
+                  <td data-label="Block" className="text-text/70">{g.section?.block}</td>
+                  <td data-label="Members" className="text-text/70 text-xs">
+                    {g.members.length > 0 ? (
+                      <details>
+                        <summary className="cursor-pointer whitespace-nowrap font-semibold text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary rounded">
+                          {g.members.length} {g.members.length === 1 ? 'member' : 'members'}
+                        </summary>
+                        <ul className="mt-2 w-40 max-w-full space-y-1 whitespace-normal break-words">
+                          {g.members.map((member, index) => <li key={index}>{formatMemberName(member)}</li>)}
+                        </ul>
+                      </details>
+                    ) : '—'}
+                  </td>
+                  <td data-label="Actions" className="col-actions">
+                    <div className="flex flex-wrap sm:flex-nowrap justify-end gap-2">
                       {g.proposalFile?.path ? (
-                        <a href={`/proposal/${g._id}`} target="_blank" rel="noreferrer" className="evl-btn-ghost text-success border-success/30 hover:bg-success/5 hover:border-success/50">
+                        <a data-tutorial="group-proposal" href={`/proposal/${g._id}`} target="_blank" rel="noreferrer" className="evl-btn-ghost text-success border-success/30 hover:bg-success/5 hover:border-success/50">
                           View Proposal
                         </a>
                       ) : (

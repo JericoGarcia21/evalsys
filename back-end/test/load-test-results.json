@@ -1,0 +1,260 @@
+{
+  "timestamp": "2026-10-13T11:16:07.501Z",
+  "environment": {
+    "platform": "win32",
+    "node": "v24.14.1",
+    "cpu": "AMD Ryzen 5 5600G with Radeon Graphics         ",
+    "logicalCpus": 12,
+    "totalRamGiB": 15.8,
+    "mongoPool": 10
+  },
+  "fixture": {
+    "instructors": 10,
+    "panels": 200,
+    "sections": 40,
+    "groups": 400,
+    "evaluations": 2000
+  },
+  "results": [
+    {
+      "name": "mixed grading (1s between cycles)",
+      "users": 10,
+      "seconds": 16.02,
+      "requests": 519,
+      "errors": 0,
+      "rps": 32.4,
+      "p50Ms": 35,
+      "p95Ms": 75,
+      "p99Ms": 99,
+      "maxMs": 124,
+      "nodeRssMiB": 237,
+      "endpoints": {
+        "group list": {
+          "requests": 126,
+          "errors": 0,
+          "p95Ms": 80
+        },
+        "own evaluation": {
+          "requests": 126,
+          "errors": 0,
+          "p95Ms": 52
+        },
+        "active rubric": {
+          "requests": 126,
+          "errors": 0,
+          "p95Ms": 72
+        },
+        "submit grade": {
+          "requests": 126,
+          "errors": 0,
+          "p95Ms": 91
+        },
+        "section results": {
+          "requests": 15,
+          "errors": 0,
+          "p95Ms": 89
+        }
+      },
+      "errorExamples": []
+    },
+    {
+      "name": "mixed grading (1s between cycles)",
+      "users": 25,
+      "seconds": 16.03,
+      "requests": 1210,
+      "errors": 0,
+      "rps": 75.5,
+      "p50Ms": 59,
+      "p95Ms": 137,
+      "p99Ms": 164,
+      "maxMs": 210,
+      "nodeRssMiB": 270,
+      "endpoints": {
+        "group list": {
+          "requests": 295,
+          "errors": 0,
+          "p95Ms": 144
+        },
+        "own evaluation": {
+          "requests": 295,
+          "errors": 0,
+          "p95Ms": 88
+        },
+        "active rubric": {
+          "requests": 295,
+          "errors": 0,
+          "p95Ms": 137
+        },
+        "submit grade": {
+          "requests": 295,
+          "errors": 0,
+          "p95Ms": 155
+        },
+        "section results": {
+          "requests": 30,
+          "errors": 0,
+          "p95Ms": 143
+        }
+      },
+      "errorExamples": []
+    },
+    {
+      "name": "mixed grading (1s between cycles)",
+      "users": 50,
+      "seconds": 16.19,
+      "requests": 2074,
+      "errors": 0,
+      "rps": 128.1,
+      "p50Ms": 129,
+      "p95Ms": 267,
+      "p99Ms": 338,
+      "maxMs": 461,
+      "nodeRssMiB": 341,
+      "endpoints": {
+        "group list": {
+          "requests": 501,
+          "errors": 0,
+          "p95Ms": 276
+        },
+        "own evaluation": {
+          "requests": 501,
+          "errors": 0,
+          "p95Ms": 164
+        },
+        "active rubric": {
+          "requests": 501,
+          "errors": 0,
+          "p95Ms": 252
+        },
+        "section results": {
+          "requests": 70,
+          "errors": 0,
+          "p95Ms": 308
+        },
+        "submit grade": {
+          "requests": 501,
+          "errors": 0,
+          "p95Ms": 285
+        }
+      },
+      "errorExamples": []
+    },
+    {
+      "name": "mixed grading (1s between cycles)",
+      "users": 100,
+      "seconds": 16.59,
+      "requests": 3306,
+      "errors": 0,
+      "rps": 199.3,
+      "p50Ms": 265,
+      "p95Ms": 467,
+      "p99Ms": 553,
+      "maxMs": 642,
+      "nodeRssMiB": 402,
+      "endpoints": {
+        "group list": {
+          "requests": 794,
+          "errors": 0,
+          "p95Ms": 471
+        },
+        "own evaluation": {
+          "requests": 794,
+          "errors": 0,
+          "p95Ms": 282
+        },
+        "active rubric": {
+          "requests": 794,
+          "errors": 0,
+          "p95Ms": 454
+        },
+        "section results": {
+          "requests": 130,
+          "errors": 0,
+          "p95Ms": 498
+        },
+        "submit grade": {
+          "requests": 794,
+          "errors": 0,
+          "p95Ms": 535
+        }
+      },
+      "errorExamples": []
+    },
+    {
+      "name": "mixed grading (1s between cycles)",
+      "users": 200,
+      "seconds": 17.09,
+      "requests": 4145,
+      "errors": 0,
+      "rps": 242.6,
+      "p50Ms": 654,
+      "p95Ms": 1005,
+      "p99Ms": 1158,
+      "maxMs": 1403,
+      "nodeRssMiB": 454,
+      "endpoints": {
+        "group list": {
+          "requests": 986,
+          "errors": 0,
+          "p95Ms": 1015
+        },
+        "own evaluation": {
+          "requests": 986,
+          "errors": 0,
+          "p95Ms": 611
+        },
+        "section results": {
+          "requests": 201,
+          "errors": 0,
+          "p95Ms": 938
+        },
+        "active rubric": {
+          "requests": 986,
+          "errors": 0,
+          "p95Ms": 955
+        },
+        "submit grade": {
+          "requests": 986,
+          "errors": 0,
+          "p95Ms": 1115
+        }
+      },
+      "errorExamples": []
+    },
+    {
+      "name": "simultaneous grade submissions",
+      "users": 200,
+      "seconds": 0.94,
+      "requests": 200,
+      "errors": 0,
+      "rps": 212,
+      "p50Ms": 905,
+      "p95Ms": 932,
+      "p99Ms": 934,
+      "maxMs": 935,
+      "nodeRssMiB": 456,
+      "endpoints": {
+        "submit grade": {
+          "requests": 200,
+          "errors": 0,
+          "p95Ms": 932
+        }
+      },
+      "errorExamples": []
+    }
+  ],
+  "integrity": {
+    "successfulUniqueWrites": 1490,
+    "verifiedSavedWrites": 1490,
+    "missing": 0,
+    "duplicates": 0,
+    "invalid": 0,
+    "evaluationCount": 2000
+  },
+  "limitations": [
+    "Local API, local MongoDB and load generator share one computer/process; not a Render/Atlas capacity benchmark.",
+    "Short 15-second stages; not a sustained soak test or browser-rendering test.",
+    "Preauthenticated users; login spikes, uploads, exports and production network latency are excluded.",
+    "Each panel sends 4 requests per grading cycle with a 1-second pause; 10% of simulated users view instructor results."
+  ]
+}

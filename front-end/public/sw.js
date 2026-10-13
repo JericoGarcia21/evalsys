@@ -1,4 +1,4 @@
-const CACHE_NAME = 'evalsys-pwa-v2';
+const CACHE_NAME = 'evalsys-pwa-__BUILD_VERSION__';
 const APP_SHELL = [
   '/index.html',
   '/favicon.svg',
@@ -10,7 +10,6 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => cache.addAll(APP_SHELL))
-      .then(() => self.skipWaiting())
   );
 });
 
@@ -19,7 +18,7 @@ self.addEventListener('activate', (event) => {
     caches.keys()
       .then((keys) => Promise.all(
         keys
-          .filter((key) => key !== CACHE_NAME)
+          .filter((key) => key.startsWith('evalsys-pwa-') && key !== CACHE_NAME)
           .map((key) => caches.delete(key))
       ))
       .then(() => self.clients.claim())

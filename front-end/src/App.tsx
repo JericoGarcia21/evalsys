@@ -28,6 +28,7 @@ import SystemNotice from './components/SystemNotice';
 import ChangePassword from './pages/ChangePassword';
 import AccountSecurity from './pages/AccountSecurity';
 import ProposalViewer from './pages/ProposalViewer';
+import TutorialProvider from './tutorial/TutorialProvider';
 
 // Handles router-aware redirect when the API interceptor fires evalsys:unauthorized.
 // Must live inside BrowserRouter so useNavigate is available.
@@ -49,6 +50,7 @@ export default function App() {
       <InstallAppNotice />
       <SystemNotice />
       <BrowserRouter>
+        <TutorialProvider>
         <AuthGuard />
         <Routes>
           <Route path="/" element={<Landing />} />
@@ -81,6 +83,7 @@ export default function App() {
 
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
+        </TutorialProvider>
       </BrowserRouter>
     </AuthProvider>
   );

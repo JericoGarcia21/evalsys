@@ -13,6 +13,16 @@ interface Subject { _id: string; code: string; title: string; }
 const currentSubjectKey = 'evalsys_current_subject_id';
 const groupNameCacheKey = 'grading_group_names';
 const groupStatusCacheKey = (panelId: string) => `grading_group_status_${panelId}`;
+const compactSubjectTitle = (title: string) => {
+  const name = title.trim();
+  if (name.length <= 32) return name;
+  const initials = (name.match(/[\p{L}\p{N}]+/gu) || [])
+    .map((word) => [...word][0])
+    .join('')
+    .toLocaleUpperCase('en');
+  return initials || name;
+};
+
 const getRefId = (value: string | { _id?: string } | undefined | null) => (
   typeof value === 'string' ? value : value?._id || ''
 );
@@ -110,7 +120,7 @@ function AdminDashboard({ name, role, userId }: { name: string; role: 'admin' | 
     <div>
       <div className="mb-8 grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_auto] gap-4 xl:items-start">
         <div className="min-w-0">
-          <h2 className="evl-page-title">Welcome back, {name}</h2>
+          <h2 data-tutorial="dashboard-welcome" className="evl-page-title">Welcome back, {name}</h2>
           <p className="evl-page-subtitle">
             {role === 'superadmin'
               ? 'Manage the selected instructor subjects, blocks, groups, panels, and results.'
@@ -121,14 +131,14 @@ function AdminDashboard({ name, role, userId }: { name: string; role: 'admin' | 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 xl:w-[620px]">
           {currentSubject && (
             <div className="evl-card min-h-[64px] px-4 py-3 flex items-center gap-3 bg-primary/5 border-primary/20 overflow-hidden">
-              <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center text-primary text-xs font-black shrink-0">
-                {currentSubject.code}
+              <div className="min-w-9 max-w-[45%] h-9 px-2.5 rounded-lg bg-primary/10 flex items-center justify-center text-primary text-xs font-black shrink-0">
+                <span className="truncate" title={currentSubject.code}>{currentSubject.code}</span>
               </div>
               <div className="min-w-0 flex-1">
                 <span className="block text-[10px] font-bold uppercase tracking-widest text-text/65">Current Subject</span>
-                <span className="block text-sm font-extrabold text-text truncate" title={currentSubject.title}>
-                  {currentSubject.title}
-                </span>
+                <abbr className="block text-sm font-extrabold text-text truncate no-underline cursor-help leading-snug" title={currentSubject.title} aria-label={currentSubject.title}>
+                  {compactSubjectTitle(currentSubject.title)}
+                </abbr>
               </div>
             </div>
           )}
@@ -251,7 +261,7 @@ function PanelDashboard({ name, panelId }: { name: string; panelId: string }) {
     <div>
       <div className="mb-8 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
         <div>
-          <h2 className="evl-page-title">Welcome back, {name}</h2>
+          <h2 data-tutorial="dashboard-welcome" className="evl-page-title">Welcome back, {name}</h2>
           <p className="evl-page-subtitle">
             Select a block below and grade the groups assigned to you.
           </p>

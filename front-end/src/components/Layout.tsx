@@ -3,6 +3,7 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/useAuth';
 import api from '../services/api';
 import { useConfirmDialog } from '../hooks/useConfirmDialog';
+import TutorialLauncher from '../tutorial/TutorialLauncher';
 import {
   currentInstructorKey,
   currentSubjectKey,
@@ -321,6 +322,8 @@ export default function Layout({ children }: { children: ReactNode }) {
           <h1 className="text-white font-bold text-sm">EvalSys</h1>
         </div>
         <button 
+          data-tutorial="mobile-menu"
+          aria-label="Toggle navigation menu"
           onClick={() => setMobileOpen(!mobileOpen)}
           className="w-10 h-10 flex items-center justify-center text-white text-2xl"
         >
@@ -371,7 +374,7 @@ export default function Layout({ children }: { children: ReactNode }) {
         </div>
 
         {/* Navigation */}
-        <nav className="flex flex-col gap-1 flex-1 px-3 py-4 overflow-y-auto">
+        <nav data-tutorial="navigation" className="flex flex-col gap-1 flex-1 px-3 py-4 overflow-y-auto">
           {(user?.role === 'admin' || user?.role === 'superadmin') && (!collapsed || mobileOpen) && (
             <div className="mb-4 px-1 pb-4 border-b border-white/10">
               {user?.role === 'superadmin' && (
@@ -399,6 +402,7 @@ export default function Layout({ children }: { children: ReactNode }) {
               <div className="relative">
                 <button
                   type="button"
+                  data-tutorial="subject-switcher"
                   onClick={() => setSubjectMenuOpen((open) => !open)}
                   className="w-full min-h-10 rounded-lg bg-white/[0.07] border border-white/10 text-white text-left px-3 py-2 outline-none hover:bg-white/10 focus:ring-2 focus:ring-primary/40 transition-colors"
                   title={currentSubject ? `${currentSubject.code} - ${currentSubject.title}` : 'Select subject'}
@@ -523,6 +527,7 @@ export default function Layout({ children }: { children: ReactNode }) {
           key={`${currentInstructorId || 'self'}:${currentSubjectId || 'none'}`}
           className="px-4 py-6 sm:px-6 lg:px-10 lg:py-8 2xl:px-14"
         >
+          <div className="flex justify-end mb-4"><TutorialLauncher /></div>
           {children}
         </div>
       </main>

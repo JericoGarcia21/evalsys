@@ -101,7 +101,7 @@ export default function AssignPanels() {
   return (
     <div>
       <div className="mb-6">
-        <h2 className="evl-page-title">Assign Panels to Blocks</h2>
+        <h2 data-tutorial="assign-panels" className="evl-page-title">Assign Panels to Blocks</h2>
         <p className="evl-page-subtitle">Select a panel judge to manage which blocks they are assigned to.</p>
       </div>
 

@@ -7,6 +7,7 @@ const Admin = require('../models/Admin');
 const Subject = require('../models/Subject');
 const RegistrationLink = require('../models/RegistrationLink');
 const { recordAuditLog } = require('../services/audit.service');
+const { compareNames, compareMembers } = require('../utils/alphabetical');
 
 const getSubjectId = (req) => req.headers['x-subject-id'] || req.query.subject || req.body.subject;
 const getOwnerId = (req) => req.user?.role === 'superadmin'
@@ -551,7 +552,7 @@ exports.exportAllResults = async (req, res) => {
     return {
       Section: row.block,
       GroupName: group.name,
-      Members: formatMemberList(group.members),
+      Members: formatMemberList([...(group.members || [])].sort(compareMembers)),
       AverageScore: isIncomplete ? 'Pending Complete Evaluation' : avgScore,
       EvaluatedBy: panelNames.join(', '),
       MissingPanels: missingPanels.join(', '),
@@ -559,6 +560,8 @@ exports.exportAllResults = async (req, res) => {
       Comments: evaluations.map((ev) => ev.comments).filter(Boolean).join(' | '),
     };
   });
+
+  allResults.sort((a, b) => compareNames(a.GroupName, b.GroupName) || compareNames(a.Section, b.Section));
 
   await recordAuditLog(req, {
     action: 'results.export',

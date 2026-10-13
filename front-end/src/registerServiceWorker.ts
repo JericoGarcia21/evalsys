@@ -17,14 +17,15 @@ export const registerServiceWorker = () => {
   if (!import.meta.env.PROD) return;
 
   let refreshing = false;
+  const hadController = Boolean(navigator.serviceWorker.controller);
   navigator.serviceWorker.addEventListener('controllerchange', () => {
-    if (refreshing) return;
+    if (refreshing || !hadController) return;
     refreshing = true;
     window.location.reload();
   });
 
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js')
+    navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' })
       .then((registration) => {
         if (registration.waiting) notifyUpdateAvailable(registration);
 
@@ -38,10 +39,16 @@ export const registerServiceWorker = () => {
           });
         });
 
-        registration.update().catch(() => undefined);
+        const checkForUpdate = () => {
+          if (registration.waiting) notifyUpdateAvailable(registration);
+          registration.update().catch(() => undefined);
+        };
+        checkForUpdate();
+        window.addEventListener('evalsys:backend-updated', checkForUpdate);
+        window.addEventListener('online', checkForUpdate);
         document.addEventListener('visibilitychange', () => {
           if (document.visibilityState === 'visible') {
-            registration.update().catch(() => undefined);
+            checkForUpdate();
           }
         });
       })

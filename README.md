@@ -275,7 +275,7 @@ Open http://localhost:5173. The API defaults to http://localhost:5000. Keep your
 
 Before committing, run `npm run check` in `back-end` and `npm run build` in `front-end`. The backend check validates syntax without starting the server or connecting to the database.
 
-The extra `frontend/` folder, empty root `index.php`, and local backend helper scripts are preserved local files. They are not needed to start the React/Express application. Inspect them before staging; avoid `git add .` while unrelated files remain untracked.
+The unused `frontend/` implementation was removed; `front-end/` is the active React application. The empty root `index.php` and local backend helper scripts are preserved local files. They are not needed to start the React/Express application. Inspect them before staging; avoid `git add .` while unrelated files remain untracked.
 
 ## Repeatable QA
 
@@ -288,3 +288,9 @@ API tests and browser tests create temporary local MongoDB databases and synthet
 See [QA_RESULTS.md](QA_RESULTS.md) for coverage, fixes, and remaining limits. GitHub Actions repeats the checks on dev/main pushes and pull requests once these changes are committed and pushed.
 
 The superadmin global system reset is an exception to result preservation: it deliberately deletes active data and archived results after explicit confirmation. Export a backup first. Opening Archive is read-only; migrating old unowned records requires the explicit Archive Old Records action and ARCHIVE LEGACY confirmation.
+
+### Interactive tutorials
+
+Instructor and Panel users receive a guided-tour invitation on their first dashboard visit after completing any required temporary-password change. Students receive their guide when a valid instructor registration link loads. Use **Start tutorial** to replay. The walkthrough uses real controls, highlights and CSS animations; it never submits registrations or evaluations. Completion is remembered per account/role on this browser; anonymous registration completion is per browser. See [tutorial maintenance instructions](front-end/src/tutorial/README.md) for step configuration, accessible interaction and isolated browser tests.
+
+Score exports use case-insensitive A–Z ordering: member grades by Last Name, First Name, then Middle Name; group summaries, all-results backups and archived results by group name. Group-name numbers use natural order (Group 2 before Group 10). Members listed within exported groups are sorted by name too. Legacy full-name-only members sort by their saved name. Sorting changes export row order only; saved scores and member records are preserved.

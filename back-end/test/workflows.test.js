@@ -321,3 +321,91 @@ test('explicit archive migration requires confirmation and preserves current del
   await api('post', '/api/legacy-data/repair', superadmin).send({ confirmText: 'ARCHIVE LEGACY' }).expect(200);
   assert.equal(await Evaluation.countDocuments({ isLegacyArchived: true }), 1);
 });
+
+test('superadmin can recover subjects after their instructor is deleted', async () => {
+  await Subject.updateOne({ _id: subject._id }, { createdBy: instructor._id });
+  await api('delete', '/api/users/' + instructor._id, superadmin).expect(200);
+  const subjects = await api('get', '/api/subjects?scope=all', superadmin).expect(200);
+  assert.ok(subjects.body.some(item => item._id === subject._id.toString()));
+  const scoped = await api('get', '/api/subjects', superadmin).expect(200);
+  assert.deepEqual(scoped.body, []);
+  await Admin.updateOne({ _id: otherInstructor._id }, { subjectLimit: 2 });
+  await api('put', '/api/subjects/' + subject._id + '/admins', superadmin)
+    .send({ adminIds: [otherInstructor._id.toString()] }).expect(200);
+  const assigned = await api('get', '/api/subjects', otherInstructor).expect(200);
+  assert.ok(assigned.body.some(item => item._id === subject._id.toString()));
+  await api('delete', '/api/subjects/' + subject._id, superadmin)
+    .send({ confirmText: 'DELETE QA101' }).expect(200);
+  assert.equal(await Subject.findById(subject._id), null);
+});
+
+test('all-subject management scope does not expose other subjects to instructors', async () => {
+  const response = await api('get', '/api/subjects?scope=all').expect(200);
+  assert.deepEqual(response.body.map(item => item._id), [subject._id.toString()]);
+});
+
+test('panel grades assigned groups across instructor subjects with separate rubrics and scores', async () => {
+  await Admin.updateOne({ _id: instructor._id }, { $addToSet: { assignedSubjects: otherSubject._id } });
+  const secondSection = await Section.create({ name: 'Second block', block: 'QA-B', subject: otherSubject._id, createdBy: instructor._id, assignedPanels: [panel._id] });
+  const secondGroup = await Group.create({ name: 'Second group', section: secondSection._id, createdBy: instructor._id, members: [] });
+  const secondRubric = await Rubric.create({ title: 'Second subject rubric', subject: otherSubject._id, createdBy: instructor._id, criteria: [{ key: 'presentation', label: 'Presentation', maxScore: 20, levels: [{ label: 'Score', minScore: 0, maxScore: 20 }] }] });
+  const groups = await api('get', '/api/groups', panel).expect(200);
+  assert.ok(groups.body.some(item => item._id === group._id.toString()));
+  assert.ok(groups.body.some(item => item._id === secondGroup._id.toString()));
+  const sections = await api('get', '/api/sections', panel).expect(200);
+  assert.ok(sections.body.some(item => item._id === secondSection._id.toString()));
+  const active = await api('get', '/api/rubrics/active?subject=' + otherSubject._id, panel)
+    .set('x-subject-id', otherSubject._id.toString()).expect(200);
+  assert.equal(active.body._id, secondRubric._id.toString());
+  await submit(panel, { quality: 8 }).expect(200);
+  await api('post', '/api/evaluations/group/' + secondGroup._id, panel)
+    .set('x-subject-id', otherSubject._id.toString())
+    .send({ rubricId: secondRubric._id.toString(), scores: { presentation: 18 } }).expect(200);
+  await api('post', '/api/evaluations/group/' + secondGroup._id, panel)
+    .send({ rubricId: rubric._id.toString(), scores: { quality: 9 } }).expect(400);
+  const first = await Evaluation.findOne({ group: group._id, panel: panel._id });
+  const second = await Evaluation.findOne({ group: secondGroup._id, panel: panel._id });
+  assert.equal(first.total, 8);
+  assert.equal(first.subject.toString(), subject._id.toString());
+  assert.equal(second.total, 18);
+  assert.equal(second.subject.toString(), otherSubject._id.toString());
+});
+
+
+test('score exports sort groups and members A-Z while keeping scores intact', async () => {
+  group.name = 'Zeta group';
+  await group.save();
+  const memberList = [
+    { lastName: 'zulu', firstName: 'Zed' },
+    { lastName: 'Ábel', firstName: 'Ada' },
+    { lastName: 'beta', firstName: 'Ben' },
+  ];
+  const extraGroups = await Group.create([
+    { name: 'Group 10', section: section._id, createdBy: instructor._id, members: memberList },
+    { name: ' beta group ', section: section._id, createdBy: instructor._id, members: memberList },
+    { name: 'Álpha group', section: section._id, createdBy: instructor._id, members: memberList },
+    { name: 'Group 2', section: section._id, createdBy: instructor._id, members: memberList },
+  ]);
+  const allGroups = [group, ...extraGroups];
+  for (const [index, item] of allGroups.entries()) {
+    await Evaluation.insertMany([panel, secondPanel].map(person => ({ group: item._id, panel: person._id, rubric: rubric._id, subject: subject._id, scores: { quality: index + 3 }, total: index + 3, isSubmitted: true })));
+  }
+  const expectedNames = ['Álpha group', 'beta group', 'Group 2', 'Group 10', 'Zeta group'];
+  const exported = await api('get', '/api/evaluations/export-all').expect(200);
+  assert.deepEqual(exported.body.map(row => row.GroupName), expectedNames);
+  const expectedScores = new Map(allGroups.map((item, index) => [item.name, index + 3]));
+  exported.body.forEach(row => assert.equal(row.AverageScore, expectedScores.get(row.GroupName)));
+  assert.equal(exported.body[0].Members, 'Ada Ábel; Ben beta; Zed zulu');
+  const stored = await Group.findById(extraGroups[0]._id);
+  assert.deepEqual(stored.members.map(member => member.lastName), ['zulu', 'Ábel', 'beta']);
+  const queued = await api('get', '/api/evaluations/export-all?background=true').expect(202);
+  let status;
+  for (let attempt = 0; attempt < 100; attempt++) {
+    status = await api('get', '/api/jobs/' + queued.body.job.id).expect(200);
+    if (status.body.status === 'completed') break;
+    await new Promise(resolve => setTimeout(resolve, 20));
+  }
+  assert.equal(status.body.status, 'completed');
+  const completed = await api('get', '/api/jobs/' + queued.body.job.id + '/result').expect(200);
+  assert.deepEqual(completed.body.result.map(row => row.GroupName), expectedNames);
+});

@@ -73,7 +73,14 @@ const isPrivateDevelopmentOrigin = (origin) => {
   }
 };
 
+const backendVersion = process.env.RENDER_GIT_COMMIT || '';
+app.use((_req, res, next) => {
+  if (backendVersion) res.set('X-EvalSys-Version', backendVersion);
+  next();
+});
+
 app.use(cors({
+  exposedHeaders: ['X-EvalSys-Version'],
   origin(origin, callback) {
     if (!origin) return callback(null, true);
     const normalizedOrigin = origin.replace(/\/$/, '');

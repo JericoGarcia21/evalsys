@@ -34,7 +34,7 @@ async function start() {
   await Rubric.create(subjects.map(subject => ({ title: 'QA Rubric', subject: subject._id, createdBy: instructor._id, criteria: [{ key: 'quality', label: 'Quality', maxScore: 10, levels: [{ label: 'Score', minScore: 0, maxScore: 10 }] }] })));
   await RegistrationLink.create({ token: 'qa-browser-registration', subject: subjects[0]._id, sections: [sections[0]._id], createdBy: instructor._id, expiresAt: new Date(Date.now() + 3600000) });
   await Settings.create({});
-  server = app.listen(5101, '127.0.0.1', () => console.log('Isolated browser QA API ready'));
+  server = app.listen(Number(process.env.QA_API_PORT || 5101), '127.0.0.1', () => console.log('Isolated browser QA API ready'));
 }
 async function stop() {
   if (server) await new Promise(resolve => server.close(resolve));

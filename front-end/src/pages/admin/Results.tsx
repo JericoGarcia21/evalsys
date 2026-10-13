@@ -2,9 +2,10 @@ import { notify } from '../../utils/notify';
 import { useEffect, useMemo, useState } from 'react';
 import api from '../../services/api';
 import { TableSkeleton } from '../../components/LoadingSkeleton';
-import { formatMemberList, type Member, type StructuredMember } from '../../utils/members';
+import { compareMembers, formatMemberList, type Member, type StructuredMember } from '../../utils/members';
 import { useAuth } from '../../context/useAuth';
 import { useOperationalScope } from '../../hooks/useOperationalScope';
+import { compareNames } from '../../utils/alphabetical';
 
 interface Section { _id: string; name: string; block: string; }
 interface EvaluationRecord { _id: string; panelId: string; panelName: string; }
@@ -175,10 +176,10 @@ export default function Results() {
     if (!selected || !results.length) return;
 
     const headers = ['Block', 'Group', 'Members', 'Group Score', 'Evaluated By', 'Missing Panels', 'Comments'];
-    const rows = results.map((r) => [
+    const rows = [...results].sort((a, b) => compareNames(a.group.name, b.group.name)).map((r) => [
       selected.block,
       r.group.name,
-      formatMemberList(r.group.members, '; '),
+      formatMemberList([...r.group.members].sort(compareMembers), '; '),
       getGroupScore(r),
       r.evaluatedBy?.join('; ') ?? '',
       r.missingPanels?.join('; ') ?? '',
@@ -203,9 +204,10 @@ export default function Results() {
         };
       }))
       .sort((a, b) => (
-        a.lastName.localeCompare(b.lastName) ||
-        a.firstName.localeCompare(b.firstName) ||
-        a.middleName.localeCompare(b.middleName)
+        compareNames(a.lastName, b.lastName) ||
+        compareNames(a.firstName, b.firstName) ||
+        compareNames(a.middleName, b.middleName) ||
+        compareNames(a.group, b.group)
       ))
       .map((row) => [
         row.block,
@@ -227,7 +229,7 @@ export default function Results() {
       </div>
 
       {/* Section selector */}
-      <div className="flex gap-2 overflow-x-auto sm:flex-wrap mb-6 pb-1 -mx-1 px-1">
+      <div data-tutorial="results-blocks" className="flex gap-2 overflow-x-auto sm:flex-wrap mb-6 pb-1 -mx-1 px-1">
         {loadingSections ? (
           Array(4).fill(0).map((_, i) => (
             <div key={i} className="w-24 h-10 rounded-lg bg-surface border border-muted/40 animate-pulse" />

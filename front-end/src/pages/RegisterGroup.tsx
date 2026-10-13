@@ -4,6 +4,7 @@ import { Link, useParams, useSearchParams } from 'react-router-dom';
 import api from '../services/api';
 import { formatMemberName, type StructuredMember } from '../utils/members';
 import { useConfirmDialog } from '../hooks/useConfirmDialog';
+import TutorialLauncher from '../tutorial/TutorialLauncher';
 
 interface Subject { _id: string; code: string; title: string; }
 interface Section { _id: string; name: string; block: string; subject?: string | Subject; }
@@ -192,9 +193,11 @@ export default function RegisterGroup() {
           <div className="w-12 h-12 rounded-xl bg-primary flex items-center justify-center text-white text-xl font-extrabold mx-auto mb-4 shadow-lg shadow-primary/20">
             E
           </div>
-          <h1 className="text-3xl md:text-4xl font-black text-text tracking-tight mb-2">Group Registration</h1>
+          <h1 data-tutorial="registration-intro" className="text-3xl md:text-4xl font-black text-text tracking-tight mb-2">Group Registration</h1>
           <p className="text-text/65 text-sm font-medium">EvalSys · Automated Rubric Evaluation System</p>
         </div>
+
+        <div className="flex justify-center mb-4"><TutorialLauncher /></div>
 
         {/* Instructions Card */}
         <div className="evl-card p-5 mb-6 bg-primary/[0.03] border-primary/10">
@@ -233,7 +236,7 @@ export default function RegisterGroup() {
             </div>
           )}
 
-          <form onSubmit={handleSubmit}>
+          <form data-tutorial="registration-form" data-ready={!isWakingUp && !registrationClosed ? 'true' : 'false'} onSubmit={handleSubmit}>
             {/* Row 1: Name + Subject + Block */}
             <div className="p-6 md:p-8 border-b border-muted/30">
               <div className="mb-5">
@@ -246,6 +249,7 @@ export default function RegisterGroup() {
                   Group Name / Student Name
                 </label>
                 <input 
+                  data-tutorial="registration-name"
                   value={form.name} 
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
                   required
@@ -257,6 +261,7 @@ export default function RegisterGroup() {
               <div>
                 <label className="evl-label block mb-1.5">Subject</label>
                 <select
+                  data-tutorial="registration-subject"
                   value={form.subject}
                   onChange={(e) => setForm({ ...form, subject: e.target.value, section: '' })}
                   required
@@ -273,6 +278,7 @@ export default function RegisterGroup() {
               <div>
                 <label className="evl-label block mb-1.5">Assigned Block</label>
                 <select 
+                  data-tutorial="registration-block"
                   value={form.section} 
                   onChange={(e) => setForm({ ...form, section: e.target.value })}
                   required
@@ -289,7 +295,7 @@ export default function RegisterGroup() {
             </div>
 
             {/* Row 2: Members */}
-            <div className="p-6 md:p-8 border-b border-muted/30 bg-bg/40">
+            <div data-tutorial="registration-members" className="p-6 md:p-8 border-b border-muted/30 bg-bg/40">
               <div className="flex items-center justify-between gap-3 mb-3">
                 <div>
                   <p className="text-[10px] font-black text-primary uppercase tracking-widest mb-1">Members</p>
@@ -355,7 +361,7 @@ export default function RegisterGroup() {
               <p className="text-[10px] text-text/60 mt-3 font-medium">Last Name and First Name are required. Middle Name is optional.</p>
             </div>
 
-            <div className="p-6 md:p-8 border-b border-muted/30">
+            <div data-tutorial="registration-document" className="p-6 md:p-8 border-b border-muted/30">
               <div className="mb-4">
                 <p className="text-[10px] font-black text-primary uppercase tracking-widest mb-1">Project Document</p>
                 <h2 className="text-lg font-extrabold text-text">Upload a proposal or project document if required.</h2>
@@ -399,7 +405,7 @@ export default function RegisterGroup() {
 
             <div className="p-6 md:p-8">
               <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_280px] gap-5 items-start">
-                <div className="bg-bg/60 p-4 rounded-xl border border-muted/20">
+                <div data-tutorial="registration-consent" className="bg-bg/60 p-4 rounded-xl border border-muted/20">
                   <label className="flex items-start gap-3 cursor-pointer select-none">
                     <input 
                       type="checkbox" 
@@ -415,6 +421,7 @@ export default function RegisterGroup() {
                 </div>
 
                 <button 
+                  data-tutorial="registration-submit"
                   type="submit" 
                   disabled={loading || !agreedToPrivacy}
                   className={`evl-btn-primary w-full py-4 text-base shadow-lg transition-all ${

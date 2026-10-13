@@ -159,7 +159,7 @@ export default function RegistrationLinks() {
       <div className="grid grid-cols-1 xl:grid-cols-[420px_minmax(0,1fr)] gap-6">
         <div className="evl-card p-6 h-fit">
           <h3 className="text-text font-bold text-sm mb-4">Create Link</h3>
-          <form onSubmit={handleCreate} className="space-y-5">
+          <form data-tutorial="registration-link-form" onSubmit={handleCreate} className="space-y-5">
             <div>
               <label className="evl-label">Subject</label>
               <div className="evl-input flex items-center bg-bg/60 font-semibold text-text">

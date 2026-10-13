@@ -247,7 +247,10 @@ export default function Grade() {
       setLoadingRubrics(true);
       const [res, rubricRes] = await Promise.all([
         api.get(`/evaluations/group/${group._id}/mine`),
-        api.get('/rubrics/active', { params: { subject: subjectId } }),
+        api.get('/rubrics/active', {
+          params: { subject: subjectId },
+          headers: { 'x-subject-id': subjectId },
+        }),
       ]);
       if (requestId !== evaluationRequestIdRef.current) return;
       const active = rubricRes.data as Rubric;
@@ -295,28 +298,27 @@ export default function Grade() {
   const onInitialGroup = useEffectEvent((group: Group) => { void selectGroup(group); });
 
   useEffect(() => {
-    api.get('/sections').then((r) => {
-      setSections(r.data);
-      if (r.data.length > 0) {
-        setSelectedSidebarSectionId(r.data[0]._id);
+    let cancelled = false;
+    void Promise.allSettled([api.get('/sections'), api.get('/groups')]).then(([sectionResult, groupResult]) => {
+      if (cancelled) return;
+      const loadedSections = sectionResult.status === 'fulfilled' ? sectionResult.value.data as Section[] : [];
+      if (sectionResult.status === 'fulfilled') setSections(loadedSections);
+      else setError(getApiMessage(sectionResult.reason, 'Failed to load assigned blocks'));
+      if (groupResult.status === 'fulfilled') {
+        const loadedGroups = groupResult.value.data as Group[];
+        setGroups(loadedGroups);
+        cacheGroupStatus(loadedGroups);
+        const initialGroupId = urlGroupId || localStorage.getItem(lastSelectedGroupKey(panelId));
+        const found = loadedGroups.find(group => group._id === initialGroupId);
+        setSelectedSidebarSectionId(found?.section?._id || loadedSections[0]?._id || '');
+        if (found) onInitialGroup(found);
+      } else {
+        setSelectedSidebarSectionId(loadedSections[0]?._id || '');
+        setError(getApiMessage(groupResult.reason, 'Failed to load assigned groups'));
       }
-    }).catch(err => setError(getApiMessage(err, 'Failed to load assigned blocks')));
-
-    api.get('/groups').then((r) => {
-      setGroups(r.data);
-      cacheGroupStatus(r.data);
-      const initialGroupId = urlGroupId || localStorage.getItem(lastSelectedGroupKey(panelId));
-      if (initialGroupId) {
-        const found = r.data.find((g: Group) => g._id === initialGroupId);
-        if (found) {
-          onInitialGroup(found);
-          const sId = typeof found.section === 'string' ? found.section : found.section?._id;
-          if (sId) setSelectedSidebarSectionId(sId);
-        }
-      }
-    }).catch(err => setError(getApiMessage(err, 'Failed to load assigned groups')))
-      .finally(() => setLoadingSidebar(false));
-
+      setLoadingSidebar(false);
+    });
+    return () => { cancelled = true; };
   }, [panelId, urlGroupId, cacheGroupStatus]);
 
   // Re-initialize scores when group or rubric changes
@@ -403,7 +405,7 @@ export default function Grade() {
         scores,
         rubricId: selectedRubricId,
         comments
-      });
+      }, { headers: { 'x-subject-id': selectedSubjectId } });
       setSuccess('Scores and feedback submitted successfully.');
       const res = await api.get(`/evaluations/group/${selectedGroup!._id}/mine`);
       setExisting(res.data);
@@ -527,6 +529,34 @@ export default function Grade() {
   //   printWindow.document.close();
   // };
 
+  const sidebarSubjectId = getRefId(sections.find((section) => section._id === selectedSidebarSectionId)?.subject);
+  const assignedSubjects = Array.from(new Map(sections.map((section) => [
+    getRefId(section.subject),
+    { id: getRefId(section.subject), label: getSubjectLabel(section) },
+  ])).values());
+  const visibleSections = sections.filter((section) => getRefId(section.subject) === sidebarSubjectId);
+
+  const switchSidebarSection = async (sectionId: string) => {
+    if (sectionId === selectedSidebarSectionId) return;
+    if (!(await confirmContinueWithDraft())) return;
+    evaluationRequestIdRef.current += 1;
+    skipAutosaveRef.current = true;
+    setSelectedSidebarSectionId(sectionId);
+    setSelectedGroup(null);
+    localStorage.removeItem(lastSelectedGroupKey(panelId));
+    setExisting(null);
+    setRubrics([]);
+    setSelectedRubricId('');
+    setScores({});
+    setComments('');
+    setMissingCriteria([]);
+    setDraftSavedAt(null);
+    setHasCurrentDraft(false);
+    setSuccess('');
+    setError('');
+    setLoadingRubrics(false);
+  };
+
   const visibleGroups = selectedSidebarSectionId
     ? groups.filter((g) => {
       const sId = typeof g.section === 'string' ? g.section : g.section?._id;
@@ -535,12 +565,32 @@ export default function Grade() {
     : [];
 
   return (
-    <div className="flex flex-col lg:flex-row gap-6">
+    <div data-tutorial="panel-workspace" data-selected-group={selectedGroup?._id || ''} data-loading={loadingRubrics ? 'true' : 'false'} className="flex flex-col lg:flex-row gap-6">
       <ConfirmDialog />
       {/* Group sidebar */}
       <div className="w-full lg:w-72 shrink-0">
         <div className="sticky top-0 pr-2 pb-8">
-          <h3 className="text-text font-bold text-base mb-4 px-1">Assigned Blocks</h3>
+          <h3 className="text-text font-bold text-base mb-4 px-1">Assigned Groups</h3>
+          {!loadingSidebar && assignedSubjects.length > 0 && (
+            <div className="mb-4">
+              <label htmlFor="panel-assigned-subject" className="evl-label">Subject</label>
+              <select
+                data-tutorial="panel-subject"
+                id="panel-assigned-subject"
+                value={sidebarSubjectId}
+                onChange={(event) => {
+                  const section = sections.find((item) => getRefId(item.subject) === event.target.value);
+                  if (section) void switchSidebarSection(section._id);
+                }}
+                className="evl-select"
+              >
+                {assignedSubjects.map((subject) => (
+                  <option key={subject.id} value={subject.id}>{subject.label}</option>
+                ))}
+              </select>
+              <p className="text-xs text-text/60 mt-2">Choose a subject, then select a block and group.</p>
+            </div>
+          )}
 
           {loadingSidebar ? (
             <div className="space-y-3">
@@ -549,14 +599,11 @@ export default function Grade() {
               ))}
             </div>
           ) : (
-            <div className="flex gap-2 overflow-x-auto pb-4 mb-4 lg:flex-col lg:overflow-visible lg:pb-0 scrollbar-hide">
-              {sections.map((section) => (
+            <div data-tutorial="panel-blocks" className="flex gap-2 overflow-x-auto pb-4 mb-4 lg:flex-col lg:overflow-visible lg:pb-0 scrollbar-hide">
+              {visibleSections.map((section) => (
                 <button
                   key={section._id}
-                  onClick={() => {
-                    if (section._id !== selectedSidebarSectionId && !confirmContinueWithDraft()) return;
-                    setSelectedSidebarSectionId(section._id);
-                  }}
+                  onClick={() => { void switchSidebarSection(section._id); }}
                   className={`whitespace-nowrap lg:whitespace-normal text-left px-4 py-2.5 rounded-lg text-sm font-semibold transition-all duration-150 border ${selectedSidebarSectionId === section._id
                       ? 'bg-primary text-white border-primary shadow-sm shadow-primary/20'
                       : 'bg-surface text-text/60 border-muted/40 hover:text-text hover:border-primary/30'
@@ -571,7 +618,7 @@ export default function Grade() {
             </div>
           )}
 
-          <div className="flex flex-col gap-1 max-h-[50vh] lg:max-h-[60vh] overflow-y-auto pr-2">
+          <div data-tutorial="panel-groups" className="flex flex-col gap-1 max-h-[50vh] lg:max-h-[60vh] overflow-y-auto pr-2">
             {loadingSidebar ? (
               <div className="space-y-2 mt-4">
                 {Array(4).fill(0).map((_, i) => (
@@ -650,7 +697,7 @@ export default function Grade() {
                   <p className="text-[10px] font-black uppercase tracking-widest text-warning mb-2">
                     Submitted Evaluation
                   </p>
-                  <h2 className="text-2xl md:text-3xl font-extrabold text-text leading-tight">{selectedGroup.name}</h2>
+                  <h2 data-tutorial="panel-details" className="text-2xl md:text-3xl font-extrabold text-text leading-tight">{selectedGroup.name}</h2>
                   <p className="text-text/70 text-sm mt-2 font-medium">
                     <span className="bg-primary/10 text-primary px-2 py-0.5 rounded text-xs uppercase tracking-wider">{selectedGroup.section?.block}</span>
                     <span className="ml-2">{getSubjectLabel(selectedGroup.section)}</span>
@@ -658,7 +705,7 @@ export default function Grade() {
                   <p className="text-text/60 text-sm mt-4 max-w-2xl">
                     The rubric used for this submitted score was deleted, but the saved scores and feedback are still preserved.
                   </p>
-                  <div className="mt-4 flex flex-wrap items-center gap-3">
+                  <div data-tutorial="panel-proposal" className="mt-4 flex flex-wrap items-center gap-3">
                     {selectedGroup.proposalFile?.path ? (
                       <a href={`/proposal/${selectedGroup._id}`} target="_blank" rel="noreferrer" className="evl-btn-secondary text-xs px-4 py-2">
                         View Proposal
@@ -729,13 +776,13 @@ export default function Grade() {
             {/* Header with total */}
             <div className="flex flex-col md:flex-row justify-between items-start gap-6 mb-8">
               <div className="w-full md:flex-1">
-                <h2 className="text-2xl md:text-3xl font-extrabold text-text leading-tight">{selectedGroup.name}</h2>
+                <h2 data-tutorial="panel-details" className="text-2xl md:text-3xl font-extrabold text-text leading-tight">{selectedGroup.name}</h2>
                 <p className="text-text/70 text-sm mt-2 font-medium">
                   <span className="bg-primary/10 text-primary px-2 py-0.5 rounded text-xs uppercase tracking-wider">{selectedGroup.section?.block}</span>
                   <span className="ml-2">{getSubjectLabel(selectedGroup.section)}</span>
                   {selectedGroup.members.length ? ` - ${formatMemberList(selectedGroup.members)}` : ''}
                 </p>
-                <div className="mt-4 flex flex-wrap items-center gap-3">
+                <div data-tutorial="panel-proposal" className="mt-4 flex flex-wrap items-center gap-3">
                   {selectedGroup.proposalFile?.path ? (
                     <a href={`/proposal/${selectedGroup._id}`} target="_blank" rel="noreferrer" className="evl-btn-secondary text-xs px-4 py-2">
                       View Proposal
@@ -872,7 +919,7 @@ export default function Grade() {
             )}
 
             {/* Score inputs */}
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 mb-6">
+            <div data-tutorial="panel-scores" className="grid grid-cols-1 xl:grid-cols-2 gap-4 mb-6">
               {visibleRubric.criteria.map((cat) => (
                 <ScoreInput
                   key={cat.key}
@@ -897,7 +944,7 @@ export default function Grade() {
             </div>
 
             {/* Comments / Feedback */}
-            <div className="evl-card p-6 mb-6 bg-surface">
+            <div data-tutorial="panel-feedback" className="evl-card p-6 mb-6 bg-surface">
               <label className="evl-label flex items-center gap-2 mb-3">
                 <span>💬 Panel Feedback & Comments</span>
                 <span className="text-[10px] font-normal lowercase bg-muted/40 px-1.5 py-0.5 rounded text-text/70">Optional</span>
@@ -917,6 +964,7 @@ export default function Grade() {
             </div>
 
             <button
+              data-tutorial="panel-submit"
               type="submit"
               disabled={gradingLocked || submitting || !isOnline}
               className={`evl-btn-primary px-8 py-3 ${(gradingLocked || submitting || !isOnline) ? 'opacity-50 cursor-not-allowed grayscale' : ''}`}

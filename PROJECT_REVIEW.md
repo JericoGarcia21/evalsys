@@ -10,7 +10,7 @@ Review of the tracked application structure, API routes, models, main permission
 - Local main and dev point to f29296b. Local main is three commits ahead of the stored origin/main reference; no remote refresh or push was performed.
 - The earlier development preparation changes remain uncommitted, along with this report.
 - Active applications: front-end/ (React/TypeScript/Vite) and back-end/ (Express/Mongoose).
-- frontend/ is a separate untracked implementation containing its own components and package file. Preserve it until its purpose is resolved; it is not the documented active application.
+- The separate frontend/ implementation was removed at the user’s request. The active React application is front-end/.
 - evalsys/ is empty and root index.php is empty.
 
 ## How the application works

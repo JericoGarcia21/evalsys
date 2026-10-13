@@ -17,6 +17,7 @@ const selectSubject = async (page: Page, code: string) => {
 };
 const openGroup = async (page: Page, name: string) => {
   await page.goto('/grade');
+  await page.getByLabel('Subject', { exact: true }).selectOption({ label: 'QA101 - Browser QA' });
   await page.getByRole('button', { name: /QA-A/ }).click();
   await page.getByRole('button', { name: new RegExp(name) }).click();
   await expect(page.getByRole('spinbutton')).toBeVisible();
@@ -131,5 +132,31 @@ test('mobile login remains usable without horizontal overflow', async ({ page })
   await page.setViewportSize({ width: 390, height: 844 });
   await login(page, 'qa-panel-a');
   await expect(page.getByRole('heading', { name: /Welcome back/ })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+});
+
+test('panel assigned groups are separated by subject on mobile', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await login(page, 'qa-panel-a');
+  await page.goto('/grade');
+  const subjectSelector = page.getByLabel('Subject', { exact: true });
+  await subjectSelector.selectOption({ label: 'QA101 - Browser QA' });
+  await expect(page.getByRole('button', { name: /QA-A/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: /QA-B/ })).toHaveCount(0);
+  await page.getByRole('button', { name: /QA Draft Group/ }).click();
+  await expect(page.getByRole('spinbutton')).toBeVisible();
+  await page.getByRole('spinbutton').fill('7');
+  await subjectSelector.selectOption({ label: 'QA202 - Second Browser Subject' });
+  await page.getByRole('button', { name: 'Continue', exact: true }).click();
+  await expect(page.getByRole('button', { name: /QA-B/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: /QA-A/ })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /QA Draft Group/ })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /QA Other Subject Group/ })).toBeVisible();
+  await expect(page.getByRole('spinbutton')).toHaveCount(0);
+  await page.getByRole('button', { name: /QA Other Subject Group/ }).click();
+  await expect(page.getByRole('spinbutton')).toBeVisible();
+  await subjectSelector.selectOption({ label: 'QA101 - Browser QA' });
+  await page.getByRole('button', { name: /QA Draft Group/ }).click();
+  await expect(page.getByRole('spinbutton')).toHaveValue('7');
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 });

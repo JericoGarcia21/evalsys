@@ -2,7 +2,8 @@ import { useConfirmDialog } from '../../hooks/useConfirmDialog';
 import { useEffect, useState } from 'react';
 import api from '../../services/api';
 import { notify } from '../../utils/notify';
-import { formatMemberList, type Member } from '../../utils/members';
+import { compareNames } from '../../utils/alphabetical';
+import { compareMembers, formatMemberList, type Member } from '../../utils/members';
 
 interface SubjectRef { code?: string; title?: string; }
 interface OwnerRef { name?: string; email?: string; }
@@ -159,12 +160,18 @@ export default function LegacyData() {
 
   const downloadOldResults = () => {
     const headers = ['Subject', 'Instructor', 'Block', 'Group', 'Members', 'Panel', 'Panel Email', 'Scores', 'Total', 'Comments', 'Archived'];
-    const rows = data.results.map((result) => [
+    const rows = [...data.results].sort((a, b) => (
+      compareNames(a.legacySnapshot?.groupName, b.legacySnapshot?.groupName) ||
+      compareNames(a.legacySnapshot?.subject, b.legacySnapshot?.subject) ||
+      compareNames(a.legacySnapshot?.block, b.legacySnapshot?.block) ||
+      compareNames(a.legacySnapshot?.panelName, b.legacySnapshot?.panelName) ||
+      compareNames(a._id, b._id)
+    )).map((result) => [
       result.legacySnapshot?.subject || '',
       result.legacySnapshot?.instructorName || '',
       result.legacySnapshot?.block || '',
       result.legacySnapshot?.groupName || '',
-      formatMemberList(result.legacySnapshot?.members || [], '; '),
+      formatMemberList([...(result.legacySnapshot?.members || [])].sort(compareMembers), '; '),
       result.legacySnapshot?.panelName || '',
       result.legacySnapshot?.panelEmail || '',
       JSON.stringify(result.scores || {}),

@@ -74,6 +74,15 @@ const createProposalSignedUrl = async (storagePath) => {
   return data.signedUrl;
 };
 
+const downloadProposalFile = async (storagePath) => {
+  const supabase = getClient();
+  if (!supabase) throw new Error('Supabase Storage is not configured');
+  const { data, error } = await supabase.storage.from(getBucketName()).download(storagePath);
+  if (error) throw error;
+  if (data.size > 10 * 1024 * 1024) throw new Error('Proposal exceeds the 10 MB limit');
+  return Buffer.from(await data.arrayBuffer());
+};
+
 const bytesToMb = (bytes = 0) => Math.round((bytes / 1024 / 1024) * 100) / 100;
 
 const getProposalStorageUsage = async () => {
@@ -204,6 +213,7 @@ const removeProposalFiles = async (storagePaths = []) => {
 };
 
 module.exports = {
+  downloadProposalFile,
   buildProposalPath,
   createProposalSignedUrl,
   getProposalStorageUsage,

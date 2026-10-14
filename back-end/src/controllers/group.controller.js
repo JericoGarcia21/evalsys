@@ -5,9 +5,11 @@ const Admin = require('../models/Admin');
 const Panel = require('../models/Panel');
 const Evaluation = require('../models/Evaluation');
 const {
+  downloadProposalFile,
   createProposalSignedUrl,
   isProposalPathForGroup,
 } = require('../services/proposalStorage.service');
+const { convertProposalToPdf } = require('../services/proposalPdf.service');
 const { getPagination, paginatedPayload } = require('../utils/pagination');
 const { validateBody, groupSchema } = require('../utils/validate');
 
@@ -413,6 +415,16 @@ exports.getGroupProposalUrl = async (req, res) => {
   }
 
   try {
+    if (req.query.format === 'pdf') {
+      const buffer = await downloadProposalFile(group.proposalFile.path);
+      const pdf = await convertProposalToPdf(buffer, group.proposalFile.originalName || group.proposalFile.path);
+      res.set({
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': 'inline; filename="proposal.pdf"',
+        'Cache-Control': 'private, no-store',
+      });
+      return res.send(pdf);
+    }
     const url = await createProposalSignedUrl(group.proposalFile.path);
     res.json({
       url,
@@ -420,8 +432,8 @@ exports.getGroupProposalUrl = async (req, res) => {
       expiresInSeconds: 600,
     });
   } catch (err) {
-    res.status(502).json({
-      message: err.message === 'Supabase Storage is not configured'
+    res.status(err.status || 502).json({
+      message: err.status === 503 ? err.message : err.message === 'Supabase Storage is not configured'
         ? 'Proposal storage is not configured yet'
         : 'Unable to open proposal right now',
     });

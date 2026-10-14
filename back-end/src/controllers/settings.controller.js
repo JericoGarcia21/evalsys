@@ -3,10 +3,17 @@ const { recordAuditLog } = require('../services/audit.service');
 
 const ALLOWED_MAINTENANCE_DELAYS = [0, 5, 15, 30];
 
-const isMaintenanceActive = (settings) => Boolean(
-  settings.isMaintenanceMode
-  || (settings.maintenanceStartsAt && settings.maintenanceStartsAt.getTime() <= Date.now())
-);
+const { isMaintenanceActive } = require('../services/maintenance.service');
+
+
+const parseScheduleDate = (value) => {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?(?:Z|[+-]\d{2}:\d{2})$/.test(value)) return null;
+  if (Number(value.slice(11, 13)) > 23 || Number(value.slice(14, 16)) > 59) return null;
+  const date = new Date(value);
+  const calendarDay = new Date(value.slice(0, 10) + 'T00:00:00.000Z');
+  if (!Number.isFinite(date.getTime()) || !Number.isFinite(calendarDay.getTime()) || calendarDay.toISOString().slice(0, 10) !== value.slice(0, 10)) return null;
+  return date;
+};
 
 const maintenanceResponse = (settings) => ({
   ...settings.toObject(),
@@ -36,6 +43,7 @@ exports.getPublicSettings = async (_req, res) => {
   res.json({
     isMaintenanceMode: isMaintenanceActive(settings),
     maintenanceStartsAt: settings.maintenanceStartsAt,
+    maintenanceEndsAt: settings.maintenanceEndsAt,
     maintenanceMessage: settings.maintenanceMessage,
     announcement: settings.announcement,
   });
@@ -60,23 +68,57 @@ exports.updateSystemControls = async (req, res) => {
   const {
     isMaintenanceMode,
     maintenanceDelayMinutes,
+    maintenanceStartsAt,
+    maintenanceEndsAt,
     maintenanceMessage,
     announcement,
   } = req.body;
+
+  if (isMaintenanceMode !== undefined && typeof isMaintenanceMode !== 'boolean') {
+    return res.status(400).json({ message: 'Maintenance mode must be true or false.' });
+  }
+  if ((maintenanceStartsAt !== undefined || maintenanceEndsAt !== undefined) && isMaintenanceMode !== true) {
+    return res.status(400).json({ message: 'Enable maintenance to set a schedule.' });
+  }
+  if (typeof maintenanceMessage === 'string' && maintenanceMessage.trim().length > 250) {
+    return res.status(400).json({ message: 'Maintenance message must be 250 characters or fewer.' });
+  }
 
   if (typeof isMaintenanceMode === 'boolean') {
     if (!isMaintenanceMode) {
       settings.isMaintenanceMode = false;
       settings.maintenanceStartsAt = null;
+      settings.maintenanceEndsAt = null;
     } else {
-      const requestedDelay = Number(maintenanceDelayMinutes ?? 0);
-      if (!ALLOWED_MAINTENANCE_DELAYS.includes(requestedDelay)) {
-        return res.status(400).json({ message: 'Maintenance delay must be 0, 5, 15, or 30 minutes.' });
+      const calendarSchedule = maintenanceStartsAt !== undefined;
+      if (calendarSchedule && maintenanceDelayMinutes !== undefined) {
+        return res.status(400).json({ message: 'Choose a calendar start or a delay, not both.' });
       }
-      settings.isMaintenanceMode = requestedDelay === 0;
-      settings.maintenanceStartsAt = requestedDelay === 0
-        ? new Date()
-        : new Date(Date.now() + requestedDelay * 60 * 1000);
+      let startsAt;
+      let immediate = false;
+      if (calendarSchedule) {
+        startsAt = parseScheduleDate(maintenanceStartsAt);
+        if (!startsAt || startsAt.getTime() <= Date.now()) {
+          return res.status(400).json({ message: 'Maintenance start must be a valid future date and time with a timezone.' });
+        }
+      } else {
+        const requestedDelay = Number(maintenanceDelayMinutes ?? 0);
+        if (!ALLOWED_MAINTENANCE_DELAYS.includes(requestedDelay)) {
+          return res.status(400).json({ message: 'Maintenance delay must be 0, 5, 15, or 30 minutes.' });
+        }
+        immediate = requestedDelay === 0;
+        startsAt = new Date(Date.now() + requestedDelay * 60 * 1000);
+      }
+      let endsAt = null;
+      if (maintenanceEndsAt !== undefined && maintenanceEndsAt !== null) {
+        endsAt = parseScheduleDate(maintenanceEndsAt);
+        if (!endsAt || endsAt.getTime() <= startsAt.getTime()) {
+          return res.status(400).json({ message: 'Maintenance end must be a valid date and time after its start.' });
+        }
+      }
+      settings.isMaintenanceMode = immediate;
+      settings.maintenanceStartsAt = startsAt;
+      settings.maintenanceEndsAt = endsAt;
     }
   }
 
@@ -100,6 +142,7 @@ exports.updateSystemControls = async (req, res) => {
     metadata: {
       isMaintenanceMode: settings.isMaintenanceMode,
       maintenanceStartsAt: settings.maintenanceStartsAt,
+      maintenanceEndsAt: settings.maintenanceEndsAt,
       maintenanceDelayMinutes: typeof maintenanceDelayMinutes === 'number' ? maintenanceDelayMinutes : undefined,
       announcementActive: settings.announcement?.isActive,
     },

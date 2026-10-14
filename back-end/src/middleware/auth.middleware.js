@@ -1,3 +1,4 @@
+const { isMaintenanceActive } = require('../services/maintenance.service');
 const jwt = require('jsonwebtoken');
 const Admin = require('../models/Admin');
 const Panel = require('../models/Panel');
@@ -38,10 +39,8 @@ const protect = async (req, res, next) => {
     ].includes(req.originalUrl.split('?')[0]);
 
     if (user.role !== 'superadmin' && !passwordChangeAllowed) {
-      const settings = await Settings.findOne().select('isMaintenanceMode maintenanceStartsAt maintenanceMessage');
-      const scheduledMaintenanceStarted = settings?.maintenanceStartsAt
-        && settings.maintenanceStartsAt.getTime() <= Date.now();
-      if (settings?.isMaintenanceMode || scheduledMaintenanceStarted) {
+      const settings = await Settings.findOne().select('isMaintenanceMode maintenanceStartsAt maintenanceEndsAt maintenanceMessage');
+      if (isMaintenanceActive(settings)) {
         await recordAuditLog(req, {
           action: 'security.maintenance.access_attempt',
           status: 'failed',

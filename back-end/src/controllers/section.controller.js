@@ -123,7 +123,14 @@ exports.getSections = async (req, res) => {
   } else if (!req.user) {
     return res.status(400).json({ message: 'Subject is required to view public blocks' });
   } else if (req.user && req.user.role === 'panel') {
-    filter = { assignedPanels: req.user._id };
+    const directlyAssignedSections = await Group.distinct('section', {
+      assignedPanels: req.user._id,
+      ...(req.user.createdBy ? { createdBy: req.user.createdBy } : {}),
+    });
+    filter = { $or: [
+      { assignedPanels: req.user._id },
+      { _id: { $in: directlyAssignedSections } },
+    ] };
     if (req.user.createdBy) {
       const instructor = await Admin.findOne({ _id: req.user.createdBy, role: 'admin', isActive: true }).select('assignedSubjects');
       if (!instructor) return res.json([]);

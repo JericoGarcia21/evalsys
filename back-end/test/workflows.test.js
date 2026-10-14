@@ -19,6 +19,9 @@ const Rubric = require('../src/models/Rubric');
 const Evaluation = require('../src/models/Evaluation');
 const RegistrationLink = require('../src/models/RegistrationLink');
 const Settings = require('../src/models/Settings');
+const ChatMessage = require('../src/models/ChatMessage');
+const ChatRead = require('../src/models/ChatRead');
+const ChatRoom = require('../src/models/ChatRoom');
 const { clearResponseCache } = require('../src/middleware/cache.middleware');
 let mongo, passwordHash, superadmin, instructor, otherInstructor, panel, secondPanel, outsider, subject, otherSubject, section, group, rubric;
 const password = 'QaPassword!2026';
@@ -36,7 +39,7 @@ before(async () => {
   mongo = await MongoMemoryServer.create({ instance: { dbName: 'evalsys_qa_temporary' } });
   await mongoose.connect(mongo.getUri());
   passwordHash = await bcrypt.hash(password, 4);
-  await Promise.all([Admin, Panel, Subject, Section, Group, Rubric, Evaluation, RegistrationLink, Settings].map(model => model.init()));
+  await Promise.all([Admin, Panel, Subject, Section, Group, Rubric, Evaluation, RegistrationLink, Settings, ChatMessage, ChatRead, ChatRoom].map(model => model.init()));
 });
 after(async () => {
   await mongoose.disconnect();
@@ -418,4 +421,253 @@ test('score exports sort groups and members A-Z while keeping scores intact', as
   assert.equal(status.body.status, 'completed');
   const completed = await api('get', '/api/jobs/' + queued.body.job.id + '/result').expect(200);
   assert.deepEqual(completed.body.result.map(row => row.GroupName), expectedNames);
+});
+
+
+test('panel block list includes direct group assignments without exposing unassigned groups', async () => {
+  await Section.updateOne({ _id: section._id }, { assignedPanels: [] });
+  await Group.updateOne({ _id: group._id }, { assignedPanels: [panel._id] });
+  const hiddenGroup = await Group.create({ name: 'Unassigned peer', section: section._id, createdBy: instructor._id, members: [] });
+  const blocks = await api('get', '/api/sections', panel).expect(200);
+  const assignedBlock = blocks.body.find(item => item._id === section._id.toString());
+  assert.ok(assignedBlock);
+  assert.equal(assignedBlock.subject.code, subject.code);
+  const assignedGroups = await api('get', '/api/groups', panel).expect(200);
+  assert.ok(assignedGroups.body.some(item => item._id === group._id.toString()));
+  assert.ok(!assignedGroups.body.some(item => item._id === hiddenGroup._id.toString()));
+  const outsiderBlocks = await api('get', '/api/sections', outsider).expect(200);
+  assert.ok(!outsiderBlocks.body.some(item => item._id === section._id.toString()));
+});
+
+test('calendar maintenance saves exact dates, permits message edits and supports cancellation', async () => {
+  const start = new Date(Date.now() + 3600000).toISOString();
+  const end = new Date(Date.now() + 7200000).toISOString();
+  const saved = await api('patch', '/api/settings/system-controls', superadmin)
+    .send({ isMaintenanceMode: true, maintenanceStartsAt: start, maintenanceEndsAt: end, maintenanceMessage: 'Scheduled update' }).expect(200);
+  assert.equal(saved.body.isMaintenanceMode, false);
+  assert.equal(saved.body.maintenanceStartsAt, start);
+  assert.equal(saved.body.maintenanceEndsAt, end);
+  await api('get', '/api/groups', panel).expect(200);
+  const edited = await api('patch', '/api/settings/system-controls', superadmin)
+    .send({ maintenanceMessage: 'Updated maintenance notice' }).expect(200);
+  assert.equal(edited.body.maintenanceStartsAt, start);
+  assert.equal(edited.body.maintenanceEndsAt, end);
+  const cancelled = await api('patch', '/api/settings/system-controls', superadmin)
+    .send({ isMaintenanceMode: false }).expect(200);
+  assert.equal(cancelled.body.maintenanceStartsAt, null);
+  assert.equal(cancelled.body.maintenanceEndsAt, null);
+});
+
+test('maintenance calendar rejects invalid windows and remains restricted to superadmin', async () => {
+  const start = new Date(Date.now() + 3600000).toISOString();
+  const end = new Date(Date.now() + 7200000).toISOString();
+  await api('patch', '/api/settings/system-controls', instructor)
+    .send({ isMaintenanceMode: true, maintenanceStartsAt: start }).expect(403);
+  const invalidRequests = [
+    { isMaintenanceMode: true, maintenanceStartsAt: 'not-a-date' },
+    { isMaintenanceMode: true, maintenanceStartsAt: null },
+    { isMaintenanceMode: true, maintenanceStartsAt: '2099-06-15T24:00:00Z' },
+    { isMaintenanceMode: true, maintenanceStartsAt: new Date(Date.now() - 1000).toISOString() },
+    { isMaintenanceMode: true, maintenanceStartsAt: '2099-02-30T09:00:00Z' },
+    { isMaintenanceMode: true, maintenanceStartsAt: '2099-06-15T09:00' },
+    { isMaintenanceMode: true, maintenanceStartsAt: start, maintenanceEndsAt: start },
+    { isMaintenanceMode: true, maintenanceStartsAt: start, maintenanceEndsAt: 'invalid' },
+    { isMaintenanceMode: true, maintenanceStartsAt: start, maintenanceDelayMinutes: 5 },
+    { maintenanceStartsAt: start },
+    { isMaintenanceMode: 'true' },
+    { maintenanceMessage: 'x'.repeat(251) },
+  ];
+  for (const body of invalidRequests) {
+    await api('patch', '/api/settings/system-controls', superadmin).send(body).expect(400);
+  }
+  const valid = await api('patch', '/api/settings/system-controls', superadmin)
+    .send({ isMaintenanceMode: true, maintenanceStartsAt: start, maintenanceEndsAt: end }).expect(200);
+  assert.equal(valid.body.maintenanceStartsAt, start);
+});
+
+test('maintenance automatically restores login, API and student registration access at its end', async () => {
+  const link = await RegistrationLink.create({ subject: subject._id, createdBy: instructor._id, expiresAt: new Date(Date.now() + 3600000) });
+  await Settings.updateOne({}, {
+    isMaintenanceMode: true,
+    maintenanceStartsAt: new Date(Date.now() - 60000),
+    maintenanceEndsAt: new Date(Date.now() + 3600000),
+  });
+  await api('get', '/api/groups', panel).expect(503);
+  await request(app).post('/api/auth/login').send({ email: 'qa-instructor', password }).expect(503);
+  await request(app).post('/api/registration-links/public/' + link.token + '/register')
+    .send({ name: 'During maintenance', section: section._id.toString() }).expect(503);
+  await api('get', '/api/settings', superadmin).expect(200);
+  await Settings.updateOne({}, { maintenanceEndsAt: new Date(Date.now() - 1000) });
+  const status = await request(app).get('/api/settings/public').set('Cache-Control', 'no-cache').expect(200);
+  assert.equal(status.body.isMaintenanceMode, false);
+  await api('get', '/api/groups', panel).expect(200);
+  await request(app).post('/api/auth/login').send({ email: 'qa-instructor', password }).expect(200);
+  await request(app).post('/api/registration-links/public/' + link.token + '/register')
+    .send({ name: 'After maintenance', section: section._id.toString(), members: [{ firstName: 'Test', lastName: 'Student' }] }).expect(201);
+});
+
+test('platform analytics counts all instructors and current group rosters with separate grading statuses', async () => {
+  const otherSection = await Section.create({ name: 'Other block', block: 'OTHER-A', subject: otherSubject._id, createdBy: otherInstructor._id, assignedPanels: [outsider._id] });
+  const otherGroup = await Group.create({
+    name: 'Other analytics group', section: otherSection._id, createdBy: otherInstructor._id,
+    members: ['First Student', { firstName: 'Second', lastName: 'Student' }, 'Third Student'],
+    proposalFile: { path: 'analytics/proposal.pdf', size: 2097152 },
+    createdAt: new Date(Date.now() - 10 * 86400000),
+  });
+  const unassignedSection = await Section.create({ name: 'Unassigned block', block: 'UNASSIGNED', subject: subject._id, createdBy: instructor._id, assignedPanels: [] });
+  await Group.create({ name: 'Unassigned analytics group', section: unassignedSection._id, createdBy: instructor._id, members: ['One Student', 'Two Student'] });
+  await Group.updateOne({ _id: group._id }, { assignedPanels: [panel._id] });
+  await submit().expect(200);
+  await Evaluation.create({ group: otherGroup._id, panel: panel._id, rubric: rubric._id, subject: otherSubject._id, scores: { quality: 4 }, isSubmitted: true, isLegacyArchived: true });
+  await Admin.updateOne({ _id: otherInstructor._id }, { isActive: false });
+  await RegistrationLink.create([
+    { subject: subject._id, createdBy: instructor._id, expiresAt: new Date(Date.now() + 3600000) },
+    { subject: subject._id, createdBy: instructor._id, expiresAt: new Date(Date.now() - 1000) },
+    { subject: subject._id, createdBy: instructor._id, expiresAt: new Date(Date.now() + 3600000), isActive: false },
+  ]);
+
+  const response = await api('get', '/api/operations/analytics?days=7', superadmin).set('Cache-Control', 'no-cache').expect(200);
+  assert.equal(response.body.scope, 'platform');
+  const totals = response.body.totals;
+  assert.equal(totals.students, 6);
+  assert.equal(totals.groups, 3);
+  assert.deepEqual(totals.instructors, { total: 2, active: 1, inactive: 1 });
+  assert.deepEqual(totals.panels, { total: 3, active: 3, inactive: 0 });
+  assert.equal(totals.subjects.total, 2);
+  assert.equal(totals.blocks, 3);
+  assert.deepEqual(totals.proposals, { uploaded: 1, missing: 2, storageMb: 2 });
+  assert.deepEqual(totals.grading, { complete: 0, inProgress: 1, pending: 1, unassigned: 1, submittedEvaluations: 1 });
+  assert.equal(totals.archivedEvaluations, 1);
+  assert.deepEqual(totals.registrationLinks, { total: 3, open: 1 });
+  assert.equal(response.body.registrations.length, 7);
+  assert.deepEqual(response.body.period, { groups: 2, students: 3 });
+  const otherStats = response.body.bySubject.find(item => item.subjectId === otherSubject._id.toString());
+  assert.equal(otherStats.students, 3);
+  assert.equal(otherStats.proposals, 1);
+  await submit(secondPanel).expect(200);
+  const completed = await api('get', '/api/operations/analytics?days=30', superadmin).set('Cache-Control', 'no-cache').expect(200);
+  assert.equal(completed.body.totals.grading.complete, 1);
+  assert.equal(completed.body.totals.grading.inProgress, 0);
+  assert.deepEqual(completed.body.period, { groups: 3, students: 6 });
+  assert.equal(completed.body.registrations.length, 30);
+  assert.equal(completed.body.registrations.reduce((sum, day) => sum + day.groups, 0), 3);
+});
+
+test('analytics is restricted to superadmin and validates the registration range', async () => {
+  await request(app).get('/api/operations/analytics').expect(401);
+  await api('get', '/api/operations/analytics', instructor).expect(403);
+  await api('get', '/api/operations/analytics', panel).expect(403);
+  await api('get', '/api/operations/analytics?days=14', superadmin).expect(400);
+  await api('get', '/api/operations/analytics?days=invalid', superadmin).expect(400);
+  await api('get', '/api/operations/analytics?days=90', superadmin).expect(200);
+});
+
+test('analytics handles an empty platform without fabricating students or registrations', async () => {
+  await Promise.all([Group, Section, Subject, Panel, Evaluation, RegistrationLink].map(model => model.deleteMany({})));
+  await Admin.deleteMany({ role: 'admin' });
+  const response = await api('get', '/api/operations/analytics?days=7', superadmin, false)
+    .set('x-instructor-id', '').set('Cache-Control', 'no-cache').expect(200);
+  assert.equal(response.body.totals.students, 0);
+  assert.equal(response.body.totals.groups, 0);
+  assert.equal(response.body.totals.instructors.total, 0);
+  assert.equal(response.body.totals.panels.total, 0);
+  assert.deepEqual(response.body.bySubject, []);
+  assert.deepEqual(response.body.period, { groups: 0, students: 0 });
+  assert.equal(response.body.registrations.length, 7);
+  assert.ok(response.body.registrations.every(day => day.groups === 0 && day.students === 0));
+});
+
+const chatPayload = body => ({ body, clientMessageId: require('node:crypto').randomUUID() });
+const chatRooms = async (user = panel) => (await api('get', '/api/chat/rooms', user).expect(200)).body.rooms;
+
+test('general panel chat joins instructor and assigned judges across blocks of one subject', async () => {
+  await Section.updateOne({ _id: section._id }, { assignedPanels: [panel._id] });
+  await Section.create({ name: 'Second subject block', block: 'QA-B', subject: subject._id, createdBy: instructor._id, assignedPanels: [secondPanel._id] });
+  const roomA = (await chatRooms(panel))[0];
+  const roomB = (await chatRooms(secondPanel))[0];
+  assert.equal(roomA._id, roomB._id);
+  assert.equal(roomA.name, 'General Panel Chat');
+  assert.equal(roomA.groups, undefined);
+  assert.equal(roomA.block, undefined);
+  assert.equal(roomA.participants.length, 3);
+  assert.ok(roomA.participants.some(person => person.role === 'admin' && person._id === instructor._id.toString()));
+  assert.equal((await chatRooms(instructor))[0]._id, roomA._id);
+  const posted = await api('post', '/api/chat/rooms/' + roomA._id + '/messages', panel).send(chatPayload('Let us discuss the presentation after the demo.')).expect(201);
+  assert.equal(posted.body.sender.role, 'panel');
+  assert.equal(posted.body.sender.name, panel.name);
+  const received = await api('get', '/api/chat/rooms/' + roomB._id + '/messages', secondPanel).expect(200);
+  assert.equal(received.body.messages[0].body, posted.body.body);
+  assert.equal(received.body.messages[0].clientMessageId, undefined);
+  await api('post', '/api/chat/rooms/' + roomA._id + '/messages', instructor).send(chatPayload('Please use the rubric for your own scores.')).expect(201);
+  assert.equal((await chatRooms(panel))[0].unread, 1);
+  assert.equal((await chatRooms(secondPanel))[0].unread, 2);
+});
+
+test('chat read cursors are monotonic and retries do not duplicate messages', async () => {
+  const room = (await chatRooms(panel))[0];
+  const payload = chatPayload('Presentation coordination');
+  const first = await api('post', '/api/chat/rooms/' + room._id + '/messages', panel).send(payload).expect(201);
+  const retry = await api('post', '/api/chat/rooms/' + room._id + '/messages', panel).send(payload).expect(200);
+  assert.equal(retry.body._id, first.body._id);
+  assert.equal(await ChatMessage.countDocuments(), 1);
+  await api('post', '/api/chat/rooms/' + room._id + '/messages', panel).send({ ...payload, body: 'Changed text' }).expect(409);
+  const second = await api('post', '/api/chat/rooms/' + room._id + '/messages', panel).send(chatPayload('Second message')).expect(201);
+  assert.equal((await chatRooms(secondPanel))[0].unread, 2);
+  await api('post', '/api/chat/rooms/' + room._id + '/read', secondPanel).send({ messageId: second.body._id }).expect(200);
+  await api('post', '/api/chat/rooms/' + room._id + '/read', secondPanel).send({ messageId: first.body._id }).expect(200);
+  assert.equal((await chatRooms(secondPanel))[0].unread, 0);
+  assert.equal(await ChatRead.countDocuments({ user: secondPanel._id }), 1);
+});
+
+test('chat checks current assignments and denies students, unrelated panels and other instructors', async () => {
+  const room = (await chatRooms(panel))[0];
+  await request(app).get('/api/chat/rooms').expect(401);
+  await api('get', '/api/chat/rooms', superadmin).expect(403);
+  assert.deepEqual(await chatRooms(outsider), []);
+  await api('get', '/api/chat/rooms/' + room._id + '/messages', outsider).expect(403);
+  await api('post', '/api/chat/rooms/' + room._id + '/messages', otherInstructor).send(chatPayload('Not allowed')).expect(403);
+  await api('post', '/api/chat/rooms/' + room._id + '/read', outsider).send({ messageId: group._id.toString() }).expect(403);
+  await Section.updateOne({ _id: section._id }, { assignedPanels: [secondPanel._id] });
+  assert.deepEqual(await chatRooms(panel), []);
+  await api('get', '/api/chat/rooms/' + room._id + '/messages', panel).expect(403);
+  await Group.updateOne({ _id: group._id }, { assignedPanels: [panel._id] });
+  assert.equal((await chatRooms(panel))[0]._id, room._id);
+  await api('get', '/api/chat/rooms/' + room._id + '/messages', panel).expect(200);
+  await Admin.updateOne({ _id: instructor._id }, { $set: { assignedSubjects: [] } });
+  assert.deepEqual(await chatRooms(panel), []);
+  await api('get', '/api/chat/rooms/' + room._id + '/messages', panel).expect(403);
+});
+
+test('chat validates messages, preserves sender identity and paginates history without gaps', async () => {
+  const room = (await chatRooms(panel))[0];
+  await api('post', '/api/chat/rooms/' + room._id + '/messages', panel).send(chatPayload('   ')).expect(400);
+  await api('post', '/api/chat/rooms/' + room._id + '/messages', panel).send(chatPayload('x'.repeat(2001))).expect(400);
+  await api('get', '/api/chat/rooms/not-an-id/messages', panel).expect(400);
+  await api('get', '/api/chat/rooms/' + room._id + '/messages?before=invalid', panel).expect(400);
+  const spoofed = await api('post', '/api/chat/rooms/' + room._id + '/messages', panel)
+    .send({ ...chatPayload('<script>plain text</script>'), sender: { id: instructor._id, role: 'admin', name: 'Fake instructor' } }).expect(201);
+  assert.equal(spoofed.body.sender.role, 'panel');
+  assert.equal(spoofed.body.sender.id, panel._id.toString());
+  assert.equal(spoofed.body.sender.name, panel.name);
+  await ChatMessage.deleteMany({});
+  const history = await ChatMessage.insertMany(Array.from({ length: 60 }, (_, index) => ({
+    room: room._id, sender: { id: panel._id, role: 'panel', name: panel.name }, body: 'History ' + index, clientMessageId: 'history-message-' + index,
+  })));
+  const latest = await api('get', '/api/chat/rooms/' + room._id + '/messages', secondPanel).expect(200);
+  assert.equal(latest.body.messages.length, 50);
+  assert.equal(latest.body.messages[0].body, 'History 10');
+  assert.equal(latest.body.hasMore, true);
+  const older = await api('get', '/api/chat/rooms/' + room._id + '/messages?before=' + latest.body.messages[0]._id, secondPanel).expect(200);
+  assert.equal(older.body.messages.length, 10);
+  assert.equal(older.body.hasMore, false);
+  const incremental = await api('get', '/api/chat/rooms/' + room._id + '/messages?after=' + history[0]._id, secondPanel).expect(200);
+  assert.equal(incremental.body.messages.length, 50);
+  assert.equal(incremental.body.hasMoreNew, true);
+  assert.equal(incremental.body.messages[0].body, 'History 1');
+  const tail = await api('get', '/api/chat/rooms/' + room._id + '/messages?after=' + incremental.body.messages[49]._id, secondPanel).expect(200);
+  assert.equal(tail.body.messages.length, 9);
+  assert.equal(tail.body.hasMoreNew, false);
+  const otherRoom = await ChatRoom.create({ instructor: otherInstructor._id, subject: otherSubject._id });
+  const otherMessage = await ChatMessage.create({ room: otherRoom._id, sender: { id: outsider._id, role: 'panel', name: outsider.name }, body: 'Private', clientMessageId: 'other-room-message' });
+  await api('post', '/api/chat/rooms/' + room._id + '/read', panel).send({ messageId: otherMessage._id.toString() }).expect(400);
 });

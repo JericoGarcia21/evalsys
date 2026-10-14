@@ -101,7 +101,7 @@ test('temporary-password panel is redirected to password change', async ({ page 
 test('expired session clears authentication and redirects to login', async ({ page }) => {
   await login(page, 'qa-instructor');
   await page.evaluate(() => localStorage.setItem('token', 'invalid-token'));
-  await page.locator('aside').getByRole('link', { name: 'Groups', exact: true }).click();
+  await page.goto('/groups');
   await expect(page).toHaveURL(/login/);
   await expect.poll(() => page.evaluate(() => localStorage.getItem('token'))).toBeNull();
 });
@@ -159,4 +159,40 @@ test('panel assigned groups are separated by subject on mobile', async ({ page }
   await page.getByRole('button', { name: /QA Draft Group/ }).click();
   await expect(page.getByRole('spinbutton')).toHaveValue('7');
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+});
+
+test('floating chat preserves grading scores and drafts when minimized', async ({ page }) => {
+  await login(page, 'qa-panel-b');
+  await openGroup(page, 'QA Draft Group');
+  await page.getByRole('spinbutton').fill('7');
+  await page.getByRole('button', { name: 'Open panel chat', exact: true }).click();
+  const chat = page.getByRole('dialog', { name: 'Floating panel chat' });
+  await expect(chat).toBeVisible();
+  await chat.getByLabel('Message', { exact: true }).fill('Private team draft');
+  await chat.getByRole('button', { name: 'Minimize panel chat' }).click();
+  await expect(chat).toHaveCount(0);
+  await expect(page.getByRole('spinbutton')).toHaveValue('7');
+  await page.getByRole('button', { name: 'Open panel chat', exact: true }).click();
+  await expect(chat.getByLabel('Message', { exact: true })).toHaveValue('Private team draft');
+  await chat.getByRole('button', { name: 'Send message', exact: true }).click();
+  await expect(chat.getByText('Private team draft', { exact: true })).toBeVisible();
+  await expect(page).toHaveURL(/\/grade/);
+  await expect(page.getByRole('spinbutton')).toHaveValue('7');
+  await page.screenshot({ path: test.info().outputPath('floating-chat-desktop.png'), animations: 'disabled' });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await chat.locator('summary').click();
+  const participantList = chat.locator('details ul');
+  await expect(participantList).toBeVisible();
+  await expect(participantList).toContainText('QA Instructor');
+  const listBounds = await participantList.boundingBox();
+  const bounds = await chat.boundingBox();
+  expect(listBounds!.x).toBeGreaterThanOrEqual(bounds!.x);
+  expect(listBounds!.x + listBounds!.width).toBeLessThanOrEqual(bounds!.x + bounds!.width);
+  expect(bounds!.x).toBeGreaterThanOrEqual(0);
+  expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(390);
+  expect(bounds!.y).toBeGreaterThanOrEqual(0);
+  await page.screenshot({ path: test.info().outputPath('floating-chat-mobile.png'), animations: 'disabled' });
+  await chat.getByLabel('Message', { exact: true }).press('Escape');
+  await expect(chat).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Open panel chat', exact: true })).toBeFocused();
 });

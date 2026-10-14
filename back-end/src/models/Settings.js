@@ -5,6 +5,7 @@ const settingsSchema = new mongoose.Schema({
   isCsvExportLocked: { type: Boolean, default: false },
   isMaintenanceMode: { type: Boolean, default: false },
   maintenanceStartsAt: { type: Date, default: null },
+  maintenanceEndsAt: { type: Date, default: null },
   maintenanceMessage: {
     type: String,
     default: 'EvalSys is temporarily unavailable while maintenance is in progress.',

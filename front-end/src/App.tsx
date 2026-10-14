@@ -1,3 +1,6 @@
+import PanelChat from './pages/panel/PanelChat';
+import { ChatProvider } from './context/ChatProvider';
+import Analytics from './pages/admin/Analytics';
 import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { useEffect } from 'react';
 import { AuthProvider } from './context/AuthContext';
@@ -45,6 +48,7 @@ function AuthGuard() {
 export default function App() {
   return (
     <AuthProvider>
+      <ChatProvider>
       <AppAlert />
       <UpdateAvailableNotice />
       <InstallAppNotice />
@@ -62,6 +66,8 @@ export default function App() {
           <Route path="/register/:token" element={<RegisterGroup />} />
           <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
 
+          <Route path="/analytics" element={<ProtectedRoute role="admin" superadminOnly><Analytics /></ProtectedRoute>} />
+
           {/* Admin routes */}
           <Route path="/sections" element={<ProtectedRoute role="admin"><Sections /></ProtectedRoute>} />
           <Route path="/subjects" element={<ProtectedRoute role="admin"><Subjects /></ProtectedRoute>} />
@@ -78,6 +84,8 @@ export default function App() {
           <Route path="/ai-insights" element={<ProtectedRoute role="admin" instructorOnly><AIInsights /></ProtectedRoute>} />
           <Route path="/rubrics" element={<ProtectedRoute role="admin" instructorOnly><Rubrics /></ProtectedRoute>} />
 
+          <Route path="/chat" element={<ProtectedRoute instructorOrPanelOnly><PanelChat /></ProtectedRoute>} />
+
           {/* Panel routes */}
           <Route path="/grade" element={<ProtectedRoute role="panel"><Grade /></ProtectedRoute>} />
 
@@ -85,6 +93,7 @@ export default function App() {
         </Routes>
         </TutorialProvider>
       </BrowserRouter>
+      </ChatProvider>
     </AuthProvider>
   );
 }

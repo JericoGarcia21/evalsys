@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '../context/useAuth';
 import api from '../services/api';
+import { maintenanceStatus, formatMaintenanceDate, formatMaintenanceCountdown } from '../utils/maintenance';
 
 interface PublicSettings {
   isMaintenanceMode: boolean;
   maintenanceStartsAt?: string | null;
+  maintenanceEndsAt?: string | null;
   maintenanceMessage?: string;
   announcement?: {
     isActive?: boolean;
@@ -40,6 +42,7 @@ export default function SystemNotice() {
         ...(current || { announcement: { isActive: false, title: '', message: '' } }),
         isMaintenanceMode: true,
         maintenanceStartsAt: null,
+        maintenanceEndsAt: current?.maintenanceEndsAt && new Date(current.maintenanceEndsAt).getTime() > Date.now() ? current.maintenanceEndsAt : null,
         maintenanceMessage: detail?.message || current?.maintenanceMessage,
       }));
     };
@@ -54,27 +57,16 @@ export default function SystemNotice() {
   }, []);
 
   useEffect(() => {
-    const timer = window.setInterval(() => setNow(Date.now()), 250);
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(timer);
   }, []);
 
   const isUserAudience = user?.role === 'admin' || user?.role === 'panel';
-  const maintenanceStartsAt = settings?.maintenanceStartsAt
-    ? new Date(settings.maintenanceStartsAt).getTime()
-    : null;
-  const scheduledMaintenanceStarted = maintenanceStartsAt !== null && maintenanceStartsAt <= now;
-  const showMaintenance = Boolean(settings?.isMaintenanceMode || scheduledMaintenanceStarted)
-    && user?.role !== 'superadmin';
-  const showMaintenanceWarning = maintenanceStartsAt !== null
-    && maintenanceStartsAt > now
-    && user?.role !== 'superadmin';
+  const status = maintenanceStatus(settings, now);
+  const showMaintenance = status.active && user?.role !== 'superadmin';
+  const showMaintenanceWarning = status.scheduled && user?.role !== 'superadmin';
   const showAnnouncement = isUserAudience && settings?.announcement?.isActive && settings.announcement.message;
-
-  const remainingSeconds = maintenanceStartsAt
-    ? Math.max(0, Math.ceil((maintenanceStartsAt - now) / 1000))
-    : 0;
-  const remainingMinutes = Math.floor(remainingSeconds / 60);
-  const remainingClockSeconds = String(remainingSeconds % 60).padStart(2, '0');
+  const remainingTime = formatMaintenanceCountdown((status.start || now) - now);
 
   if (!showMaintenance && !showMaintenanceWarning && !showAnnouncement) return null;
 
@@ -89,7 +81,7 @@ export default function SystemNotice() {
               {settings?.maintenanceMessage || 'EvalSys is temporarily unavailable while maintenance is in progress.'}
             </p>
             <p className="text-xs text-text/55 mt-4">
-              This screen updates automatically when maintenance is done.
+              {status.end ? 'Access resumes automatically on ' + formatMaintenanceDate(status.end) + '.' : 'This screen updates automatically when maintenance is done.'}
             </p>
             {user && (
               <button
@@ -104,25 +96,26 @@ export default function SystemNotice() {
         </div>
       )}
 
-      {showMaintenanceWarning && (
-        <div className="fixed top-3 left-1/2 z-[60] w-[min(720px,calc(100vw-24px))] -translate-x-1/2 pointer-events-none">
-          <div className="pointer-events-auto rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 shadow-lg">
-            <p className="text-xs font-black uppercase tracking-widest text-amber-700">Scheduled Maintenance</p>
-            <p className="text-sm font-bold text-text mt-1">
-              Maintenance begins in {remainingMinutes}:{remainingClockSeconds}. Please save and finish your current work.
-            </p>
-          </div>
-        </div>
-      )}
-
-      {showAnnouncement && (
-        <div className={`fixed ${showMaintenanceWarning ? 'top-24' : 'top-3'} left-1/2 z-[60] w-[min(720px,calc(100vw-24px))] -translate-x-1/2 pointer-events-none`}>
-          <div className="pointer-events-auto rounded-lg border border-primary/20 bg-white px-4 py-3 shadow-lg">
-            <p className="text-xs font-black uppercase tracking-widest text-primary">
-              {settings?.announcement?.title || 'System Announcement'}
-            </p>
-            <p className="text-sm font-semibold text-text mt-1">{settings?.announcement?.message}</p>
-          </div>
+      {(showMaintenanceWarning || showAnnouncement) && (
+        <div className="fixed top-3 left-1/2 z-[60] w-[min(720px,calc(100vw-24px))] -translate-x-1/2 space-y-3 pointer-events-none">
+          {showMaintenanceWarning && (
+            <div className="pointer-events-auto rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 shadow-lg">
+              <p className="text-xs font-black uppercase tracking-widest text-amber-700">Scheduled Maintenance</p>
+              <p className="text-sm font-bold text-text mt-1">
+                Maintenance begins in {remainingTime}. {status.start && formatMaintenanceDate(status.start)}.
+              </p>
+              <p className="text-xs text-text/70 mt-1">
+                {status.start && status.start - now <= 30 * 60000 ? 'Please save and finish your current work.' : 'Plan your work around this maintenance window.'}
+                {status.end ? ' Access resumes on ' + formatMaintenanceDate(status.end) + '.' : ''}
+              </p>
+            </div>
+          )}
+          {showAnnouncement && (
+            <div className="pointer-events-auto rounded-lg border border-primary/20 bg-white px-4 py-3 shadow-lg">
+              <p className="text-xs font-black uppercase tracking-widest text-primary">{settings?.announcement?.title || 'System Announcement'}</p>
+              <p className="text-sm font-semibold text-text mt-1">{settings?.announcement?.message}</p>
+            </div>
+          )}
         </div>
       )}
     </>

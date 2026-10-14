@@ -2,7 +2,7 @@ import { useState, useEffect, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../context/useAuth';
-import api from '../services/api';
+import { ensureServerReady, type LoginPhase } from '../services/loginConnection';
 import { notify } from '../utils/notify';
 import PasswordField from '../components/PasswordField';
 
@@ -13,41 +13,40 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [loginPhase, setLoginPhase] = useState<LoginPhase>('connecting');
 
   const [isWakingUp, setIsWakingUp] = useState(false);
 
   useEffect(() => {
-    const wakeServer = async () => {
-      try {
-        setIsWakingUp(true);
-        await api.get('/health');
-      } catch (err) {
-        console.error('Server wake up failed', err);
-      } finally {
-        setIsWakingUp(false);
-      }
-    };
-    wakeServer();
+    let active = true;
+    // Start readiness checking while the user enters their details.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setIsWakingUp(true);
+    void ensureServerReady().catch(() => {
+      // Submission reports a connection problem if readiness still fails.
+    }).finally(() => { if (active) setIsWakingUp(false); });
+    return () => { active = false; };
   }, []);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
+    if (loading) return;
     setError('');
     setLoading(true);
     try {
-      const loggedInUser = await login(email, password);
+      const loggedInUser = await login(email, password, setLoginPhase);
       navigate(loggedInUser.mustChangePassword ? '/change-password' : '/dashboard', { replace: true });
     } catch (err: unknown) {
       if (axios.isAxiosError(err)) {
         if (err.response) {
           setError(err.response.data?.message || 'Sign in failed. Please try again.');
         } else if (err.request) {
-          setError('Cannot connect to the server. Please make sure the backend is running and try again.');
+          setError('The connection was interrupted. Please try again shortly; your sign-in details have been kept.');
         } else {
           setError('Unable to send the login request. Please try again.');
         }
       } else {
-        setError('An unexpected error occurred. Please try again.');
+        setError(err instanceof Error ? err.message : 'An unexpected error occurred. Please try again.');
       }
     } finally {
       setLoading(false);
@@ -69,17 +68,18 @@ export default function Login() {
         {/* Card */}
         <div className="evl-card p-8">
           {error && (
-            <div className="evl-alert-error mb-5 text-center">{error}</div>
+            <div role="alert" className="evl-alert-error mb-5 text-center">{error}</div>
           )}
           
-          {isWakingUp && !error && (
-            <div className="bg-primary/10 text-primary text-[11px] font-bold py-2 px-3 rounded-lg mb-5 text-center flex items-center justify-center gap-2 animate-pulse">
+          {(isWakingUp || (loading && loginPhase !== 'signing-in')) && !error && (
+            <div role="status" className="bg-primary/10 text-primary text-[11px] font-bold py-2 px-3 rounded-lg mb-5 text-center flex items-center justify-center gap-2 animate-pulse">
               <span className="w-2 h-2 bg-primary rounded-full animate-bounce" />
-              Please wait. First login may take 30 seconds or more.
+              {loading && loginPhase === 'reconnecting' ? 'Reconnecting automatically. Please keep this page open.' : 'Connecting to the server. It may take a moment to start.'}
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-5">
+          <form onSubmit={handleSubmit}>
+            <fieldset disabled={loading} className="space-y-5">
             <div>
               <label className="evl-label" htmlFor="login-email">Email or username</label>
               <input
@@ -118,12 +118,13 @@ export default function Login() {
               {loading ? (
                 <span className="flex items-center gap-2">
                   <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  Signing in…
+                  {loginPhase === 'connecting' ? 'Connecting…' : loginPhase === 'reconnecting' ? 'Reconnecting…' : 'Signing in…'}
                 </span>
               ) : (
                 'Sign in'
               )}
             </button>
+            </fieldset>
           </form>
         </div>
         <div className="mt-8 text-center border-t border-muted/20 pt-8">

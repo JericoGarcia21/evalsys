@@ -49,19 +49,30 @@ test('instructor tour crosses actual pages, remembers completion and replays', a
 test('panel tutorial uses panel controls and never submits trial scores', async ({ page }) => {
   test.setTimeout(90000);
   const writes: string[] = [];
-  page.on('request', request => { if (request.method() === 'POST' && request.url().includes('/evaluations/group/')) writes.push(request.url()); });
+  page.on('request', request => { if (request.method() === 'POST' && (request.url().includes('/evaluations/group/') || /\/chat\/rooms\/[^/]+\/messages/.test(request.url()))) writes.push(request.url()); });
   await login(page, 'qa-panel-b');
   await page.getByRole('region', { name: 'Tutorial invitation' }).getByRole('button', { name: 'Start tutorial', exact: true }).click();
   for (let index = 0; index < tutorials.panel.steps.length; index++) {
     const step = tutorials.panel.steps[index];
     await title(page, step.title);
-    if (index === 2) await page.locator('[data-tutorial="panel-subject"]').selectOption({ label: 'QA101 - Browser QA' });
-    if (index === 4) {
+    if (step.title === 'View group members') {
+      const toggle = page.locator('[data-tutorial="panel-dashboard-members"]').first();
+      await toggle.click();
+      await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+      await toggle.click();
+    }
+    if (step.title === 'Talk with your panel team') {
+      await page.getByLabel('Message', { exact: true }).fill('Unsent tutorial chat draft');
+      await page.getByLabel('Message', { exact: true }).press('Enter');
+      await expect(page.getByLabel('Message', { exact: true })).toHaveValue('Unsent tutorial chat draft');
+    }
+    if (step.title === 'Choose a subject') await page.locator('[data-tutorial="panel-subject"]').selectOption({ label: 'QA101 - Browser QA' });
+    if (step.title === 'Open a group') {
       await expect(popover(page).getByRole('button', { name: 'Next', exact: true })).toBeDisabled();
       await page.locator('[data-tutorial="panel-groups"]').getByRole('button', { name: /QA Draft Group/ }).click();
       await expect(popover(page).getByRole('button', { name: 'Next', exact: true })).toBeEnabled();
     }
-    if (index === 7) {
+    if (step.title === 'Scores and rubric') {
       await page.locator('[data-tutorial="panel-scores"]').getByRole('spinbutton').fill('6');
       await page.locator('[data-tutorial="panel-scores"]').getByRole('spinbutton').press('Enter');
       await expect(page.getByRole('dialog', { name: 'Submit Scores?' })).toHaveCount(0);
@@ -126,6 +137,8 @@ test('mobile tutorial supports reduced motion, keyboard navigation and skipping'
   await title(page, 'Your panel dashboard');
   await expect(popover(page)).toHaveCSS('animation-name', 'none');
   await page.keyboard.press('ArrowRight');
+  await title(page, 'View group members');
+  await page.keyboard.press('ArrowRight');
   await title(page, 'Panel navigation');
   await expect(page.locator('[data-tutorial="mobile-menu"]')).toHaveClass(/driver-active-element/);
   const bounds = await popover(page).boundingBox();
@@ -183,7 +196,12 @@ test('missing panel assignments provide guidance without trapping users', async 
   await page.getByRole('region', { name: 'Tutorial invitation' }).getByRole('button', { name: 'Start tutorial', exact: true }).click();
   await title(page, 'Your panel dashboard');
   await next(page);
+  await title(page, 'View group members');
+  await expect(popover(page)).toContainText('No assigned groups are available yet');
+  await next(page);
   await title(page, 'Panel navigation');
+  await next(page);
+  await title(page, 'Talk with your panel team');
   await next(page);
   await title(page, 'Choose a subject');
   await expect(popover(page)).toContainText('No assigned subjects are available yet');

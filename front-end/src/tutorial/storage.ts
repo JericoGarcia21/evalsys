@@ -1,7 +1,6 @@
 import type { TutorialRole } from './tours';
 export interface TutorialRecord { completed?: boolean; dismissed?: boolean; step?: number; }
-const prefix = 'evalsys_tutorial_v1';
-export const tutorialKey = (identity: string, role: TutorialRole) => prefix + ':' + role + ':' + identity;
+export const tutorialKey = (identity: string, role: TutorialRole) => 'evalsys_tutorial_' + (role === 'panel' ? 'v2' : 'v1') + ':' + role + ':' + identity;
 export function readTutorial(key: string): TutorialRecord {
   try {
     const value = JSON.parse(localStorage.getItem(key) || '{}');

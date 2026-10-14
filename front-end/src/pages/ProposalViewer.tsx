@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import api from '../services/api';
+import { useAuth } from '../context/useAuth';
 
 type Preview = {
   groupId: string;
   name?: string;
+  context?: string;
   kind?: 'pdf' | 'word' | 'legacy-word' | 'unsupported';
   url?: string;
   html?: string;
@@ -14,6 +16,9 @@ type Preview = {
 
 export default function ProposalViewer() {
   const { groupId } = useParams();
+  const { user } = useAuth();
+  const returnPath = user?.role === 'panel' && groupId ? '/grade?groupId=' + groupId : '/groups';
+  const returnLabel = user?.role === 'panel' ? 'Back to grading' : 'Back to groups';
   const [preview, setPreview] = useState<Preview | null>(null);
   const current = preview?.groupId === groupId ? preview : null;
   const error = !groupId ? 'Proposal group is missing.' : current?.error;
@@ -26,9 +31,11 @@ export default function ProposalViewer() {
       try {
         const metadata = await api.get('/groups/' + groupId + '/proposal-url', { signal: controller.signal });
         const name: string = metadata.data.originalName || 'proposal';
+        const subject = metadata.data.subject;
+        const documentContext = [metadata.data.groupName, [subject?.code, subject?.title].filter(Boolean).join(' - '), metadata.data.block ? 'Block: ' + metadata.data.block : ''].filter(Boolean).join(' · ');
         const extension = name.split('.').pop()?.toLowerCase();
         if (!['pdf', 'docx', 'doc'].includes(extension || '')) {
-          if (!controller.signal.aborted) setPreview({ groupId, name, kind: 'unsupported', url: metadata.data.url });
+          if (!controller.signal.aborted) setPreview({ groupId, name, context: documentContext, kind: 'unsupported', url: metadata.data.url });
           return;
         }
         const response = await api.get('/groups/' + groupId + '/proposal-url?format=content', {
@@ -48,13 +55,13 @@ export default function ProposalViewer() {
             '<meta http-equiv="Content-Security-Policy" content="default-src &#39;none&#39;; img-src data:; font-src data:; style-src &#39;unsafe-inline&#39;">' +
             '<style>body{margin:0;background:#e5e7eb}.docx-wrapper{padding:24px!important}</style></head><body>' +
             container.innerHTML + '</body></html>';
-          if (!controller.signal.aborted) setPreview({ groupId, name, kind: 'word', html });
+          if (!controller.signal.aborted) setPreview({ groupId, name, context: documentContext, kind: 'word', html });
         } else if (extension === 'doc') {
           const text = await blob.text();
-          if (!controller.signal.aborted) setPreview({ groupId, name, kind: 'legacy-word', text });
+          if (!controller.signal.aborted) setPreview({ groupId, name, context: documentContext, kind: 'legacy-word', text });
         } else {
           objectUrl = URL.createObjectURL(new Blob([blob], { type: 'application/pdf' }));
-          setPreview({ groupId, name, kind: 'pdf', url: objectUrl });
+          setPreview({ groupId, name, context: documentContext, kind: 'pdf', url: objectUrl });
         }
       } catch (err: unknown) {
         if (controller.signal.aborted) return;
@@ -78,15 +85,16 @@ export default function ProposalViewer() {
   if (current?.kind && !error) {
     const word = current.kind === 'word' || current.kind === 'legacy-word';
     return (
-      <div className="h-screen bg-bg flex flex-col">
-        <header className="flex flex-wrap items-center justify-between gap-3 p-4 border-b border-text/10">
+      <div className="h-[calc(100dvh-12rem)] min-h-[420px] bg-bg flex flex-col min-w-0">
+        <header className="flex flex-wrap items-center justify-between gap-3 p-4 shrink-0 border-b border-text/10">
           <div className="min-w-0">
             <h1 className="text-lg font-black text-text">{word ? 'Proposal Word Preview' : current.kind === 'pdf' ? 'Proposal PDF Preview' : 'Proposal Document'}</h1>
-            <p className="text-sm text-text/70 break-all">{current.name}</p>
+            <p className="text-sm text-text/70 break-words">{current.context}</p>
+            <p className="text-xs text-text/60 break-all mt-1">{current.name}</p>
           </div>
           <div className="flex gap-3">
             {current.kind === 'pdf' && <a href={current.url} target="_blank" rel="noreferrer" className="evl-btn-secondary">Open PDF</a>}
-            <Link to="/dashboard" className="evl-btn-secondary">Back to EvalSys</Link>
+            <Link to={returnPath} className="evl-btn-secondary">{returnLabel}</Link>
           </div>
         </header>
         {current.kind === 'word' && <iframe srcDoc={current.html} sandbox="" title="Proposal Word preview" className="w-full flex-1 border-0" />}
@@ -114,7 +122,7 @@ export default function ProposalViewer() {
       <div className="evl-card w-full max-w-md p-8 text-center" role="status">
         <h1 className="text-xl font-black text-text mb-2">{error ? 'Proposal Unavailable' : 'Opening Proposal'}</h1>
         <p className="text-sm text-text/70 mb-6">{error || 'Preparing your document preview...'}</p>
-        {error && <Link to="/dashboard" className="evl-btn-secondary inline-flex justify-center">Back to EvalSys</Link>}
+        {error && <Link to={returnPath} className="evl-btn-secondary inline-flex justify-center">{returnLabel}</Link>}
       </div>
     </div>
   );

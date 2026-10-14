@@ -105,6 +105,7 @@ app.use('/api/registration-links', require('./routes/registrationLink.routes'));
 app.use('/api/usage', require('./routes/usage.routes'));
 app.use('/api/legacy-data', require('./routes/legacyData.routes'));
 app.use('/api/operations', require('./routes/operations.routes'));
+app.use('/api/chat', require('./routes/chat.routes'));
 app.use('/api/jobs', require('./routes/job.routes'));
 
 app.get('/api/health', (_, res) => res.json({ status: 'ok' }));

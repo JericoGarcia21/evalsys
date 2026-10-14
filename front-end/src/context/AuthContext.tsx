@@ -1,5 +1,6 @@
 import { useState, useEffect, type ReactNode } from 'react';
 import api from '../services/api';
+import { requestLogin, type LoginPhase } from '../services/loginConnection';
 import { notify } from '../utils/notify';
 import { AuthContext, type User } from './auth-context';
 
@@ -36,8 +37,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       .finally(() => setLoading(false));
   }, []);
 
-  const login = async (email: string, password: string) => {
-    const res = await api.post('/auth/login', { email, password });
+  const login = async (email: string, password: string, onPhase?: (phase: LoginPhase) => void) => {
+    const res = await requestLogin(email, password, onPhase);
     const loggedInUser = normalizeUser(res.data.user);
     localStorage.setItem('token', res.data.token);
     setUser(loggedInUser);

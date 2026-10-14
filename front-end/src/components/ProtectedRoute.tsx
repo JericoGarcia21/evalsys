@@ -8,10 +8,11 @@ interface Props {
   children: ReactNode;
   role?: 'admin' | 'panel';
   instructorOnly?: boolean;
+  instructorOrPanelOnly?: boolean;
   superadminOnly?: boolean;
 }
 
-export default function ProtectedRoute({ children, role, instructorOnly, superadminOnly }: Props) {
+export default function ProtectedRoute({ children, role, instructorOnly, instructorOrPanelOnly, superadminOnly }: Props) {
   const { user, loading } = useAuth();
 
   if (loading) {
@@ -58,6 +59,7 @@ export default function ProtectedRoute({ children, role, instructorOnly, superad
     return <Navigate to="/dashboard" replace />;
   }
   if (role === 'panel' && user.role !== 'panel') return <Navigate to="/dashboard" replace />;
+  if (instructorOrPanelOnly && !['admin', 'panel'].includes(user.role)) return <Navigate to="/dashboard" replace />;
   if (instructorOnly && user.role !== 'admin') return <Navigate to="/dashboard" replace />;
   if (superadminOnly && user.role !== 'superadmin') return <Navigate to="/dashboard" replace />;
 

@@ -298,3 +298,19 @@ Score exports use case-insensitive A–Z ordering: member grades by Last Name, F
 ### Proposal previews
 
 View Proposal displays PDF files in the browser and DOCX files as Word pages with formatting and images. Older DOC uploads show a text preview; images and formatting are not available for that format. Word rendering happens locally in the browser, with no LibreOffice or external document viewer required. Unsupported PowerPoint previews show an explicit Download original button instead of triggering an automatic download. PDF and Word previews retain the existing instructor/panel access checks. The optional backend Dockerfile uses the standard Node runtime.
+
+### Calendar maintenance scheduling
+
+Super Admin can open System Control to choose a calendar start date/time or an immediate/5/15/30-minute start. Calendar inputs use the displayed browser timezone and are saved as UTC. An optional end time automatically restores instructor, panel, login and student registration access. Leaving the end blank requires Super Admin to end maintenance manually. Upcoming windows can be rescheduled or cancelled, and the maintenance message can be updated independently. Schedule changes are recorded in the security audit log. Maintenance status is checked from saved dates, so scheduled windows continue to work after an API restart.
+
+### Super Admin analytics
+
+The separate Super Admin Analytics tab provides platform totals, 7/30/90-day registration trends, subject breakdowns, proposal coverage and grading progress across all instructors. Students means saved group member entries rather than unique student identities; a person listed in several groups is counted several times. Counts use current records, and daily roster totals are grouped by the group creation date in UTC. Complete groups have submissions from every existing panel judge assigned through either the block or group. Archived evaluations are reported separately. Refresh retrieves fresh totals; the endpoint is restricted to Super Admin.
+
+### General panel chat
+
+Panel Chat is a private, general conversation for each subject instructor and its currently assigned panel judges, shared across the subject blocks. There are no group discussion threads or block-room lists. Panels working on more than one subject can select the appropriate panel team. Direct group assignments also grant membership in that subject team; removing all assignments, revoking the instructor subject, or deactivating the account removes access. Students and unrelated instructors/panels cannot read or send messages.
+
+Messages refresh every 10 seconds while chat is visible, and sidebar unread counts refresh every 30 seconds without popups or sounds during grading. Read cursors are per account and stored in MongoDB. Text messages are limited to 2,000 characters and 30 sends per minute; retried sends reuse their identifier to avoid duplicates. Local message drafts survive reloads, and earlier history loads in 50-message pages. Chat never changes grades or student feedback. The panel tutorial covers chat and the dashboard-only Show members toggle; it does not send messages.
+
+Sign-in checks server readiness before sending credentials. Startup health checks are shared between the login page and form, retry transient connection/gateway failures for up to 60 seconds, and reuse a healthy result briefly. One transport-only login failure triggers a fresh readiness check and one retry. HTTP authentication, lockout, rate-limit and maintenance responses are not retried. The form reports connection progress and preserves entered details if connection fails.

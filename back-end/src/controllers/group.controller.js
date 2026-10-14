@@ -439,6 +439,9 @@ exports.getGroupProposalUrl = async (req, res) => {
     res.json({
       url,
       originalName: group.proposalFile.originalName || path.basename(group.proposalFile.path),
+      groupName: group.name,
+      block: group.section?.block || group.section?.name || '',
+      subject: group.section?.subject || null,
       expiresInSeconds: 600,
     });
   } catch (err) {

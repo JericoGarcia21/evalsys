@@ -4,9 +4,10 @@ import { useAuth } from '../context/useAuth';
 import api from '../services/api';
 import { CardSkeleton } from '../components/LoadingSkeleton';
 import { formatMemberList, memberSearchText, type Member } from '../utils/members';
+import { getApiMessage } from '../utils/apiError';
 import { notify } from '../utils/notify';
 
-interface Section { _id: string; name: string; block: string; subject?: string | { _id?: string }; }
+interface Section { _id: string; name: string; block: string; subject?: string | { _id?: string; code?: string; title?: string }; }
 interface Group { _id: string; name: string; section: Section; members: Member[]; isGraded?: boolean; }
 interface Subject { _id: string; code: string; title: string; }
 
@@ -26,6 +27,11 @@ const compactSubjectTitle = (title: string) => {
 const getRefId = (value: string | { _id?: string } | undefined | null) => (
   typeof value === 'string' ? value : value?._id || ''
 );
+
+
+const subjectLabel = (subject: Section['subject']) => typeof subject === 'object' && subject
+  ? [subject.code, subject.title].filter(Boolean).join(' - ') || 'Subject not linked'
+  : 'Subject not linked';
 
 // SVG icons matching the sidebar NavIcon set exactly
 const CardIcon = ({ name }: { name: string }) => {
@@ -195,100 +201,81 @@ function AdminDashboard({ name, role, userId }: { name: string; role: 'admin' | 
   );
 }
 
-/* ── Panel view — choose section, see groups ── */
+/* Panel workspace */
 function PanelDashboard({ name, panelId }: { name: string; panelId: string }) {
   const [groups, setGroups] = useState<Group[]>([]);
   const [sections, setSections] = useState<Section[]>([]);
-  const [selectedSection, setSelectedSection] = useState<string | null>(null);
+  const [selectedSubject, setSelectedSubject] = useState('');
+  const [expandedGroups, setExpandedGroups] = useState<string[]>([]);
+  const [selectedSection, setSelectedSection] = useState('');
   const [loading, setLoading] = useState(true);
+  const [requestError, setRequestError] = useState('');
+  const [requestVersion, setRequestVersion] = useState(0);
   const [lockedSubjectIds, setLockedSubjectIds] = useState<string[]>([]);
   const [search, setSearch] = useState('');
 
-
   useEffect(() => {
+    const controller = new AbortController();
     Promise.all([
-      api.get('/sections'),
-      api.get('/groups'),
-      api.get('/auth/me')
+      api.get('/sections', { signal: controller.signal }),
+      api.get('/groups', { signal: controller.signal }),
+      api.get('/auth/me', { signal: controller.signal }),
     ]).then(([secRes, grpRes, meRes]) => {
-      const fetchedSections = secRes.data;
-      setSections(fetchedSections);
-      if (fetchedSections.length > 0) {
-        setSelectedSection(fetchedSections[0]._id);
-      }
+      if (controller.signal.aborted) return;
+      setSections(secRes.data);
       setGroups(grpRes.data);
       if (panelId) {
-        const groupNames = grpRes.data.reduce((acc: Record<string, string>, group: Group) => {
-          acc[group._id] = group.name;
-          return acc;
-        }, {});
-        const groupStatus = grpRes.data.reduce((acc: Record<string, { name: string; isGraded: boolean }>, group: Group) => {
-          acc[group._id] = { name: group.name, isGraded: Boolean(group.isGraded) };
-          return acc;
-        }, {});
+        const groupNames = Object.fromEntries((grpRes.data as Group[]).map(group => [group._id, group.name]));
+        const groupStatus = Object.fromEntries((grpRes.data as Group[]).map(group => [
+          group._id, { name: group.name, isGraded: Boolean(group.isGraded) },
+        ]));
         localStorage.setItem(groupNameCacheKey, JSON.stringify(groupNames));
         localStorage.setItem(groupStatusCacheKey(panelId), JSON.stringify(groupStatus));
       }
-      setLockedSubjectIds((meRes.data.gradingLockedSubjects || []).map((subject: string | { _id?: string }) => getRefId(subject)));
-    })
-    .catch((err) => console.error(err))
-    .finally(() => setLoading(false));
-  }, [panelId]);
-
-  const filteredGroups = groups
-    .filter((g) => {
-      const sId = typeof g.section === 'string' ? g.section : g.section?._id;
-      const matchesSection = !selectedSection || sId === selectedSection;
-      const matchesSearch = g.name.toLowerCase().includes(search.toLowerCase()) || 
-                            g.members.some(m => memberSearchText(m).includes(search.toLowerCase()));
-      return matchesSection && matchesSearch;
-    })
-    .sort((a, b) => {
-      if (a.isGraded === b.isGraded) return 0;
-      return a.isGraded ? 1 : -1;
+      setLockedSubjectIds((meRes.data.gradingLockedSubjects || []).map(getRefId));
+    }).catch((err) => {
+      if (!controller.signal.aborted) setRequestError(getApiMessage(err, 'Unable to load your assigned subjects and groups.'));
+    }).finally(() => {
+      if (!controller.signal.aborted) setLoading(false);
     });
+    return () => controller.abort();
+  }, [panelId, requestVersion]);
 
-  const gradedCount = groups.filter(g => g.isGraded).length;
-  const totalCount = groups.length;
-  const progressPct = totalCount > 0 ? Math.round((gradedCount / totalCount) * 100) : 0;
-  const selectedSectionDoc = selectedSection
-    ? sections.find((section) => section._id === selectedSection)
-    : null;
-  const selectedSubjectId = getRefId(selectedSectionDoc?.subject);
-  const locked = Boolean(selectedSubjectId && lockedSubjectIds.includes(selectedSubjectId));
+  const assignedSubjects = Array.from(new Map(sections.filter(section => getRefId(section.subject)).map(section => [
+    getRefId(section.subject),
+    { id: getRefId(section.subject), label: subjectLabel(section.subject) },
+  ])).values());
+  const visibleSections = sections.filter(section => !selectedSubject || getRefId(section.subject) === selectedSubject);
+  const subjectGroups = groups.filter(group => !selectedSubject || getRefId(group.section?.subject) === selectedSubject);
+  const filteredGroups = subjectGroups.filter(group =>
+    (!selectedSection || group.section?._id === selectedSection) &&
+    (group.name.toLowerCase().includes(search.trim().toLowerCase()) ||
+      group.members.some(member => memberSearchText(member).includes(search.trim().toLowerCase())))
+  ).sort((a, b) => Number(Boolean(a.isGraded)) - Number(Boolean(b.isGraded)));
+  const gradedCount = subjectGroups.filter(group => group.isGraded).length;
+  const totalCount = subjectGroups.length;
+  const progressPct = totalCount ? Math.round(gradedCount / totalCount * 100) : 0;
+  const retry = () => {
+    setLoading(true);
+    setRequestError('');
+    setRequestVersion(version => version + 1);
+  };
 
   return (
-    <div>
-      <div className="mb-8 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-        <div>
+    <div className="min-w-0">
+      <div className="mb-6 flex flex-col xl:flex-row xl:items-start justify-between gap-4">
+        <div className="min-w-0">
           <h2 data-tutorial="dashboard-welcome" className="evl-page-title">Welcome back, {name}</h2>
-          <p className="evl-page-subtitle">
-            Select a block below and grade the groups assigned to you.
-          </p>
-          {locked && (
-            <div className="mt-3 p-2.5 bg-danger/5 border border-danger/20 rounded-lg flex items-center gap-2 text-danger text-[11px] font-bold uppercase tracking-wider">
-              <span>🔒 Grading is currently locked by the instructor</span>
-            </div>
-          )}
+          <p className="evl-page-subtitle">Choose an assigned subject and block, then open a group to review or grade it.</p>
         </div>
-
-        {/* Progress Card */}
-        {!loading && totalCount > 0 && (
-          <div className="evl-card px-6 py-4 flex items-center gap-6 min-w-[280px] bg-surface/50 border-primary/20">
-            <div className="flex-1">
-              <div className="flex justify-between items-end mb-1.5">
-                <span className="text-[10px] font-bold text-text/65 uppercase tracking-widest">Your Progress</span>
-                <span className="text-xs font-black text-primary">{gradedCount}/{totalCount} <span className="text-[10px] text-text/65 font-medium">Graded</span></span>
-              </div>
-              <div className="w-full bg-muted/20 rounded-full h-1.5">
-                <div 
-                  className="h-1.5 rounded-full bg-primary transition-all duration-700" 
-                  style={{ width: `${progressPct}%` }}
-                />
-              </div>
+        {!loading && !requestError && totalCount > 0 && (
+          <div className="evl-card px-5 py-4 w-full xl:w-72 xl:shrink-0 border-primary/20">
+            <div className="flex justify-between gap-3 mb-2">
+              <span className="text-xs font-bold text-text/65">{selectedSubject ? 'Subject progress' : 'Overall progress'}</span>
+              <span className="text-xs font-black text-primary">{gradedCount}/{totalCount} graded</span>
             </div>
-            <div className="w-12 h-12 rounded-full border-4 border-primary/10 flex items-center justify-center relative">
-              <span className="text-[10px] font-black text-primary">{progressPct}%</span>
+            <div role="progressbar" aria-label="Grading progress" aria-valuenow={progressPct} aria-valuemin={0} aria-valuemax={100} className="bg-muted/20 rounded-full h-2">
+              <div className="h-2 rounded-full bg-primary" style={{ width: progressPct + '%' }} />
             </div>
           </div>
         )}
@@ -296,99 +283,96 @@ function PanelDashboard({ name, panelId }: { name: string; panelId: string }) {
 
       {loading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-          {Array(6).fill(0).map((_, i) => <CardSkeleton key={i} />)}
+          {Array.from({ length: 6 }, (_, index) => <CardSkeleton key={index} />)}
         </div>
-      ) : sections.length === 0 ? (
-        <div className="evl-card p-12 text-center">
-          <div className="text-text/60 text-4xl mb-3">⊞</div>
-          <p className="text-text/70 text-sm">No groups have been assigned to you yet.</p>
+      ) : requestError ? (
+        <div className="evl-card p-8 text-center" role="alert">
+          <p className="text-danger mb-4">{requestError}</p>
+          <button onClick={retry} className="evl-btn-secondary">Try again</button>
+        </div>
+      ) : sections.length === 0 && groups.length === 0 ? (
+        <div className="evl-card p-8 text-center">
+          <h3 className="font-bold text-text mb-2">No assignments yet</h3>
+          <p className="text-text/70 text-sm">Ask your instructor to assign you to a block or group. Assigned subjects will appear here.</p>
         </div>
       ) : (
         <>
+          <section data-tutorial="panel-dashboard-subjects" aria-label="Assigned subjects" className="mb-6">
+            <h3 className="text-text font-bold mb-3">Assigned subjects</h3>
+            <div className="flex flex-wrap gap-2">
+              <button onClick={() => { setSelectedSubject(''); setSelectedSection(''); }}
+                aria-pressed={!selectedSubject}
+                className={!selectedSubject ? 'evl-btn-primary' : 'evl-btn-secondary'}>All Subjects</button>
+              {assignedSubjects.map(subject => {
+                const assignedGroups = groups.filter(group => getRefId(group.section?.subject) === subject.id);
+                const count = assignedGroups.filter(group => group.isGraded).length;
+                const locked = lockedSubjectIds.includes(subject.id);
+                return (
+                  <button key={subject.id} onClick={() => { setSelectedSubject(subject.id); setSelectedSection(''); }}
+                    aria-pressed={selectedSubject === subject.id}
+                    className={'text-left max-w-full px-4 py-3 rounded-xl border transition-colors ' +
+                      (selectedSubject === subject.id ? 'bg-primary text-white border-primary' : 'bg-surface text-text border-muted/40 hover:border-primary/50')}>
+                    <span className="block text-sm font-bold break-words">{subject.label}</span>
+                    <span className="block text-xs mt-1">{count}/{assignedGroups.length} graded{locked ? ' · Grading locked' : ''}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
 
-      <div className="mb-6 flex flex-col md:flex-row gap-4 items-center">
-        {/* Section / Block tabs */}
-        <div className="flex gap-2 flex-wrap flex-1">
-          <button
-            onClick={() => setSelectedSection(null)}
-            className={`px-4 py-2 rounded-lg text-xs font-bold border transition-all duration-150 ${
-              !selectedSection
-                ? 'bg-primary text-white border-primary shadow-sm shadow-primary/20'
-                : 'border-muted/40 text-text/70 bg-surface hover:text-text'
-            }`}
-          >
-            All Blocks
-          </button>
-          {sections.map((s) => (
-            <button
-              key={s._id}
-              onClick={() => setSelectedSection(s._id)}
-              className={`px-4 py-2 rounded-lg text-xs font-bold border transition-all duration-150 ${
-                selectedSection === s._id
-                  ? 'bg-primary text-white border-primary shadow-sm shadow-primary/20'
-                  : 'border-muted/40 text-text/70 bg-surface hover:text-text'
-              }`}
-            >
-              {s.block}
-            </button>
-          ))}
-        </div>
+          <div className="mb-6 flex flex-col md:flex-row gap-4 md:items-end">
+            <div className="flex-1 min-w-0">
+              <h3 className="text-text text-sm font-bold mb-2">Blocks</h3>
+              <div className="flex flex-wrap gap-2">
+                <button onClick={() => setSelectedSection('')} aria-pressed={!selectedSection}
+                  className={!selectedSection ? 'evl-btn-primary' : 'evl-btn-secondary'}>All Blocks</button>
+                {visibleSections.map(section => (
+                  <button key={section._id} onClick={() => setSelectedSection(section._id)}
+                    aria-pressed={selectedSection === section._id}
+                    className={'px-4 py-2 rounded-lg border text-sm text-left max-w-full ' +
+                      (selectedSection === section._id ? 'bg-primary text-white border-primary' : 'border-muted/40 bg-surface text-text')}>
+                    <span className="block font-bold break-words">{section.block || section.name}</span>
+                    {!selectedSubject && <span className="block text-xs break-words">{subjectLabel(section.subject)}</span>}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="w-full md:w-64 md:shrink-0">
+              <label htmlFor="panel-group-search" className="evl-label">Search groups or students</label>
+              <input id="panel-group-search" type="search" placeholder="Group or student name..."
+                value={search} onChange={event => setSearch(event.target.value)} className="evl-input" />
+            </div>
+          </div>
 
-        {/* Search Bar */}
-        <div className="w-full md:w-64 relative">
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text/55 text-sm">🔍</span>
-          <input 
-            type="text"
-            placeholder="Search group or student..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="evl-input !py-2 !pl-9 !text-xs !bg-surface/50"
-          />
-        </div>
-      </div>
-
-          {/* Groups grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            {filteredGroups.map((g) => (
-              <Link
-                key={g._id}
-                to={`/grade?groupId=${g._id}`}
-                className={`evl-card p-6 group transition-all duration-200 border-2 ${
-                  g.isGraded 
-                    ? 'border-success/20 bg-success/5 hover:border-success/40' 
-                    : 'border-muted/60 hover:border-primary/50 hover:shadow-md'
-                }`}
-              >
-                <div className="flex items-start justify-between mb-3">
-                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-lg font-bold ${
-                    g.isGraded ? 'bg-success text-white' : 'bg-primary/10 text-primary'
-                  }`}>
-                    {g.isGraded ? '✓' : g.name.charAt(0)}
+          <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-5">
+            {filteredGroups.map(group => {
+              const locked = lockedSubjectIds.includes(getRefId(group.section?.subject));
+              return (
+                <article key={group._id}
+                  className={'evl-card min-w-0 p-6 border-2 transition-colors hover:border-primary/50 ' +
+                    (group.isGraded ? 'border-success/20 bg-success/5' : 'border-muted/60')}>
+                  <Link to={'/grade?groupId=' + group._id} className="block">
+                  <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                    <span className={group.isGraded ? 'evl-badge-success' : 'evl-badge-primary'}>{group.isGraded ? 'Graded' : 'Pending'}</span>
+                    {locked && <span className="evl-badge-warning">Grading locked</span>}
                   </div>
-                  {g.isGraded ? (
-                    <span className="evl-badge-success">Graded</span>
-                  ) : (
-                    <span className="evl-badge-primary opacity-50">Pending</span>
-                  )}
-                </div>
-                <h3 className={`text-text font-bold text-base mb-1 transition-colors ${
-                  !g.isGraded && 'group-hover:text-primary'
-                }`}>
-                  {g.name}
-                </h3>
-                <p className="text-text/70 text-sm leading-relaxed">
-                  {formatMemberList(g.members) || 'No members listed'}
-                </p>
-                <div className={`mt-4 text-xs font-semibold flex items-center gap-1 transition-all ${
-                  g.isGraded ? 'text-success' : 'text-primary opacity-0 group-hover:opacity-100'
-                }`}>
-                  {g.isGraded ? 'Update Evaluation →' : 'Grade now →'}
-                </div>
-              </Link>
-            ))}
+                  <h3 className="text-text font-bold text-base break-words">{group.name}</h3>
+                  <p className="text-primary font-semibold text-sm mt-2 break-words">{subjectLabel(group.section?.subject)}</p>
+                  <p className="text-text/65 text-xs mt-1">Block: {group.section?.block || group.section?.name || 'Unassigned'}</p>
+                  <div className="mt-4 text-primary text-xs font-bold">{locked ? 'Review group →' : group.isGraded ? 'Update evaluation →' : 'Grade now →'}</div>
+                  </Link>
+                  <button type="button" data-tutorial="panel-dashboard-members" aria-expanded={expandedGroups.includes(group._id)} aria-controls={'panel-members-' + group._id}
+                    aria-label={(expandedGroups.includes(group._id) ? 'Hide' : 'Show') + ' members for ' + group.name}
+                    onClick={() => setExpandedGroups(current => current.includes(group._id) ? current.filter(id => id !== group._id) : [...current, group._id])}
+                    className="mt-4 text-xs font-semibold text-text/60 hover:text-primary">{expandedGroups.includes(group._id) ? 'Hide members' : 'Show members'}</button>
+                  {expandedGroups.includes(group._id) && <p id={'panel-members-' + group._id} className="text-text/70 text-sm leading-relaxed mt-3 break-words border-t border-muted/20 pt-3">{formatMemberList(group.members) || 'No members listed'}</p>}
+                </article>
+              );
+            })}
             {filteredGroups.length === 0 && (
-              <div className="col-span-full evl-card p-12 text-center">
-                <p className="text-text/65 text-sm">No groups in this block.</p>
+              <div className="col-span-full evl-card p-8 text-center">
+                <p className="text-text/70 text-sm">{search.trim() ? 'No groups or students match your search.' : 'No assigned groups in this selection yet.'}</p>
+                {search.trim() && <button onClick={() => setSearch('')} className="evl-btn-secondary mt-4">Clear search</button>}
               </div>
             )}
           </div>
@@ -397,4 +381,3 @@ function PanelDashboard({ name, panelId }: { name: string; panelId: string }) {
     </div>
   );
 }
-

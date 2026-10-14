@@ -1,5 +1,7 @@
+import FloatingPanelChat from './FloatingPanelChat';
 import { type ReactNode, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { useChat } from '../context/useChat';
 import { useAuth } from '../context/useAuth';
 import api from '../services/api';
 import { useConfirmDialog } from '../hooks/useConfirmDialog';
@@ -12,6 +14,7 @@ import {
 
 const superadminLinks = [
   { to: '/dashboard', label: 'Dashboard' },
+  { to: '/analytics', label: 'Analytics' },
   { to: '/users', label: 'Instructors' },
   { to: '/subjects', label: 'Subjects' },
   { to: '/subscription', label: 'Resources' },
@@ -28,6 +31,7 @@ const instructorLinks = [
   { to: '/groups', label: 'Groups' },
   { to: '/users', label: 'Panel Accounts' },
   { to: '/assign-panels', label: 'Assign Panels' },
+  { to: '/chat', label: 'Panel Chat' },
   { to: '/rubrics', label: 'Rubrics' },
   { to: '/registration-links', label: 'Registration Links' },
   { to: '/results', label: 'Results' },
@@ -37,11 +41,14 @@ const instructorLinks = [
 const panelLinks = [
   { to: '/dashboard', label: 'Dashboard' },
   { to: '/grade', label: 'Grade Groups' },
+  { to: '/chat', label: 'Panel Chat' },
 ];
 
-type NavIconName = 'dashboard' | 'sections' | 'groups' | 'users' | 'assign' | 'rubrics' | 'results' | 'ai' | 'link' | 'grade' | 'subjects' | 'subscription' | 'operations' | 'security' | 'system' | 'legacy';
+type NavIconName = 'dashboard' | 'sections' | 'groups' | 'users' | 'assign' | 'rubrics' | 'results' | 'ai' | 'link' | 'grade' | 'subjects' | 'subscription' | 'operations' | 'security' | 'system' | 'legacy' | 'chat';
 
 const getNavIconName = (to: string): NavIconName => {
+  if (to === '/chat') return 'chat';
+  if (to === '/analytics') return 'results';
   if (to === '/subjects') return 'subjects';
   if (to === '/sections') return 'sections';
   if (to === '/groups') return 'groups';
@@ -72,6 +79,7 @@ const NavIcon = ({ name }: { name: NavIconName }) => {
     'aria-hidden': true,
   };
 
+  if (name === 'chat') return <svg {...common}><path d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7A8.4 8.4 0 0 1 4 11.5a8.5 8.5 0 0 1 4.7-7.6 8.4 8.4 0 0 1 3.8-.9h.5a8.5 8.5 0 0 1 8 8v.5Z" /></svg>;
   if (name === 'dashboard') {
     return <svg {...common}><rect x="3" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="3" width="7" height="7" rx="1.5" /><rect x="3" y="14" width="7" height="7" rx="1.5" /><rect x="14" y="14" width="7" height="7" rx="1.5" /></svg>;
   }
@@ -202,6 +210,8 @@ const getPanelDraftGroups = (panelId?: string) => {
 
 export default function Layout({ children }: { children: ReactNode }) {
   const { user, logout } = useAuth();
+  const { rooms: chatRooms } = useChat();
+  const chatUnread = chatRooms.reduce((sum, room) => sum + room.unread, 0);
   const navigate = useNavigate();
   const location = useLocation();
   const links = user?.role === 'admin'
@@ -475,6 +485,7 @@ export default function Layout({ children }: { children: ReactNode }) {
                   <NavIcon name={getNavIconName(link.to)} />
                 </span>
                 {(!collapsed || mobileOpen) && <span>{link.label}</span>}
+                {link.to === '/chat' && chatUnread > 0 && (!collapsed || mobileOpen) && <span aria-label={chatUnread + ' unread chat messages'} className="ml-auto rounded-full bg-primary/20 text-white text-[10px] font-bold px-2 py-0.5">{chatUnread > 99 ? '99+' : chatUnread}</span>}
               </Link>
             );
           })}
@@ -522,7 +533,7 @@ export default function Layout({ children }: { children: ReactNode }) {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 overflow-auto pt-16 lg:pt-0">
+      <main className="flex-1 min-w-0 overflow-auto pt-16 lg:pt-0">
         <div
           key={`${currentInstructorId || 'self'}:${currentSubjectId || 'none'}`}
           className="px-4 py-6 sm:px-6 lg:px-10 lg:py-8 2xl:px-14"
@@ -531,6 +542,7 @@ export default function Layout({ children }: { children: ReactNode }) {
           {children}
         </div>
       </main>
+      <FloatingPanelChat key={user?.role + ":" + (user?.id || user?._id || "")} />
     </div>
   );
 }

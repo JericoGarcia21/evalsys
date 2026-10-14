@@ -254,6 +254,10 @@ test('proposal upload rollback and local storage-adapter contract are verified',
   const calls = [];
   const storage = http.createServer((req, res) => {
     calls.push(req.url); req.resume();
+    if (req.method === 'GET' && req.url.includes('/object/')) {
+      res.setHeader('Content-Type', 'application/pdf');
+      return res.end('%PDF-1.4 QA');
+    }
     res.setHeader('Content-Type', 'application/json');
     res.end(JSON.stringify(req.url.includes('/sign/') ? { signedURL: '/object/sign/qa-file?token=qa' } : { Key: 'qa-file' }));
   });
@@ -265,6 +269,12 @@ test('proposal upload rollback and local storage-adapter contract are verified',
     assert.equal(uploaded.body.proposalFile.originalName, 'qa.pdf');
     const signed = await api('get', '/api/groups/' + uploaded.body._id + '/proposal-url', panel).expect(200);
     assert.ok(signed.body.url.includes('token=qa'));
+    const preview = await api('get', '/api/groups/' + uploaded.body._id + '/proposal-url?format=content', panel).expect(200);
+    assert.match(preview.headers['content-type'], /application\/pdf/);
+    assert.equal(preview.headers['content-disposition'], 'inline');
+    assert.equal(preview.headers['cache-control'], 'private, no-store');
+    assert.equal(preview.body.toString(), '%PDF-1.4 QA');
+    await api('get', '/api/groups/' + uploaded.body._id + '/proposal-url?format=content', outsider).expect(403);
     await api('get', '/api/groups/' + uploaded.body._id + '/proposal-url', outsider).expect(403);
     assert.ok(calls.some(path => path.includes('/sign/')));
   } finally {

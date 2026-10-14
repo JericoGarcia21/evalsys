@@ -2,9 +2,19 @@ import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import api from '../services/api';
 
+type Preview = {
+  groupId: string;
+  name?: string;
+  kind?: 'pdf' | 'word' | 'legacy-word' | 'unsupported';
+  url?: string;
+  html?: string;
+  text?: string;
+  error?: string;
+};
+
 export default function ProposalViewer() {
   const { groupId } = useParams();
-  const [preview, setPreview] = useState<{ groupId: string; url?: string; error?: string } | null>(null);
+  const [preview, setPreview] = useState<Preview | null>(null);
   const current = preview?.groupId === groupId ? preview : null;
   const error = !groupId ? 'Proposal group is missing.' : current?.error;
 
@@ -12,39 +22,89 @@ export default function ProposalViewer() {
     if (!groupId) return;
     const controller = new AbortController();
     let objectUrl: string | undefined;
-    api.get('/groups/' + groupId + '/proposal-url?format=pdf', {
-      responseType: 'blob', signal: controller.signal,
-    }).then((res) => {
-      if (controller.signal.aborted) return;
-      objectUrl = URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
-      setPreview({ groupId, url: objectUrl });
-    }).catch(async (err) => {
-      if (controller.signal.aborted) return;
-      let message = 'Unable to open proposal right now.';
+    const load = async () => {
       try {
-        const data = err.response?.data;
-        const body = data instanceof Blob ? JSON.parse(await data.text()) : data;
-        message = body?.message || message;
-      } catch { /* Keep the fallback for non-JSON errors. */ }
-      if (!controller.signal.aborted) setPreview({ groupId, error: message });
-    });
+        const metadata = await api.get('/groups/' + groupId + '/proposal-url', { signal: controller.signal });
+        const name: string = metadata.data.originalName || 'proposal';
+        const extension = name.split('.').pop()?.toLowerCase();
+        if (!['pdf', 'docx', 'doc'].includes(extension || '')) {
+          if (!controller.signal.aborted) setPreview({ groupId, name, kind: 'unsupported', url: metadata.data.url });
+          return;
+        }
+        const response = await api.get('/groups/' + groupId + '/proposal-url?format=content', {
+          responseType: 'blob', signal: controller.signal,
+        });
+        if (controller.signal.aborted) return;
+        const blob: Blob = response.data;
+        if (extension === 'docx') {
+          const { renderAsync } = await import('docx-preview');
+          const container = document.createElement('div');
+          await renderAsync(await blob.arrayBuffer(), container, undefined, {
+            useBase64URL: true, renderAltChunks: false,
+          });
+          // Disable navigation from document hyperlinks.
+          container.querySelectorAll('a').forEach(anchor => anchor.removeAttribute('href'));
+          const html = '<!doctype html><html><head><meta charset="utf-8">' +
+            '<meta http-equiv="Content-Security-Policy" content="default-src &#39;none&#39;; img-src data:; font-src data:; style-src &#39;unsafe-inline&#39;">' +
+            '<style>body{margin:0;background:#e5e7eb}.docx-wrapper{padding:24px!important}</style></head><body>' +
+            container.innerHTML + '</body></html>';
+          if (!controller.signal.aborted) setPreview({ groupId, name, kind: 'word', html });
+        } else if (extension === 'doc') {
+          const text = await blob.text();
+          if (!controller.signal.aborted) setPreview({ groupId, name, kind: 'legacy-word', text });
+        } else {
+          objectUrl = URL.createObjectURL(new Blob([blob], { type: 'application/pdf' }));
+          setPreview({ groupId, name, kind: 'pdf', url: objectUrl });
+        }
+      } catch (err: unknown) {
+        if (controller.signal.aborted) return;
+        let message = 'Unable to preview this proposal. The document may be damaged or unsupported.';
+        try {
+          const response = (err as { response?: { data?: Blob | { message?: string } } }).response;
+          const data = response?.data;
+          const body = data instanceof Blob ? JSON.parse(await data.text()) : data;
+          message = body?.message || message;
+        } catch { /* Keep the fallback for non-JSON errors. */ }
+        if (!controller.signal.aborted) setPreview({ groupId, error: message });
+      }
+    };
+    void load();
     return () => {
       controller.abort();
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
   }, [groupId]);
 
-  if (current?.url && !error) {
+  if (current?.kind && !error) {
+    const word = current.kind === 'word' || current.kind === 'legacy-word';
     return (
       <div className="h-screen bg-bg flex flex-col">
         <header className="flex flex-wrap items-center justify-between gap-3 p-4 border-b border-text/10">
-          <h1 className="text-lg font-black text-text">Proposal PDF Preview</h1>
+          <div className="min-w-0">
+            <h1 className="text-lg font-black text-text">{word ? 'Proposal Word Preview' : current.kind === 'pdf' ? 'Proposal PDF Preview' : 'Proposal Document'}</h1>
+            <p className="text-sm text-text/70 break-all">{current.name}</p>
+          </div>
           <div className="flex gap-3">
-            <a href={current.url} target="_blank" rel="noreferrer" className="evl-btn-secondary">Open PDF</a>
+            {current.kind === 'pdf' && <a href={current.url} target="_blank" rel="noreferrer" className="evl-btn-secondary">Open PDF</a>}
             <Link to="/dashboard" className="evl-btn-secondary">Back to EvalSys</Link>
           </div>
         </header>
-        <iframe src={current.url} title="Proposal PDF preview" className="w-full flex-1 border-0" />
+        {current.kind === 'word' && <iframe srcDoc={current.html} sandbox="" title="Proposal Word preview" className="w-full flex-1 border-0" />}
+        {current.kind === 'pdf' && <iframe src={current.url} title="Proposal PDF preview" className="w-full flex-1 border-0" />}
+        {current.kind === 'legacy-word' && (
+          <main className="flex-1 overflow-auto p-6">
+            <p className="text-sm text-text/70 mb-4">This older Word file is shown as text. Save it as DOCX for formatting and image previews.</p>
+            <article className="evl-card max-w-4xl mx-auto p-8 whitespace-pre-wrap break-words text-text">{current.text || 'This document contains no previewable text.'}</article>
+          </main>
+        )}
+        {current.kind === 'unsupported' && (
+          <main className="flex-1 flex items-center justify-center p-6">
+            <div className="evl-card p-8 text-center">
+              <p className="text-text mb-4">Preview is available for PDF and Word documents. Download this file to open it.</p>
+              <a href={current.url} download={current.name} className="evl-btn-secondary">Download original</a>
+            </div>
+          </main>
+        )}
       </div>
     );
   }
@@ -52,11 +112,8 @@ export default function ProposalViewer() {
   return (
     <div className="min-h-screen bg-bg flex items-center justify-center p-6">
       <div className="evl-card w-full max-w-md p-8 text-center" role="status">
-        <div className="w-12 h-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center mx-auto mb-4 font-black">
-          {error ? '!' : 'PDF'}
-        </div>
         <h1 className="text-xl font-black text-text mb-2">{error ? 'Proposal Unavailable' : 'Opening Proposal'}</h1>
-        <p className="text-sm text-text/70 mb-6">{error || 'Preparing a PDF preview. Word and PowerPoint documents may take a moment...'}</p>
+        <p className="text-sm text-text/70 mb-6">{error || 'Preparing your document preview...'}</p>
         {error && <Link to="/dashboard" className="evl-btn-secondary inline-flex justify-center">Back to EvalSys</Link>}
       </div>
     </div>

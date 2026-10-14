@@ -9,7 +9,8 @@ const {
   createProposalSignedUrl,
   isProposalPathForGroup,
 } = require('../services/proposalStorage.service');
-const { convertProposalToPdf } = require('../services/proposalPdf.service');
+const WordExtractor = require('word-extractor');
+const path = require('node:path');
 const { getPagination, paginatedPayload } = require('../utils/pagination');
 const { validateBody, groupSchema } = require('../utils/validate');
 
@@ -415,25 +416,34 @@ exports.getGroupProposalUrl = async (req, res) => {
   }
 
   try {
-    if (req.query.format === 'pdf') {
+    if (req.query.format === 'content') {
       const buffer = await downloadProposalFile(group.proposalFile.path);
-      const pdf = await convertProposalToPdf(buffer, group.proposalFile.originalName || group.proposalFile.path);
-      res.set({
-        'Content-Type': 'application/pdf',
-        'Content-Disposition': 'inline; filename="proposal.pdf"',
-        'Cache-Control': 'private, no-store',
-      });
-      return res.send(pdf);
+      const extension = path.extname(group.proposalFile.originalName || group.proposalFile.path).toLowerCase();
+      res.set('Cache-Control', 'private, no-store');
+      if (extension === '.doc') {
+        const document = await new WordExtractor().extract(buffer);
+        return res.type('text/plain').send(document.getBody());
+      }
+      const mimeTypes = {
+        '.pdf': 'application/pdf',
+        '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        '.ppt': 'application/vnd.ms-powerpoint',
+        '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+      };
+      const mimeType = mimeTypes[extension];
+      if (!mimeType) return res.status(415).json({ message: 'Unsupported proposal format' });
+      res.set({ 'Content-Type': mimeType, 'Content-Disposition': 'inline' });
+      return res.send(buffer);
     }
     const url = await createProposalSignedUrl(group.proposalFile.path);
     res.json({
       url,
-      originalName: group.proposalFile.originalName,
+      originalName: group.proposalFile.originalName || path.basename(group.proposalFile.path),
       expiresInSeconds: 600,
     });
   } catch (err) {
-    res.status(err.status || 502).json({
-      message: err.status === 503 ? err.message : err.message === 'Supabase Storage is not configured'
+    res.status(502).json({
+      message: err.message === 'Supabase Storage is not configured'
         ? 'Proposal storage is not configured yet'
         : 'Unable to open proposal right now',
     });

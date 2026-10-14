@@ -295,8 +295,6 @@ Instructor and Panel users receive a guided-tour invitation on their first dashb
 
 Score exports use case-insensitive A–Z ordering: member grades by Last Name, First Name, then Middle Name; group summaries, all-results backups and archived results by group name. Group-name numbers use natural order (Group 2 before Group 10). Members listed within exported groups are sorted by name too. Legacy full-name-only members sort by their saved name. Sorting changes export row order only; saved scores and member records are preserved.
 
-### Proposal PDF previews
+### Proposal previews
 
-View Proposal displays an authenticated PDF preview. PDF uploads open directly; DOC, DOCX, PPT and PPTX uploads are converted on demand without replacing the original in storage. The API host needs LibreOffice and fonts for conversion. Set LIBREOFFICE_PATH in the backend environment for a custom executable location; defaults are soffice on Linux and C:/Program Files/LibreOffice/program/soffice.exe on Windows. Restart the API after configuring it.
-
-For Render, deploy the backend as a Docker service with back-end as the root directory and its Dockerfile; the image includes LibreOffice and Liberation fonts. Keep the existing backend environment variables. A native Node Render service does not include LibreOffice. Conversion has a 60-second timeout and removes temporary documents afterward. Conversion errors appear in the viewer without downloading the Word file.
+View Proposal displays PDF files in the browser and DOCX files as Word pages with formatting and images. Older DOC uploads show a text preview; images and formatting are not available for that format. Word rendering happens locally in the browser, with no LibreOffice or external document viewer required. Unsupported PowerPoint previews show an explicit Download original button instead of triggering an automatic download. PDF and Word previews retain the existing instructor/panel access checks. The optional backend Dockerfile uses the standard Node runtime.

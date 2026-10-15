@@ -327,6 +327,8 @@ export default function Layout({ children }: { children: ReactNode }) {
         <button 
           data-tutorial="mobile-menu"
           aria-label="Toggle navigation menu"
+          aria-expanded={mobileOpen}
+          aria-controls="workspace-sidebar"
           onClick={() => setMobileOpen(!mobileOpen)}
           className="w-10 h-10 flex items-center justify-center text-white text-2xl"
         >
@@ -344,12 +346,14 @@ export default function Layout({ children }: { children: ReactNode }) {
 
       {/* Sidebar */}
       <aside
+        id="workspace-sidebar"
+        aria-label="Workspace sidebar"
         className={`
           ${collapsed ? 'lg:w-[72px]' : 'lg:w-64'} 
-          ${mobileOpen ? 'translate-x-0 w-64' : '-translate-x-full w-64'}
+          ${mobileOpen ? 'translate-x-0 visible' : '-translate-x-full invisible lg:visible'} w-72 max-w-[calc(100vw-1rem)]
           lg:translate-x-0 lg:flex
-          fixed lg:sticky top-0 h-screen left-0
-          bg-dark flex flex-col shrink-0 transition-all duration-200 z-50 shadow-xl shadow-dark/10
+          fixed lg:sticky top-0 h-dvh left-0
+          bg-dark flex flex-col shrink-0 overflow-hidden transition-all duration-200 z-50 shadow-xl shadow-dark/10
         `}
       >
         {/* Brand */}
@@ -367,6 +371,14 @@ export default function Layout({ children }: { children: ReactNode }) {
               </div>
             )}
           </div>
+          <button
+            type="button"
+            aria-label="Close navigation menu"
+            onClick={() => setMobileOpen(false)}
+            className="lg:hidden w-11 h-11 shrink-0 rounded-lg text-white text-2xl hover:bg-white/10"
+          >
+            ×
+          </button>
           {/* Collapse toggle (only desktop) */}
           <button
             onClick={() => setCollapsed(!collapsed)}
@@ -377,18 +389,20 @@ export default function Layout({ children }: { children: ReactNode }) {
         </div>
 
         {/* Navigation */}
-        <nav data-tutorial="navigation" className="flex flex-col gap-1 flex-1 px-3 py-4 overflow-y-auto">
+        <nav data-tutorial="navigation" className="flex flex-col gap-1 flex-1 min-h-0 px-3 py-4 overflow-y-auto overflow-x-hidden overscroll-contain [&>*]:shrink-0">
           {(user?.role === 'admin' || user?.role === 'superadmin') && (!collapsed || mobileOpen) && (
-            <div className="mb-4 px-1 pb-4 border-b border-white/10">
+            <div className="min-w-0 mb-4 px-1 pb-4 border-b border-white/10">
               {user?.role === 'superadmin' && (
                 <div className="mb-3">
                   <label className="text-[9px] font-black uppercase tracking-widest text-white/45 block mb-1.5">
                     Instructor
                   </label>
                   <select
+                    id="sidebar-instructor"
+                    aria-label="Instructor"
                     value={currentInstructorId}
                     onChange={(event) => handleInstructorChange(event.target.value)}
-                    className="w-full min-h-10 rounded-lg bg-white/[0.07] border border-white/10 text-white text-xs font-bold px-3 py-2 outline-none hover:bg-white/10 focus:ring-2 focus:ring-primary/40 transition-colors"
+                    className="w-full min-w-0 min-h-11 rounded-lg bg-white/[0.07] border border-white/10 text-white text-xs font-bold px-3 py-2 outline-none hover:bg-white/10 focus:ring-2 focus:ring-primary/40 transition-colors"
                   >
                     {!instructors.length && <option value="">No instructors</option>}
                     {instructors.map((instructor) => (
@@ -406,6 +420,8 @@ export default function Layout({ children }: { children: ReactNode }) {
                 <button
                   type="button"
                   data-tutorial="subject-switcher"
+                  aria-expanded={subjectMenuOpen}
+                  aria-controls="sidebar-subjects"
                   onClick={() => setSubjectMenuOpen((open) => !open)}
                   className="w-full min-h-10 rounded-lg bg-white/[0.07] border border-white/10 text-white text-left px-3 py-2 outline-none hover:bg-white/10 focus:ring-2 focus:ring-primary/40 transition-colors"
                   title={currentSubject ? `${currentSubject.code} - ${currentSubject.title}` : 'Select subject'}
@@ -419,7 +435,7 @@ export default function Layout({ children }: { children: ReactNode }) {
                 </button>
 
                 {subjectMenuOpen && (
-                  <div className="absolute left-0 right-0 top-full mt-1 rounded-lg border border-white/10 bg-dark shadow-xl z-50 overflow-hidden">
+                  <div id="sidebar-subjects" className="relative mt-1 rounded-lg border border-white/10 bg-dark shadow-xl z-50 overflow-hidden">
                     <div className="max-h-48 overflow-y-auto py-1">
                       {subjects.map((subject) => {
                         const active = subject._id === currentSubjectId;
@@ -428,14 +444,14 @@ export default function Layout({ children }: { children: ReactNode }) {
                             key={subject._id}
                             type="button"
                             onClick={() => handleSubjectChange(subject._id)}
-                            className={`w-full text-left px-3 py-2 text-xs transition-colors ${
+                            className={`w-full min-h-11 text-left px-3 py-2 text-xs transition-colors ${
                               active
                                 ? 'bg-primary text-white font-bold'
                                 : 'text-white/70 hover:bg-white/10 hover:text-white'
                             }`}
                             title={`${subject.code} - ${subject.title}`}
                           >
-                            <span className="block truncate">{subject.code} - {subject.title}</span>
+                            <span className="block whitespace-normal break-words">{subject.code} - {subject.title}</span>
                           </button>
                         );
                       })}
@@ -484,7 +500,7 @@ export default function Layout({ children }: { children: ReactNode }) {
         </nav>
 
         {/* User info */}
-        <div className="border-t border-white/10 p-3 shrink-0">
+        <div className="border-t border-white/10 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shrink-0">
           {(!collapsed || mobileOpen) ? (
             <>
               <div className="flex items-center gap-2.5 mb-3 px-1">

@@ -430,19 +430,20 @@ export default function Subscription() {
         )}
 
         <div className="evl-card overflow-hidden">
-          <div className="px-6 py-4 border-b border-muted/30 flex items-center justify-between">
+          <div className="px-4 sm:px-6 py-4 border-b border-muted/30 flex flex-col xl:flex-row xl:items-center justify-between gap-4">
             <div>
               <h3 className="font-bold text-text text-sm">Instructor Subject Limits</h3>
               <p className="text-text/70 text-xs mt-0.5">Set paid allowance and subject-level feature access per instructor.</p>
             </div>
-            <div className="flex items-center gap-3">
-              <label className="text-[10px] font-black uppercase tracking-widest text-text/60">
+            <div className="flex flex-wrap items-center gap-3 min-w-0 w-full xl:w-auto">
+              <label htmlFor="grading-subject" className="text-[10px] font-black uppercase tracking-widest text-text/60">
                 Grading Subject
               </label>
               <select
+                id="grading-subject"
                 value={currentSubjectId}
                 onChange={(e) => handleSubjectChange(e.target.value)}
-                className="evl-select !py-2 !text-xs w-56"
+                className="evl-select !py-2 !text-xs !w-full sm:!w-56 min-w-0"
               >
                 {subjects.map((subject) => (
                   <option key={subject._id} value={subject._id}>{subject.code}</option>
@@ -459,7 +460,7 @@ export default function Subscription() {
               <p className="text-text/65 text-sm">No instructor accounts found.</p>
             </div>
           ) : (
-            <table className="evl-table">
+            <table className="evl-table evl-resource-table">
               <thead>
                 <tr>
                   <th>Instructor</th>
@@ -486,7 +487,7 @@ export default function Subscription() {
 
                   return (
                     <tr key={instructor._id}>
-                      <td>
+                      <td data-label="Instructor">
                         <div className="flex items-center gap-2.5">
                           <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xs font-black shrink-0">
                             {instructor.name.charAt(0).toUpperCase()}
@@ -494,17 +495,18 @@ export default function Subscription() {
                           <span className="font-semibold text-text text-sm">{instructor.name}</span>
                         </div>
                       </td>
-                      <td className="text-text/70 text-xs">{instructor.email}</td>
-                      <td>
+                      <td data-label="Email" className="text-text/70 text-xs">{instructor.email}</td>
+                      <td data-label="Status">
                         <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-full ${instructor.isActive ? 'bg-success/10 text-success' : 'bg-muted/20 text-text/65'}`}>
                           {instructor.isActive ? 'Active' : 'Blocked'}
                         </span>
                       </td>
-                      <td className="text-center">
+                      <td data-label="Subjects Used" className="text-center">
                         <span className="text-xs font-black text-text/60">{subjectCount}/{currentLimit}</span>
                       </td>
-                      <td>
+                      <td data-label="Paid Limit">
                         <input
+                          aria-label={"Paid limit for " + instructor.name}
                           type="number"
                           min={1}
                           max={100}
@@ -513,12 +515,12 @@ export default function Subscription() {
                           className="evl-input !py-2 text-center max-w-28 mx-auto"
                         />
                       </td>
-                      <td className="text-center">
+                      <td data-label="CSV Export" className="text-center">
                         <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-full ${instructor.csvExportLocked ? 'bg-danger/10 text-danger' : 'bg-success/10 text-success'}`}>
                           {instructor.csvExportLocked ? 'Locked' : 'Allowed'}
                         </span>
                       </td>
-                      <td className="text-center">
+                      <td data-label="Grading" className="text-center">
                         <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-full ${
                           !assignedToCurrentSubject
                             ? 'bg-muted/20 text-text/60'
@@ -527,8 +529,8 @@ export default function Subscription() {
                           {!assignedToCurrentSubject ? 'Not Assigned' : currentSubjectLocked ? 'Locked' : 'Allowed'}
                         </span>
                       </td>
-                      <td className="col-actions">
-                        <div className="flex items-center justify-end gap-2">
+                      <td data-label="Actions" className="col-actions">
+                        <div className="flex flex-wrap items-center justify-end gap-2">
                           <button
                             onClick={() => handleSaveLimit(instructor)}
                             disabled={savingLimitId === instructor._id || unchanged || invalid}

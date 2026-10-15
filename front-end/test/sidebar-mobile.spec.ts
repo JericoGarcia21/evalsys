@@ -50,3 +50,53 @@ for (const [username, role] of [['qa-super', 'Super Admin'], ['qa-instructor', '
   });
 }
 
+
+test('mobile Resources and Subjects expose update, unlock and edit actions', async ({ page }) => {
+  const instructor = { _id: 'teacher', name: 'Mobile Instructor', email: 'teacher@example.test', role: 'admin', isActive: true, assignedSubjects: ['subject'], subjectLimit: 1, csvExportLocked: true, gradingLockedSubjects: ['subject'] };
+  const subject = { _id: 'subject', code: 'TEST', title: 'Mobile subject', isActive: true, createdAt: '2026-01-01' };
+  const writes: { path: string; body: unknown }[] = [];
+  await page.addInitScript(() => localStorage.setItem('token', 'mock-mobile-session'));
+  await page.route('**/api/**', async route => {
+    const request = route.request();
+    const path = new URL(request.url()).pathname;
+    if (request.method() === 'PATCH') {
+      const body = request.postDataJSON();
+      writes.push({ path, body });
+      return route.fulfill({ json: { ...body, gradingLockedSubjects: [] } });
+    }
+    return route.fulfill({ json: path.endsWith('/auth/me') ? { _id: 'super', name: 'Super', role: 'superadmin' } : path.endsWith('/users') ? [instructor] : path.endsWith('/subjects') ? [subject] : null });
+  });
+  for (const width of [320, 390, 768, 1024]) {
+    await page.setViewportSize({ width, height: 844 });
+    await page.goto('/subscription');
+    const selector = page.getByLabel('Grading Subject', { exact: true });
+    await expect(selector).toBeVisible();
+    await selector.scrollIntoViewIfNeeded();
+    expect((await selector.boundingBox())!.x + (await selector.boundingBox())!.width).toBeLessThanOrEqual(width);
+    const limit = page.getByRole('spinbutton', { name: 'Paid limit for Mobile Instructor' });
+    await limit.fill('2');
+    for (const name of ['Update Limit', 'Unlock CSV', 'Unlock Grading']) {
+      const button = page.getByRole('button', { name, exact: true });
+      await button.scrollIntoViewIfNeeded();
+      await expect(button).toBeInViewport();
+      const bounds = (await button.boundingBox())!;
+      expect(bounds.x).toBeGreaterThanOrEqual(0);
+      expect(bounds.x + bounds.width).toBeLessThanOrEqual(width);
+      await button.click();
+    }
+    await page.goto('/subjects');
+    for (const name of ['Edit', 'Delete', 'Assign Instructors']) {
+      const button = page.getByRole('button', { name, exact: true });
+      await button.scrollIntoViewIfNeeded();
+      await expect(button).toBeInViewport();
+      const bounds = (await button.boundingBox())!;
+      expect(bounds.x + bounds.width).toBeLessThanOrEqual(width);
+    }
+    await page.getByRole('button', { name: 'Edit', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Save Changes', exact: true })).toBeInViewport();
+  }
+  expect(writes).toHaveLength(12);
+  expect(writes[0].body).toEqual({ subjectLimit: 2 });
+  expect(writes[1].body).toEqual({ csvExportLocked: false });
+  expect(writes[2].body).toEqual({ subject: 'subject', gradingLocked: false });
+});

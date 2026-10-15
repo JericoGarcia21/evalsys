@@ -222,7 +222,7 @@ export default function Subjects() {
 
   return (
     <div>
-      <div className="mb-6 flex items-start justify-between gap-4">
+      <div className="mb-6 flex flex-col sm:flex-row items-start justify-between gap-4">
         <div>
           <h2 className="evl-page-title">Subjects</h2>
           <p className="evl-page-subtitle">
@@ -252,7 +252,7 @@ export default function Subjects() {
         </div>
       ) : (
         <div className="evl-card overflow-hidden">
-          <table className="evl-table">
+          <table className="evl-table evl-resource-table">
             <thead>
               <tr>
                 <th>Code</th>
@@ -267,11 +267,11 @@ export default function Subjects() {
                 const assigned = admins.filter((a) => adminHasSubject(a, s._id));
                 return (
                   <tr key={s._id}>
-                    <td>
+                    <td data-label="Code">
                       <span className="font-black text-primary font-mono text-sm">{s.code}</span>
                     </td>
-                    <td className="font-semibold text-text">{s.title}</td>
-                    <td className="text-center">
+                    <td data-label="Title" className="font-semibold text-text">{s.title}</td>
+                    <td data-label="Status" className="text-center">
                       <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-full ${
                         s.isActive
                           ? 'bg-success/10 text-success'
@@ -281,14 +281,14 @@ export default function Subjects() {
                       </span>
                     </td>
                     {isSuperadmin && (
-                      <td className="text-xs text-text/60">
+                      <td data-label="Assigned Instructors" className="text-xs text-text/60">
                         {assigned.length > 0
                           ? assigned.map((a) => a.name).join(', ')
                           : <span className="text-text/55 italic">None assigned</span>}
                       </td>
                     )}
-                    <td className="col-actions">
-                      <div className="flex items-center justify-end gap-2 whitespace-nowrap">
+                    <td data-label="Actions" className="col-actions">
+                      <div className="flex flex-wrap items-center justify-end gap-2">
                         <button
                           onClick={() => openEdit(s)}
                           className="px-3 py-1.5 rounded-lg text-[11px] font-bold border border-muted text-text/60 hover:text-text hover:border-text/30 transition-all"
@@ -332,7 +332,7 @@ export default function Subjects() {
       {/* ── Create Modal ── */}
       {resetSubject && !isSuperadmin && (
         <div className="fixed inset-0 bg-dark/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-surface w-full max-w-md rounded-lg shadow-2xl overflow-hidden">
+          <div className="bg-surface w-full max-w-md rounded-lg shadow-2xl max-h-[calc(100dvh-2rem)] overflow-y-auto">
             <div className="px-6 py-4 border-b border-danger/20 flex justify-between items-center bg-danger/5">
               <div>
                 <h3 className="font-bold text-danger">Reset Subject</h3>
@@ -379,7 +379,7 @@ export default function Subjects() {
 
       {showCreate && (
         <div className="fixed inset-0 bg-dark/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-surface w-full max-w-md rounded-2xl shadow-2xl overflow-hidden">
+          <div className="bg-surface w-full max-w-md rounded-2xl shadow-2xl max-h-[calc(100dvh-2rem)] overflow-y-auto">
             <div className="px-6 py-4 border-b border-muted/30 flex justify-between items-center bg-bg">
               <h3 className="font-bold text-text">New Subject</h3>
               <button onClick={() => setShowCreate(false)} className="text-text/65 hover:text-text text-xl">×</button>
@@ -448,7 +448,7 @@ export default function Subjects() {
       {/* ── Edit Modal ── */}
       {editSubject && (
         <div className="fixed inset-0 bg-dark/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-surface w-full max-w-md rounded-2xl shadow-2xl overflow-hidden">
+          <div className="bg-surface w-full max-w-md rounded-2xl shadow-2xl max-h-[calc(100dvh-2rem)] overflow-y-auto">
             <div className="px-6 py-4 border-b border-muted/30 flex justify-between items-center bg-bg">
               <h3 className="font-bold text-text">Edit Subject</h3>
               <button onClick={() => setEditSubject(null)} className="text-text/65 hover:text-text text-xl">×</button>
@@ -500,7 +500,7 @@ export default function Subjects() {
       {/* ── Assign Instructors Modal (superadmin only) ── */}
       {assignSubject && (
         <div className="fixed inset-0 bg-dark/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-surface w-full max-w-md rounded-2xl shadow-2xl overflow-hidden">
+          <div className="bg-surface w-full max-w-md rounded-2xl shadow-2xl max-h-[calc(100dvh-2rem)] overflow-y-auto">
             <div className="px-6 py-4 border-b border-muted/30 flex justify-between items-center bg-bg">
               <div>
                 <h3 className="font-bold text-text">Assign Instructors</h3>
@@ -551,7 +551,7 @@ export default function Subjects() {
       {/* ── Delete Subject Modal (superadmin only) ── */}
       {subjectToDelete && (
         <div className="fixed inset-0 bg-dark/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-surface w-full max-w-md rounded-2xl shadow-2xl overflow-hidden">
+          <div className="bg-surface w-full max-w-md rounded-2xl shadow-2xl max-h-[calc(100dvh-2rem)] overflow-y-auto">
             <div className="px-6 py-4 border-b border-danger/20 flex justify-between items-center bg-danger/5">
               <div>
                 <h3 className="font-bold text-danger">Delete Subject</h3>

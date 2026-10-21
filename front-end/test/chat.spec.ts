@@ -19,6 +19,7 @@ async function mockChat(page: Page, role = 'panel') {
     const url = new URL(route.request().url());
     if (url.pathname.endsWith('/auth/me')) return route.fulfill({ json: { id: role === 'panel' ? panelId : teacherId, _id: role === 'panel' ? panelId : teacherId, name: role === 'panel' ? 'Panel Tester' : 'Instructor Tester', role } });
     if (url.pathname.endsWith('/settings/public')) return route.fulfill({ json: { isMaintenanceMode: false } });
+    if (url.pathname === '/api/subjects') return route.fulfill({ json: [subject] });
     if (url.pathname === '/api/chat/rooms') return route.fulfill({ json: { rooms: revoked ? [] : [{
       _id: roomId, name: 'General Panel Chat', subject, unread,
       instructor: { _id: teacherId, name: 'Instructor Tester' },
@@ -51,8 +52,12 @@ async function mockChat(page: Page, role = 'panel') {
 test('general chat includes the instructor and panels without block or group discussion selectors', async ({ page }) => {
   const state = await mockChat(page);
   await page.goto('/dashboard');
-  await expect(page.locator('aside nav').getByLabel('2 unread chat messages')).toBeVisible();
-  await page.locator('aside nav').getByRole('link', { name: /Panel Chat/ }).click();
+  const offer = page.getByRole('region', { name: 'Tutorial invitation' });
+  if (await offer.isVisible()) await offer.getByRole('button', { name: 'Maybe later', exact: true }).click();
+  const launcher = page.getByRole('button', { name: 'Open panel chat', exact: true });
+  await expect(launcher).toContainText('2 unread messages');
+  await launcher.click();
+  await page.getByRole('dialog', { name: 'Floating panel chat' }).getByRole('link', { name: 'Expand panel chat', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'General Panel Chat', exact: true })).toBeVisible();
   await expect(page.getByText('Discuss the presentation after the demo.', { exact: true })).toBeVisible();
   await expect(page.getByLabel('Discussion', { exact: true })).toHaveCount(0);
@@ -110,4 +115,84 @@ test('revoked panel assignments remove chat access and hide the prior conversati
   await expect(page.getByText('Discuss the presentation after the demo.', { exact: true })).toHaveCount(0);
   await expect(page.getByLabel('Message', { exact: true })).toHaveCount(0);
   await expect(page.getByText('No panel team assigned yet', { exact: true })).toBeVisible();
+});
+
+async function mockSubjectChats(page: Page) {
+  await mockChat(page, 'admin');
+  const subjects = [
+    { _id: subject._id, code: 'SYS101', title: 'Systems Integration' },
+    { _id: '400000000000000000000002', code: 'OOP201', title: 'Object Oriented Programming' },
+    { _id: '400000000000000000000003', code: 'NEW301', title: 'No Assigned Team' },
+  ];
+  const roomIds = [roomId, '100000000000000000000002'];
+  const writes: { room: string; body: string }[] = [];
+  const roomMessages = roomIds.map((id, index) => [{
+    _id: `50000000000000000000000${index + 1}`, body: `${subjects[index].code} private message`, createdAt: new Date().toISOString(),
+    sender: { id: panelId, name: 'Panel Tester', role: 'panel' },
+  }]);
+  await page.addInitScript(({ current, saved, teacherId }) => {
+    localStorage.setItem('evalsys_current_subject_id', current);
+    localStorage.setItem('evalsys_chat_team:admin:' + teacherId, saved);
+  }, { current: subjects[0]._id, saved: roomIds[1], teacherId });
+  await page.route('**/api/subjects', route => route.fulfill({ json: subjects }));
+  await page.route('**/api/chat/rooms', route => route.fulfill({ json: { rooms: roomIds.map((id, index) => ({
+    _id: id, name: 'General Panel Chat', subject: subjects[index], unread: 0,
+    instructor: { _id: teacherId, name: 'Instructor Tester' },
+    participants: [{ _id: teacherId, name: 'Instructor Tester', role: 'admin' }, { _id: panelId, name: 'Panel Tester', role: 'panel' }],
+  })) } }));
+  await page.route('**/api/chat/rooms/*/messages*', async route => {
+    const id = new URL(route.request().url()).pathname.split('/')[4];
+    const index = roomIds.indexOf(id);
+    if (route.request().method() === 'POST') {
+      const payload = route.request().postDataJSON();
+      writes.push({ room: id, body: payload.body });
+      const message = { _id: '500000000000000000000099', body: payload.body, createdAt: new Date().toISOString(), sender: { id: teacherId, name: 'Instructor Tester', role: 'admin' } };
+      roomMessages[index].push(message);
+      return route.fulfill({ status: 201, json: message });
+    }
+    return route.fulfill({ json: { messages: roomMessages[index], hasMore: false, hasMoreNew: false } });
+  });
+  const selectSubject = async (index: number) => {
+    await page.locator('aside nav').getByRole('button').first().click();
+    await page.getByRole('button', { name: `${subjects[index].code} - ${subjects[index].title}`, exact: true }).click();
+  };
+  return { subjects, roomIds, writes, selectSubject };
+}
+
+test('floating instructor chat follows the current subject over saved room preferences and isolates drafts', async ({ page }) => {
+  const state = await mockSubjectChats(page);
+  await page.goto('/groups');
+  await page.getByRole('button', { name: 'Open panel chat', exact: true }).click();
+  const chat = page.getByRole('dialog', { name: 'Floating panel chat' });
+  await expect(chat.getByText('SYS101 private message', { exact: true })).toBeVisible();
+  await expect(chat.getByText('OOP201 private message', { exact: true })).toHaveCount(0);
+  await expect(chat.getByLabel('Panel team', { exact: true })).toHaveCount(0);
+  await chat.getByLabel('Message', { exact: true }).fill('Systems draft stays here');
+  await state.selectSubject(1);
+  await expect(chat.getByText('OOP201 private message', { exact: true })).toBeVisible();
+  await expect(chat.getByText('SYS101 private message', { exact: true })).toHaveCount(0);
+  await expect(chat.getByLabel('Message', { exact: true })).toHaveValue('');
+  await chat.getByLabel('Message', { exact: true }).fill('OOP message only');
+  await chat.getByRole('button', { name: 'Send message', exact: true }).click();
+  await expect(chat.getByText('OOP message only', { exact: true })).toBeVisible();
+  expect(state.writes).toEqual([{ room: state.roomIds[1], body: 'OOP message only' }]);
+  await state.selectSubject(0);
+  await expect(chat.getByLabel('Message', { exact: true })).toHaveValue('Systems draft stays here');
+  await state.selectSubject(2);
+  await expect(chat.getByText('No panel chat is assigned to the current subject.', { exact: true })).toBeVisible();
+  await expect(chat.getByLabel('Message', { exact: true })).toHaveCount(0);
+  await expect(chat.getByText('SYS101 private message', { exact: true })).toHaveCount(0);
+  await page.screenshot({ path: test.info().outputPath('chat-subject-empty.png'), animations: 'disabled' });
+});
+
+test('expanded instructor chat ignores another subject room URL and follows sidebar switching', async ({ page }) => {
+  const state = await mockSubjectChats(page);
+  await page.goto('/chat?room=' + state.roomIds[1]);
+  await expect(page.getByText('SYS101 private message', { exact: true })).toBeVisible();
+  await expect(page.getByText('OOP201 private message', { exact: true })).toHaveCount(0);
+  await state.selectSubject(1);
+  await expect(page.getByText('OOP201 private message', { exact: true })).toBeVisible();
+  await state.selectSubject(2);
+  await expect(page.getByRole('heading', { name: 'No panel chat for this subject', exact: true })).toBeVisible();
+  await expect(page.getByLabel('Message', { exact: true })).toHaveCount(0);
 });

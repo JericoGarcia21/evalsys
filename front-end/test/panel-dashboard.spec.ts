@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import JSZip from 'jszip';
 
 const subjectA = { _id: 'subject-a', code: 'IT101', title: 'Object Oriented Programming' };
 const subjectB = { _id: 'subject-b', code: 'IT202', title: 'Database Systems' };
@@ -9,7 +10,7 @@ const groups = [
   { _id: 'group-b', name: 'Database Team', section: sectionB, members: [], isGraded: true },
 ];
 
-async function mockPanel(page: Page, fail = false) {
+async function mockPanel(page: Page, fail = false, proposal?: { name: string; body: Buffer; contentType: string }) {
   await page.addInitScript(() => localStorage.setItem('token', 'panel-browser-test'));
   await page.route('**/api/**', async route => {
     const url = new URL(route.request().url());
@@ -25,12 +26,70 @@ async function mockPanel(page: Page, fail = false) {
     if (url.pathname.endsWith('/rubrics/active')) return route.fulfill({ json: null });
     if (url.pathname.includes('/evaluations/')) return route.fulfill({ json: null });
     if (url.pathname.endsWith('/proposal-url')) {
-      if (url.searchParams.get('format') === 'content') return route.fulfill({ contentType: 'application/pdf', body: '%PDF-1.4 preview test' });
-      return route.fulfill({ json: { originalName: 'proposal.pdf', groupName: 'Programming Team', block: 'Block 1', subject: subjectA } });
+      if (url.searchParams.get('format') === 'content') return route.fulfill({ contentType: proposal?.contentType || 'application/pdf', body: proposal?.body || '%PDF-1.4 preview test' });
+      return route.fulfill({ json: { originalName: proposal?.name || 'proposal.pdf', groupName: 'Programming Team', block: 'Block 1', subject: subjectA } });
     }
     return route.fulfill({ json: {} });
   });
 }
+
+async function wordProposal() {
+  const zip = new JSZip();
+  zip.file('[Content_Types].xml', '<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>');
+  zip.file('_rels/.rels', '<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>');
+  zip.file('word/document.xml', '<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><w:body><w:p><w:r><w:t>Project proposal first page</w:t></w:r></w:p><w:p><w:hyperlink r:id="rId1"><w:r><w:t>Reference link</w:t></w:r></w:hyperlink></w:p><w:p><w:r><w:br w:type="page"/></w:r></w:p><w:p><w:r><w:t>Project proposal second page</w:t></w:r></w:p><w:sectPr><w:pgSz w:w="12240" w:h="15840"/><w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440"/></w:sectPr></w:body></w:document>');
+  zip.file('word/_rels/document.xml.rels', '<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.com" TargetMode="External"/></Relationships>');
+  return { name: 'project-proposal.docx', body: await zip.generateAsync({ type: 'nodebuffer' }), contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' };
+}
+
+test('Word viewer fits mobile pages, zooms, expands, and preserves its sandbox', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await mockPanel(page, false, await wordProposal());
+  await page.goto('/proposal/group-a');
+  const iframe = page.locator('iframe[title="Proposal Word preview"]');
+  const frame = page.frameLocator('iframe[title="Proposal Word preview"]');
+  await expect(iframe).toBeVisible();
+  await expect(page.getByText('2 pages', { exact: true })).toBeVisible();
+  await expect(iframe).toHaveAttribute('sandbox', '');
+  await expect(frame.locator('a')).not.toHaveAttribute('href');
+  await expect(page.getByRole('button', { name: 'Fit width', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await page.getByRole('button', { name: '100%', exact: true }).click();
+  await expect(page.getByLabel('Document zoom')).toHaveText('100%');
+  await page.getByRole('button', { name: 'Zoom in', exact: true }).click();
+  await expect(page.getByLabel('Document zoom')).toHaveText('110%');
+  await page.getByRole('button', { name: 'Zoom out', exact: true }).focus();
+  await page.keyboard.press('Enter');
+  await expect(page.getByLabel('Document zoom')).toHaveText('100%');
+  await page.getByRole('button', { name: 'Expand view', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Exit expanded view', exact: true })).toBeVisible();
+  expect(await page.evaluate(() => Boolean(document.fullscreenElement))).toBe(true);
+  await page.getByRole('button', { name: 'Exit expanded view', exact: true }).click();
+  expect(await page.evaluate(() => document.fullscreenElement)).toBeNull();
+  await page.getByRole('button', { name: 'Fit width', exact: true }).click();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect.poll(async () => Number((await page.getByLabel('Document zoom').innerText()).replace('%', ''))).toBeLessThan(50);
+  const paper = frame.locator('section.docx').first();
+  await expect(paper).toBeVisible();
+  expect((await paper.boundingBox())!.width).toBeLessThanOrEqual((await iframe.boundingBox())!.width);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await page.screenshot({ path: test.info().outputPath('proposal-mobile.png'), animations: 'disabled' });
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await expect.poll(async () => Number((await page.getByLabel('Document zoom').innerText()).replace('%', ''))).toBeGreaterThan(100);
+  await page.screenshot({ path: test.info().outputPath('proposal-desktop.png'), animations: 'disabled' });
+});
+
+test('Word viewer handles unavailable full screen and damaged documents', async ({ page }) => {
+  await mockPanel(page, false, await wordProposal());
+  await page.goto('/proposal/group-a');
+  await expect(page.locator('iframe[title="Proposal Word preview"]')).toBeVisible();
+  await page.evaluate(() => { HTMLElement.prototype.requestFullscreen = () => Promise.reject(new Error('QA unavailable')); });
+  await page.getByRole('button', { name: 'Expand view', exact: true }).click();
+  await expect(page.getByRole('status').filter({ hasText: 'Your browser could not expand the viewer' })).toBeVisible();
+  await page.route('**/proposal-url?format=content', route => route.fulfill({ body: 'not a DOCX file' }));
+  await page.reload();
+  await expect(page.getByRole('heading', { name: 'Proposal Unavailable', exact: true })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Back to grading' })).toHaveAttribute('href', '/grade?groupId=group-a');
+});
 
 test('panel dashboard separates subjects with identical blocks and filters progress', async ({ page }) => {
   await mockPanel(page);

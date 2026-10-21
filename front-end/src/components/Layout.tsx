@@ -541,7 +541,7 @@ export default function Layout({ children }: { children: ReactNode }) {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 min-w-0 overflow-auto pt-16 lg:pt-0">
+      <main className={`flex-1 min-w-0 ${location.pathname === '/grade' ? 'overflow-x-clip' : 'overflow-auto'} pt-16 lg:pt-0`}>
         <div
           key={`${currentInstructorId || 'self'}:${currentSubjectId || 'none'}`}
           className="px-4 py-6 sm:px-6 lg:px-10 lg:py-8 2xl:px-14"

@@ -54,6 +54,8 @@ const serializeCriteria = (criteria = []) => criteria.map((item) => ({
   key: item.key,
   label: item.label,
   maxScore: item.maxScore,
+  section: item.section || '',
+  description: item.description || '',
 }));
 
 const mergeCriteria = (...criteriaLists) => {
@@ -220,7 +222,7 @@ exports.submitEvaluation = async (req, res) => {
   if (!isAssigned && !isGroupAssigned)
     return res.status(403).json({ message: 'You are not assigned to this group\'s section' });
 
-  const total = rubric.criteria.reduce((sum, criterion) => sum + scores[criterion.key], 0);
+  const total = Math.round(rubric.criteria.reduce((sum, criterion) => sum + scores[criterion.key], 0) * 100) / 100;
 
   const evaluation = await Evaluation.findOneAndUpdate(
     { group: groupId, panel: req.user._id, isLegacyArchived: { $ne: true } },
@@ -280,7 +282,7 @@ exports.getGroupResult = async (req, res) => {
   if (!evaluations.length)
     return res.json({ evaluations: [], averaged: null, finalTotal: null });
 
-  // Get the group to find the correct divisor (number of panels assigned to the block)
+  // Count unique section and direct group assignments, preserving historical evaluations.
   const groupDoc = await Group.findById(req.params.groupId).populate('section');
   const divisor = Math.max(getAssignedPanels(groupDoc?.section?.assignedPanels || [], groupDoc?.assignedPanels || []).length, evaluations.length, 1);
 
@@ -306,7 +308,7 @@ exports.getGroupResult = async (req, res) => {
   }
 
   const finalTotal = Math.round(
-    Object.values(averaged).reduce((a, b) => a + b, 0) * 100
+    (Object.values(categorySums).reduce((a, b) => a + b, 0) / divisor) * 100
   ) / 100;
 
   const comments = evaluations.map(ev => ({
@@ -417,7 +419,7 @@ exports.getSectionResults = async (req, res) => {
       }
 
       const finalTotal = hasEvaluations 
-        ? Math.round(Object.values(averaged).reduce((a, b) => a + b, 0) * 100) / 100
+        ? Math.round((Object.values(categorySums).reduce((a, b) => a + b, 0) / divisor) * 100) / 100
         : null;
 
       const evaluatedBy = evaluations.map(getPanelName);

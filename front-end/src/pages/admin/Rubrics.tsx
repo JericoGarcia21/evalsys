@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import api from '../../services/api';
+import databaseRubric from '../../data/databaseRubric.json';
+import { percentageLevels, ratingPoints } from '../../data/ratingScale';
 import { CardSkeleton } from '../../components/LoadingSkeleton';
 import { notify } from '../../utils/notify';
 import { useAuth } from '../../context/useAuth';
@@ -7,6 +9,7 @@ import { useConfirmDialog } from '../../hooks/useConfirmDialog';
 import { useOperationalScope } from '../../hooks/useOperationalScope';
 
 interface Level {
+  percentage?: number;
   label: string;
   minScore: number;
   maxScore: number;
@@ -14,6 +17,9 @@ interface Level {
 }
 
 interface Criteria {
+  section?: string;
+  description?: string;
+  scoringMode?: string;
   key: string;
   label: string;
   maxScore: number;
@@ -21,6 +27,7 @@ interface Criteria {
 }
 
 interface Rubric {
+  instructions?: string;
   _id: string;
   title: string;
   criteria: Criteria[];
@@ -74,7 +81,7 @@ const validateRubricForm = (title: string, criteria: Criteria[]) => {
     if (!Number.isFinite(maxScore) || maxScore <= 0) return `${criteriaName}: max score must be greater than 0.`;
 
     const normalizedKey = c.key.trim().toLowerCase();
-    const normalizedLabel = c.label.trim().toLowerCase();
+    const normalizedLabel = `${(c.section || '').trim().toLowerCase()}:${c.label.trim().toLowerCase()}`;
     if (criteriaKeys.has(normalizedKey)) return `${criteriaName}: criteria key is duplicated.`;
     if (criteriaLabels.has(normalizedLabel)) return `${criteriaName}: criteria name is duplicated.`;
     criteriaKeys.add(normalizedKey);
@@ -127,6 +134,8 @@ export default function Rubrics() {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [title, setTitle] = useState('');
+  const [instructions, setInstructions] = useState('');
+  const [saving, setSaving] = useState(false);
   const [criteria, setCriteria] = useState<Criteria[]>(DEFAULT_CRITERIA);
   const [error, setError] = useState('');
   const [expandedRubric, setExpandedRubric] = useState<string | null>(null);
@@ -148,6 +157,7 @@ export default function Rubrics() {
 
   const resetForm = () => {
     setTitle('');
+    setInstructions('');
     setCriteria(DEFAULT_CRITERIA);
     setEditingId(null);
     setShowForm(false);
@@ -156,6 +166,7 @@ export default function Rubrics() {
 
   const startEdit = (rubric: Rubric) => {
     setTitle(rubric.title);
+    setInstructions(rubric.instructions || '');
     setCriteria(rubric.criteria);
     setEditingId(rubric._id);
     setShowForm(true);
@@ -166,6 +177,15 @@ export default function Rubrics() {
   const startCreate = () => {
     resetForm();
     setShowForm(true);
+  };
+
+  const useDatabaseTemplate = () => {
+    setTitle('Database Final Project');
+    setInstructions(databaseRubric.instructions);
+    setCriteria(databaseRubric.criteria.map(c => ({ ...c, levels: percentageLevels().map(l => ({
+      ...l, minScore: ratingPoints(c.maxScore, l.percentage), maxScore: ratingPoints(c.maxScore, l.percentage),
+    })) })));
+    setError('');
   };
 
   const slugify = (text: string) => {
@@ -183,9 +203,12 @@ export default function Rubrics() {
     setCriteria((prev) => prev.map((c, i) => {
       if (i !== ci) return c;
       const updated = { ...c, [field]: value };
-      if (field === 'label' && typeof value === 'string') {
-        updated.key = slugify(value);
+      if (field === 'label' && typeof value === 'string' && !c.key) {
+        updated.key = `${slugify(value) || 'criterion'}_${crypto.randomUUID()}`;
       }
+      if (field === 'maxScore' && updated.scoringMode === 'percentage') updated.levels = updated.levels.map(l => ({
+        ...l, minScore: ratingPoints(Number(value), l.percentage ?? 0), maxScore: ratingPoints(Number(value), l.percentage ?? 0),
+      }));
       return updated;
     }));
   };
@@ -193,7 +216,9 @@ export default function Rubrics() {
   const updateLevel = (ci: number, li: number, field: keyof Level, value: string | number) => {
     setCriteria((prev) => prev.map((c, i) => {
       if (i !== ci) return c;
-      return { ...c, levels: c.levels.map((l, j) => j === li ? { ...l, [field]: value } : l) };
+      return { ...c, levels: c.levels.map((l, j) => j === li ? { ...l, [field]: value,
+        ...(field === 'percentage' ? { minScore: ratingPoints(c.maxScore, Number(value)), maxScore: ratingPoints(c.maxScore, Number(value)) } : {}),
+      } : l) };
     }));
   };
 
@@ -202,22 +227,26 @@ export default function Rubrics() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (saving) return;
     setError('');
     const validationError = validateRubricForm(title, criteria);
     if (validationError) {
       setError(validationError);
       return;
     }
+    setSaving(true);
     try {
       if (editingId) {
-        await api.put(`/rubrics/${editingId}`, { title, criteria });
+        await api.put(`/rubrics/${editingId}`, { title, criteria, instructions });
       } else {
-        await api.post('/rubrics', { title, criteria });
+        await api.post('/rubrics', { title, criteria, instructions });
       }
       resetForm();
       load();
     } catch (err: unknown) {
       setError(getErrorMessage(err, 'Error saving rubric'));
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -288,9 +317,19 @@ export default function Rubrics() {
           </h3>
 
           <div className="mb-5">
+            {!editingId && <button type="button" className="evl-btn-secondary mb-4" onClick={useDatabaseTemplate}>Use Database Final Project Template</button>}
             <label className="evl-label">Rubric Title</label>
             <input value={title} onChange={(e) => setTitle(e.target.value)} required
               className="evl-input max-w-xl" placeholder="e.g. Project Defense Rubric" />
+          </div>
+
+          <label className="evl-label mb-5">Instructions and Evaluation Notes
+            <textarea className="evl-input" rows={5} value={instructions} onChange={e => setInstructions(e.target.value)} />
+          </label>
+          <div className="flex flex-wrap gap-3 mb-5" aria-label="Section totals">
+            {[...new Set(criteria.map(c => c.section?.trim()).filter(Boolean))].map(section => (
+              <p key={section} className="evl-badge-primary">{section}: {Number(criteria.filter(c => c.section?.trim() === section).reduce((sum, c) => sum + c.maxScore, 0).toFixed(2))} pts</p>
+            ))}
           </div>
 
           <div className="space-y-6">
@@ -310,6 +349,22 @@ export default function Rubrics() {
                 </div>
 
                 <div className="p-6">
+                  <div className="grid sm:grid-cols-2 gap-4 mb-5">
+                    <label className="evl-label">Section
+                      <input className="evl-input" value={c.section || ''} onChange={e => updateCriteria(ci, 'section', e.target.value)} placeholder="e.g. Project Requirements" />
+                    </label>
+                    <label className="evl-label">Scoring
+                      <select className="evl-input" value={c.scoringMode || 'range'} onChange={e => {
+                        const mode = e.target.value;
+                        setCriteria(prev => prev.map((item, index) => index !== ci ? item : { ...item, scoringMode: mode,
+                          levels: mode === 'percentage' ? percentageLevels().map(l => ({ ...l, minScore: ratingPoints(item.maxScore, l.percentage), maxScore: ratingPoints(item.maxScore, l.percentage) })) : emptyCriteria().levels,
+                        }));
+                      }}><option value="range">Score ranges</option><option value="percentage">Percentage ratings</option></select>
+                    </label>
+                  </div>
+                  <label className="evl-label mb-5">Criterion Description
+                    <textarea className="evl-input" value={c.description || ''} onChange={e => updateCriteria(ci, 'description', e.target.value)} rows={2} />
+                  </label>
                   <div className="grid grid-cols-1 md:grid-cols-12 gap-6 mb-8">
                     <div className="md:col-span-5">
                       <label className="evl-label !mb-1.5">Criteria Name</label>
@@ -351,7 +406,8 @@ export default function Rubrics() {
                                 placeholder="Label" />
                             </div>
                             <div className="lg:col-span-2">
-                              <label className="text-[9px] font-bold text-text/65 uppercase block mb-1">Range</label>
+                              <label className="text-[9px] font-bold text-text/65 uppercase block mb-1">{c.scoringMode === 'percentage' ? 'Percentage of weight' : 'Range'}</label>
+                              {c.scoringMode === 'percentage' ? <label className="text-xs"><input aria-label={`${c.label} ${l.label} percentage`} className="evl-input" type="number" min={0} max={100} step="0.01" required value={l.percentage ?? 0} onChange={e => updateLevel(ci, li, 'percentage', Number(e.target.value))} />{l.minScore} pts</label> : (
                               <div className="flex items-center gap-2">
                                 <input type="number" value={l.minScore} onChange={(e) => updateLevel(ci, li, 'minScore', Number(e.target.value))} min={0} max={c.maxScore || undefined} step="0.01"
                                   className="evl-input !py-1.5 !text-xs text-center" placeholder="Min" />
@@ -359,6 +415,7 @@ export default function Rubrics() {
                                 <input type="number" value={l.maxScore} onChange={(e) => updateLevel(ci, li, 'maxScore', Number(e.target.value))} min={0} max={c.maxScore || undefined} step="0.01"
                                   className="evl-input !py-1.5 !text-xs text-center" placeholder="Max" />
                               </div>
+                              )}
                             </div>
                             <div className="lg:col-span-7">
                               <label className="text-[9px] font-bold text-text/65 uppercase block mb-1">Grading Description</label>
@@ -392,8 +449,9 @@ export default function Rubrics() {
             <div className="text-xs text-text/70">
               Total Rubric Value: <span className="font-bold text-text">{criteria.reduce((acc, curr) => acc + curr.maxScore, 0)} Points</span>
             </div>
-            <button type="submit" className="evl-btn-primary shadow-lg shadow-primary/20">
-              {editingId ? 'Update and Save Rubric' : 'Create and Save Rubric'}
+            <button type="submit" disabled={saving} className="evl-btn-primary shadow-lg shadow-primary/20">
+              {saving ? 'Saving…' : ''}
+              {!saving && (editingId ? 'Update and Save Rubric' : 'Create and Save Rubric')}
             </button>
           </div>
         </form>
@@ -451,9 +509,15 @@ export default function Rubrics() {
 
                 {expandedRubric === r._id && (
                   <div className="border-t border-muted/40 px-6 py-5">
+                    {r.instructions && <p className="whitespace-pre-wrap text-sm text-text/70 mb-5">{r.instructions}</p>}
+                    <div className="flex flex-wrap gap-3 mb-5">
+                      {[...new Set(r.criteria.map(c => c.section?.trim()).filter(Boolean))].map(section => <p key={section} className="evl-badge-primary">{section}: {Number(r.criteria.filter(c => c.section?.trim() === section).reduce((sum, c) => sum + c.maxScore, 0).toFixed(2))} pts</p>)}
+                    </div>
                     <div className="space-y-6">
                       {r.criteria.map((c) => (
                         <div key={c.key}>
+                          {c.section && <p className="text-primary text-xs font-bold mb-2">{c.section}</p>}
+                          {c.description && <p className="text-sm text-text/70 mb-2">{c.description}</p>}
                           <div className="flex justify-between items-center mb-3">
                             <p className="font-bold text-text">{c.label}</p>
                             <span className="text-text/70 text-xs font-semibold">{c.maxScore} pts</span>

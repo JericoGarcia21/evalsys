@@ -77,7 +77,10 @@ const validateRubricPayload = ({ title, criteria }) => {
     if (!Number.isFinite(maxScore) || maxScore <= 0) return `${criteriaName}: max score must be greater than 0`;
 
     const normalizedKey = criteriaKey.toLowerCase();
-    const normalizedLabel = criteriaLabel.toLowerCase();
+    if (c.section !== undefined && typeof c.section !== 'string') return 'Section must be text';
+    if (c.description !== undefined && typeof c.description !== 'string') return 'Criterion description must be text';
+    if (c.scoringMode && !['range', 'percentage'].includes(c.scoringMode)) return 'Invalid scoring mode';
+    const normalizedLabel = `${String(c.section || '').trim().toLowerCase()}:${criteriaLabel.toLowerCase()}`;
     if (criteriaKeys.has(normalizedKey)) return `${criteriaName}: criteria key is duplicated`;
     if (criteriaLabels.has(normalizedLabel)) return `${criteriaName}: criteria name is duplicated`;
     criteriaKeys.add(normalizedKey);
@@ -95,6 +98,12 @@ const validateRubricPayload = ({ title, criteria }) => {
       const minScore = Number(level?.minScore);
       const levelMaxScore = Number(level?.maxScore);
       const levelName = levelLabel || `Level ${li + 1}`;
+      if (c.scoringMode === 'percentage') {
+        const percentage = level?.percentage;
+        const expected = Math.round(maxScore * percentage) / 100;
+        if (typeof percentage !== 'number' || !Number.isFinite(percentage) || percentage < 0 || percentage > 100 ||
+          minScore !== expected || levelMaxScore !== expected) return `${criteriaName}: percentage ratings must match their calculated points`;
+      }
 
       if (!levelLabel) return `${criteriaName}: level ${li + 1} name is required`;
       const normalizedLevel = levelLabel.toLowerCase();
@@ -263,7 +272,8 @@ exports.getAllRubrics = async (req, res) => {
 };
 
 exports.createRubric = async (req, res) => {
-  const { title, criteria } = req.body;
+  const { title, criteria, instructions = '' } = req.body;
+  if (typeof instructions !== 'string') return res.status(400).json({ message: 'Instructions must be text' });
   const subject = getSubjectId(req);
   const validationError = validateRubricPayload({ title, criteria });
   if (validationError) return res.status(400).json({ message: validationError });
@@ -271,7 +281,7 @@ exports.createRubric = async (req, res) => {
   if (!canAccessSubject(req, subject)) return res.status(403).json({ message: 'You are not assigned to this subject' });
 
   const hasRubric = await Rubric.exists({ subject, createdBy: req.user._id });
-  const rubric = await Rubric.create({ title, criteria, subject, createdBy: req.user._id, isActive: !hasRubric });
+  const rubric = await Rubric.create({ title, criteria, instructions, subject, createdBy: req.user._id, isActive: !hasRubric });
   res.status(201).json(await rubric.populate('createdBy', 'name email'));
 };
 
@@ -288,7 +298,10 @@ exports.updateRubric = async (req, res) => {
     });
     if (validationError) return res.status(400).json({ message: validationError });
   }
-  const rubric = await Rubric.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true }).populate('createdBy', 'name email');
+  if (req.body.instructions !== undefined && typeof req.body.instructions !== 'string') return res.status(400).json({ message: 'Instructions must be text' });
+  const updates = {};
+  for (const key of ['title', 'criteria', 'instructions']) if (req.body[key] !== undefined) updates[key] = req.body[key];
+  const rubric = await Rubric.findByIdAndUpdate(req.params.id, updates, { new: true, runValidators: true }).populate('createdBy', 'name email');
   res.json(rubric);
 };
 

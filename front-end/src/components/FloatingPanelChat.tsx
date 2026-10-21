@@ -1,12 +1,12 @@
 import { useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/useAuth';
-import { useChat } from '../context/useChat';
+import { useSubjectChat } from '../context/useChat';
 import ChatConversation from './ChatConversation';
 
 export default function FloatingPanelChat() {
   const { user } = useAuth();
-  const { rooms, loading, error, refreshRooms } = useChat();
+  const { rooms, loading, error, refreshRooms, followsSubject, subjectId } = useSubjectChat();
   const { pathname } = useLocation();
   const [open, setOpen] = useState(false);
   const [team, setTeam] = useState('');
@@ -24,7 +24,7 @@ export default function FloatingPanelChat() {
       onKeyDown={event => { if (event.key === 'Escape') { event.stopPropagation(); close(); } }}
       className="absolute bottom-16 right-0 w-[390px] max-w-[calc(100vw-2rem)] h-[560px] max-h-[calc(100dvh-7rem)] flex flex-col overflow-hidden rounded-2xl border border-muted/30 bg-surface shadow-2xl">
       <header className="flex items-center gap-2 px-4 py-3 bg-primary text-white shrink-0">
-        <div className="flex-1"><h2 className="text-sm font-bold">Panel Chat</h2><p className="text-[11px] text-white/75">Private instructor & panel team</p></div>
+        <div className="flex-1 min-w-0"><h2 className="text-sm font-bold">Panel Chat</h2><p className="text-[11px] text-white/75 break-words">{selected?.subject ? `${selected.subject.code} · ${selected.subject.title}` : 'Private instructor & panel team'}</p></div>
         <Link to={'/chat' + (selected ? '?room=' + encodeURIComponent(selected._id) : '')} onClick={() => setOpen(false)} aria-label="Expand panel chat" className="p-2 rounded-lg hover:bg-white/15">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 3h7v7M21 3l-8 8M10 21H3v-7M3 21l8-8"/></svg>
         </Link>
@@ -42,7 +42,7 @@ export default function FloatingPanelChat() {
       {error && <p role="alert" className="p-3 text-xs text-danger">{error} <button onClick={() => { void refreshRooms(); }} className="underline font-bold">Retry chat</button></p>}
       <div className="flex-1 min-h-0">
         {selected ? <ChatConversation key={selected._id} room={selected} compact /> :
-          <p role="status" className="p-6 text-sm text-text/60">{loading ? 'Preparing your panel chat...' : 'Your chat will appear when a panel team is assigned.'}</p>}
+          <p role="status" className="p-6 text-sm text-text/60">{loading ? 'Preparing your panel chat...' : followsSubject ? subjectId ? 'No panel chat is assigned to the current subject.' : 'Choose a subject to see its panel chat.' : 'Your chat will appear when a panel team is assigned.'}</p>}
       </div>
     </div>}
     <button ref={launcher} type="button" aria-label={open ? 'Minimize panel chat' : 'Open panel chat'} aria-expanded={open}

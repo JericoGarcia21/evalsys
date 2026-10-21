@@ -18,7 +18,7 @@ const validateScores = async (req, res, next) => {
     return res.status(400).json({ message: 'Scores contain an unknown criterion' });
   }
   const validated = {};
-  for (const { key, maxScore } of rubric.criteria) {
+  for (const { key, maxScore, scoringMode, levels } of rubric.criteria) {
     const raw = scores[key];
     if (raw === undefined || raw === null || (typeof raw === 'string' && !raw.trim())) {
       return res.status(400).json({ message: 'Missing score: ' + key });
@@ -27,7 +27,10 @@ const validateScores = async (req, res, next) => {
     if (!['number', 'string'].includes(typeof raw) || !Number.isFinite(value) || value < 0 || value > maxScore) {
       return res.status(400).json({ message: 'Invalid value for ' + key });
     }
-    validated[key] = Math.min(Math.round(value), maxScore);
+    if (scoringMode === 'percentage' && !levels.some(level => Math.abs(level.minScore - value) < 0.000001)) {
+      return res.status(400).json({ message: 'Select a performance rating for ' + key });
+    }
+    validated[key] = scoringMode === 'percentage' ? Math.round(value * 100) / 100 : Math.min(Math.round(value), maxScore);
   }
   req.body.scores = validated;
   next();

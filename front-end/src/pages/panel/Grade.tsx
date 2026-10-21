@@ -9,18 +9,11 @@ import { formatMemberList, type Member } from '../../utils/members';
 import { useConfirmDialog } from '../../hooks/useConfirmDialog';
 
 interface Level { label: string; minScore: number; maxScore: number; description: string; }
-interface Criteria { key: string; label: string; maxScore: number; levels: Level[]; }
-interface Rubric { _id: string; title: string; criteria: Criteria[]; isActive: boolean; subject?: string; }
+interface Criteria { key: string; label: string; maxScore: number; levels: Level[]; section?: string; description?: string; scoringMode?: string; }
+interface Rubric { _id: string; title: string; criteria: Criteria[]; isActive: boolean; subject?: string; instructions?: string; }
 interface Section { _id: string; name: string; block: string; subject?: string | { _id: string; code?: string; title?: string }; }
 interface ProposalFile { path?: string; originalName?: string; mimeType?: string; size?: number; uploadedAt?: string; }
 interface Group { _id: string; name: string; section: Section; members: Member[]; isGraded?: boolean; proposalFile?: ProposalFile; }
-
-const LEVEL_COLORS: Record<string, string> = {
-  Excellent: 'bg-success/10 text-success',
-  Good: 'bg-primary/10 text-primary',
-  Fair: 'bg-warning/10 text-warning',
-  Poor: 'bg-danger/10 text-danger',
-};
 
 const draftKey = (panelId: string, groupId: string) => `grading_draft_${panelId}_${groupId}`;
 const legacyDraftKey = (groupId: string) => `grading_draft_${groupId}`;
@@ -156,9 +149,9 @@ export default function Grade() {
     : null;
   const visibleRubric = gradingLocked && submittedRubric ? submittedRubric : activeRubric;
   const existingScores = selectedExisting?.scores || {};
-  const total = Object.values(scores).reduce<number>(
+  const total = Math.round(Object.values(scores).reduce<number>(
     (a, b) => (typeof b === 'number' ? a + b : a), 0
-  );
+  ) * 100) / 100;
   const maxTotal = visibleRubric?.criteria.reduce((a, c) => a + c.maxScore, 0) ?? 100;
   const submittedTotal = typeof selectedExisting?.total === 'number'
     ? selectedExisting.total
@@ -433,7 +426,12 @@ export default function Grade() {
     }
   };
 
-  const pct = maxTotal > 0 ? Math.round((total / maxTotal) * 100) : 0;
+  const criteriaSections = new Map<string, Criteria[]>();
+  for (const criterion of visibleRubric?.criteria || []) {
+    const section = criterion.section?.trim() || 'Evaluation criteria';
+    criteriaSections.set(section, [...(criteriaSections.get(section) || []), criterion]);
+  }
+  const ratedCount = visibleRubric?.criteria.filter(criterion => typeof scores[criterion.key] === 'number').length || 0;
 
   const onSaveDraft = useEffectEvent(() => saveDraft());
 
@@ -780,8 +778,8 @@ export default function Grade() {
                 <p className="text-text/70 text-sm mt-2 font-medium">
                   <span className="bg-primary/10 text-primary px-2 py-0.5 rounded text-xs uppercase tracking-wider">{selectedGroup.section?.block}</span>
                   <span className="ml-2">{getSubjectLabel(selectedGroup.section)}</span>
-                  {selectedGroup.members.length ? ` - ${formatMemberList(selectedGroup.members)}` : ''}
                 </p>
+                {!!selectedGroup.members.length && <details className="text-xs text-text/65 mt-2"><summary className="cursor-pointer font-semibold text-primary">Members ({selectedGroup.members.length})</summary><p className="mt-1 leading-relaxed">{formatMemberList(selectedGroup.members)}</p></details>}
                 <div data-tutorial="panel-proposal" className="mt-4 flex flex-wrap items-center gap-3">
                   {selectedGroup.proposalFile?.path ? (
                     <a href={`/proposal/${selectedGroup._id}`} target="_blank" rel="noreferrer" className="evl-btn-secondary text-xs px-4 py-2">
@@ -798,35 +796,13 @@ export default function Grade() {
                   </span>
                 )}
 
-                <div className="mt-6 p-4 bg-surface rounded-xl border border-muted/20">
-                  <label className="text-[10px] font-bold text-text/70 uppercase tracking-widest block mb-2">Grading Rubric In Use</label>
-                  <div className="rounded-lg border border-muted/40 bg-bg px-4 py-2.5">
-                    <p className="text-sm font-bold text-text">{visibleRubric.title}</p>
-                    <p className="text-[10px] text-success font-black uppercase tracking-widest mt-1">
-                      {gradingLocked && submittedRubric ? 'Rubric used for submitted score' : 'Active rubric selected by instructor'}
-                    </p>
-                  </div>
+                <div className="mt-4 text-xs text-text/60">
+                  <p>Grading rubric: <span className="font-semibold text-text">{visibleRubric.title}</span></p>
+                  <p className="mt-1">{gradingLocked && submittedRubric ? 'Rubric used for submitted score' : 'Active rubric selected by instructor'}</p>
                 </div>
               </div>
 
               <div className="w-full md:w-auto flex flex-col items-stretch md:items-end gap-3">
-                <div className="evl-card px-6 py-5 text-center min-w-[160px] bg-surface border-primary/20 shadow-lg shadow-primary/5">
-                  <p className="text-text/70 text-[10px] font-extrabold uppercase tracking-widest mb-1">Current Total</p>
-                  <p className="text-4xl font-black text-text">
-                    {total}
-                    <span className="text-text/60 text-lg font-normal">/{maxTotal}</span>
-                  </p>
-                  <div className="w-full bg-muted/30 rounded-full h-2 mt-3">
-                    <div
-                      className={`h-2 rounded-full transition-all duration-500 ${pct >= 84 ? 'bg-success shadow-[0_0_8px_rgba(34,197,94,0.4)]' :
-                          pct >= 64 ? 'bg-primary shadow-[0_0_8px_rgba(59,130,246,0.4)]' :
-                            pct >= 44 ? 'bg-warning shadow-[0_0_8px_rgba(234,179,8,0.4)]' :
-                              'bg-danger shadow-[0_0_8px_rgba(239,68,68,0.4)]'
-                        }`}
-                      style={{ width: `${pct}%` }}
-                    />
-                  </div>
-                </div>
                 {/* Safe & Saved and Offline Backup hidden for now
                 <div className="flex items-center justify-between md:justify-end gap-4 px-1">
                   <span className="text-[10px] font-bold text-success flex items-center gap-1.5 opacity-80">
@@ -919,11 +895,25 @@ export default function Grade() {
             )}
 
             {/* Score inputs */}
-            <div data-tutorial="panel-scores" className="grid grid-cols-1 xl:grid-cols-2 gap-4 mb-6">
-              {visibleRubric.criteria.map((cat) => (
+            {visibleRubric.instructions && <details className="evl-card p-4 mb-4"><summary className="cursor-pointer font-bold">Rubric Instructions and Evaluation Notes</summary><p className="whitespace-pre-wrap text-sm mt-3">{visibleRubric.instructions}</p></details>}
+            <div className="sticky top-20 lg:top-3 z-20 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-muted/40 bg-surface px-4 py-3 mb-6 shadow-sm" aria-label="Grading progress">
+              <div><p className="text-sm font-semibold text-text">{ratedCount} of {visibleRubric.criteria.length} criteria rated</p><p className="text-xs text-text/60 mt-0.5">{gradingLocked ? 'Reviewing submitted evaluation' : 'Select a rating for each criterion'}</p></div>
+              <div className="flex items-center gap-4"><output aria-label="Current grading total" className="text-xl font-bold text-primary tabular-nums">{total}<span className="text-xs text-text/50 font-medium"> / {maxTotal}</span></output><a href="#grading-feedback" className="evl-btn-secondary !text-xs !py-2">Feedback and submit</a></div>
+            </div>
+            <div data-tutorial="panel-scores" className="space-y-7 mb-6">
+              {[...criteriaSections].map(([section, criteria]) => (
+                <section key={section} aria-label={`${section} grading criteria`}>
+                  <div className="flex flex-wrap items-end justify-between gap-2 mb-3 rounded-lg border border-primary/15 bg-primary/5 px-4 py-3">
+                    <div><h3 className="font-bold text-primary">{section}</h3><p className="text-xs text-text/65 mt-1">{criteria.filter(criterion => typeof scores[criterion.key] === 'number').length} of {criteria.length} rated</p></div>
+                    <p className="text-sm font-semibold text-primary tabular-nums">{Math.round(criteria.reduce((sum, criterion) => sum + (Number(scores[criterion.key]) || 0), 0) * 100) / 100}<span className="text-text/60 font-normal"> / {criteria.reduce((sum, criterion) => sum + criterion.maxScore, 0)} points</span></p>
+                  </div>
+                  <div className="space-y-3">
+              {criteria.map((cat) => (
                 <ScoreInput
                   key={cat.key}
                   label={cat.label}
+                  description={cat.description}
+                  percentage={cat.scoringMode === 'percentage'}
                   max={cat.maxScore}
                   value={scores[cat.key] ?? ''}
                   disabled={!canEditScores}
@@ -936,15 +926,17 @@ export default function Grade() {
                   levels={cat.levels.map((l) => ({
                     label: l.label,
                     range: `${l.minScore}–${l.maxScore}`,
-                    color: LEVEL_COLORS[l.label] ?? 'bg-gray-100 text-gray-600',
                     description: l.description,
                   }))}
                 />
               ))}
+                  </div>
+                </section>
+              ))}
             </div>
 
             {/* Comments / Feedback */}
-            <div data-tutorial="panel-feedback" className="evl-card p-6 mb-6 bg-surface">
+            <div id="grading-feedback" data-tutorial="panel-feedback" className="evl-card p-6 mb-6 bg-surface scroll-mt-32">
               <label className="evl-label flex items-center gap-2 mb-3">
                 <span>💬 Panel Feedback & Comments</span>
                 <span className="text-[10px] font-normal lowercase bg-muted/40 px-1.5 py-0.5 rounded text-text/70">Optional</span>

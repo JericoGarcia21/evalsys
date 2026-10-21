@@ -1,0 +1,133 @@
+{
+  "criteria": [
+    {
+      "label": "Conceptual Design",
+      "section": "Project Requirements",
+      "description": "Correct identification of entities, attributes, relationships, and cardinalities. The conceptual ERD is complete, readable, and appropriate for the selected system.",
+      "maxScore": 10,
+      "key": "section0criterion1",
+      "scoringMode": "percentage"
+    },
+    {
+      "label": "Logical Design",
+      "section": "Project Requirements",
+      "description": "Correct relational schema, primary keys, foreign keys, relationship mapping, resolution of many-to-many relationships, and normalization up to 3NF where applicable.",
+      "maxScore": 12,
+      "key": "section0criterion2",
+      "scoringMode": "percentage"
+    },
+    {
+      "label": "Physical Design and Implementation",
+      "section": "Project Requirements",
+      "description": "Database and tables are successfully created in the required DBMS. Data types, constraints, and foreign-key relationships are appropriate and correctly implemented.",
+      "maxScore": 12,
+      "key": "section0criterion3",
+      "scoringMode": "percentage"
+    },
+    {
+      "label": "SQL Operations and Sample Data",
+      "section": "Project Requirements",
+      "description": "Correct use of relevant SQL commands, including INSERT, SELECT, UPDATE, and DELETE. Sample records and queries sufficiently demonstrate the database.",
+      "maxScore": 6,
+      "key": "section0criterion4",
+      "scoringMode": "percentage"
+    },
+    {
+      "label": "System Overview",
+      "section": "Project Documentation",
+      "description": "Clearly presents the system name, purpose, objectives, target users, and major functions.",
+      "maxScore": 4,
+      "key": "section1criterion1",
+      "scoringMode": "percentage"
+    },
+    {
+      "label": "Conceptual Design Documentation",
+      "section": "Project Documentation",
+      "description": "Includes entity and attribute lists, relationships, cardinalities, and a clearly labeled conceptual ERD.",
+      "maxScore": 6,
+      "key": "section1criterion2",
+      "scoringMode": "percentage"
+    },
+    {
+      "label": "Logical Design Documentation",
+      "section": "Project Documentation",
+      "description": "Includes the relational schema, primary and foreign keys, relationship mapping, normalization explanation, and logical ERD.",
+      "maxScore": 6,
+      "key": "section1criterion3",
+      "scoringMode": "percentage"
+    },
+    {
+      "label": "Physical Design Documentation",
+      "section": "Project Documentation",
+      "description": "Includes SQL scripts, table structures, data types, constraints, sample data, queries, results, and database screenshots.",
+      "maxScore": 8,
+      "key": "section1criterion4",
+      "scoringMode": "percentage"
+    },
+    {
+      "label": "Organization and Formatting",
+      "section": "Project Documentation",
+      "description": "Uses clear language, appropriate headings, consistent formatting, and readable diagrams and tables.",
+      "maxScore": 3,
+      "key": "section1criterion5",
+      "scoringMode": "percentage"
+    },
+    {
+      "label": "Completeness and Submission",
+      "section": "Project Documentation",
+      "description": "Includes all required sections and supporting files and follows the instructor’s submission instructions.",
+      "maxScore": 3,
+      "key": "section1criterion6",
+      "scoringMode": "percentage"
+    },
+    {
+      "label": "System Overview",
+      "section": "Project Presentation",
+      "description": "Explains the selected system’s purpose, target users, and major functions.",
+      "maxScore": 3,
+      "key": "section2criterion1",
+      "scoringMode": "percentage"
+    },
+    {
+      "label": "ERD Presentation and Explanation",
+      "section": "Project Presentation",
+      "description": "Presents and explains the conceptual and logical ERDs, entities, attributes, relationships, cardinalities, primary keys, and foreign keys.",
+      "maxScore": 8,
+      "key": "section2criterion2",
+      "scoringMode": "percentage"
+    },
+    {
+      "label": "Live Database Demonstration",
+      "section": "Project Presentation",
+      "description": "Demonstrates the actual database, tables, relationships, sample records, and relevant SQL operations and query results.",
+      "maxScore": 8,
+      "key": "section2criterion3",
+      "scoringMode": "percentage"
+    },
+    {
+      "label": "Technical Understanding",
+      "section": "Project Presentation",
+      "description": "Explains the conceptual, logical, and physical design stages, normalization, and key database design decisions accurately.",
+      "maxScore": 5,
+      "key": "section2criterion4",
+      "scoringMode": "percentage"
+    },
+    {
+      "label": "Communication and Organization",
+      "section": "Project Presentation",
+      "description": "Presents clearly and logically, uses presentation time effectively, and organizes the demonstration well.",
+      "maxScore": 3,
+      "key": "section2criterion5",
+      "scoringMode": "percentage"
+    },
+    {
+      "label": "Individual Participation and Q&A",
+      "section": "Project Presentation",
+      "description": "Members contribute to the presentation and answer questions about their work and the overall database design.",
+      "maxScore": 3,
+      "key": "section2criterion6",
+      "scoringMode": "percentage"
+    }
+  ],
+  "instructions": "DATABASE FINAL PROJECT\nCOMPLETE GRADING RUBRICS\nGroup Size: 4–5 members     Related Subject: Object-Oriented Programming (OOP)\nFinal weighting: Project Requirements – 40% | Project Documentation – 30% | Project Presentation – 30% | Total – 100%\nI. Project Requirements Rubric (40%)\nEvaluates the accuracy, completeness, and functionality of the group’s conceptual, logical, and physical database design.\nII. Project Documentation Rubric (30%)\nEvaluates the written report’s completeness, accuracy, organization, and presentation.\nIII. Project Presentation Rubric (30%)\nEvaluates how effectively the group explains its system, presents the ERDs, demonstrates the implemented database, and answers questions.\nIV. Performance Rating Scale\nFor each criterion, select the performance level that best reflects the submitted work. Multiply the criterion weight by the corresponding percentage below to calculate the earned points.\nV. Final Grade Computation\nFinal Project Grade = Project Requirements Score + Project Documentation Score + Project Presentation Score\nExample:\nProject Requirements: 34/40\nProject Documentation: 26/30\nProject Presentation: 25/30\nFinal Project Grade = 34 + 26 + 25 = 85/100\nVI. Presentation Requirements for Students\nIntroduce the selected system and explain its purpose and major functions.\nPresent the conceptual ERD and explain entities, attributes, relationships, and cardinalities.\nPresent the logical ERD and explain relational tables, primary keys, foreign keys, and any associative tables.\nExplain how normalization was applied and how the design reduces unnecessary redundancy.\nDemonstrate the actual implemented database, including tables, constraints, and sample records.\nExecute relevant SQL queries to demonstrate inserting, retrieving, updating, and deleting data.\nExplain how the database supports the selected OOP system.\nAnswer questions from the instructor about the ERDs, database structure, and SQL implementation.\nVII. General Evaluation Notes\nThe conceptual, logical, and physical designs should be consistent with one another.\nThe ERDs must match the implemented database. Any differences must be explained.\nAssess the database through a live demonstration where possible, not screenshots alone.\nThe instructor may ask any member questions individually to verify understanding and participation.\nThe rubric weights total 100%: Project Requirements (40%), Project Documentation (30%), and Project Presentation (30%)."
+}

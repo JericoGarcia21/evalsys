@@ -33,7 +33,7 @@ evaluationSchema.pre('save', function (next) {
   for (const val of this.scores.values()) {
     sum += val;
   }
-  this.total = sum;
+  this.total = Math.round(sum * 100) / 100;
   next();
 });
 

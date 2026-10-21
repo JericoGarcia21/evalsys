@@ -1,5 +1,5 @@
 import { notify } from '../../utils/notify';
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import api from '../../services/api';
 import { TableSkeleton } from '../../components/LoadingSkeleton';
 import { compareMembers, formatMemberList, type Member, type StructuredMember } from '../../utils/members';
@@ -9,7 +9,7 @@ import { compareNames } from '../../utils/alphabetical';
 
 interface Section { _id: string; name: string; block: string; }
 interface EvaluationRecord { _id: string; panelId: string; panelName: string; }
-interface RubricCriteria { key: string; label: string; maxScore: number; }
+interface RubricCriteria { key: string; label: string; maxScore: number; section?: string; description?: string; }
 interface GroupResult {
   group: { _id: string; name: string; members: Member[] };
   averaged: Record<string, number> | null;
@@ -29,14 +29,6 @@ const scoreColor = (score: number, max: number) => {
   if (pct >= 0.64) return 'text-primary font-bold';
   if (pct >= 0.44) return 'text-warning font-bold';
   return 'text-danger font-bold';
-};
-
-const scoreBadge = (total: number, max: number) => {
-  const pct = max > 0 ? total / max : 0;
-  if (pct >= 0.84) return 'evl-badge-success';
-  if (pct >= 0.64) return 'evl-badge-primary';
-  if (pct >= 0.44) return 'evl-badge-warning';
-  return 'evl-badge-danger';
 };
 
 const csvEscape = (value: unknown) => `"${String(value ?? '').replace(/"/g, '""')}"`;
@@ -95,6 +87,7 @@ export default function Results() {
   const [sections, setSections] = useState<Section[]>([]);
   const [selected, setSelected] = useState<Section | null>(null);
   const [results, setResults] = useState<GroupResult[]>([]);
+  const [expandedGroup, setExpandedGroup] = useState<string | null>(null);
   const [viewFeedback, setViewFeedback] = useState<{ group: string, items: { panel: string, text: string }[] } | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadingSections, setLoadingSections] = useState(true);
@@ -249,134 +242,62 @@ export default function Results() {
         {!loadingSections && !sections.length && <p className="text-text/70 text-sm">No sections available.</p>}
       </div>
 
-      {/* Results table */}
+      {/* Results overview */}
       {loading ? (
-        <TableSkeleton rows={6} cols={8} />
+        <TableSkeleton rows={6} cols={4} />
       ) : selected && (
-        <div className="overflow-hidden border-y border-muted/30 bg-surface">
-          <div className="px-0 py-4 border-b border-muted/40 flex justify-end">
-            <div className="grid grid-cols-1 sm:flex sm:flex-wrap gap-2 w-full sm:w-auto">
-              <button
-                onClick={downloadGroupSummaryCSV}
-                disabled={csvLocked && !isSuperadmin}
-                title={csvLocked && !isSuperadmin ? 'CSV export is currently disabled by the administrator' : ''}
-                className={`evl-btn-primary !py-1.5 !text-xs ${csvLocked && !isSuperadmin ? 'opacity-40 cursor-not-allowed' : ''}`}
-              >
-                {csvLocked && !isSuperadmin ? 'Export Locked' : 'Download Group Summary CSV'}
-              </button>
-              <button
-                onClick={downloadMemberGradesCSV}
-                disabled={csvLocked && !isSuperadmin}
-                title={csvLocked && !isSuperadmin ? 'CSV export is currently disabled by the administrator' : ''}
-                className={`evl-btn-secondary !py-1.5 !text-xs ${csvLocked && !isSuperadmin ? 'opacity-40 cursor-not-allowed' : ''}`}
-              >
-                {csvLocked && !isSuperadmin ? 'Export Locked' : 'Download Member Grades CSV'}
-              </button>
+        <section className="rounded-xl border border-muted/40 bg-surface overflow-hidden" aria-label="Section results">
+          <div className="flex flex-wrap items-center justify-between gap-4 px-5 py-4 border-b border-muted/30">
+            <div>
+              <h3 className="font-bold text-text">{selected.block} results</h3>
+              <p className="text-xs text-text/65 mt-1">{results.length} groups / {results.filter(r => !r.isIncomplete && r.finalTotal !== null).length} complete / {results.filter(r => r.isIncomplete || r.finalTotal === null).length} awaiting scores</p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {csvLocked && !isSuperadmin && <span className="text-xs font-semibold text-text/60">Export locked</span>}
+              <button onClick={downloadGroupSummaryCSV} disabled={csvLocked && !isSuperadmin} className="evl-btn-primary !py-2 !text-xs disabled:opacity-40" title={csvLocked && !isSuperadmin ? 'CSV export is disabled by the administrator' : undefined}>Download Group Summary CSV</button>
+              <button onClick={downloadMemberGradesCSV} disabled={csvLocked && !isSuperadmin} className="evl-btn-secondary !py-2 !text-xs disabled:opacity-40" title={csvLocked && !isSuperadmin ? 'CSV export is disabled by the administrator' : undefined}>Download Member Grades CSV</button>
             </div>
           </div>
-
-          <div className="lg:hidden divide-y divide-muted/40">
-            {results.map((result) => (
-              <MobileResultCard
-                key={result.group._id}
-                result={result}
-                criteriaColumns={criteriaColumns}
-                maxTotal={maxTotal}
-                onViewFeedback={setViewFeedback}
-                onClearScore={setClearModal}
-              />
-            ))}
-            {!results.length && (
-              <div className="text-center text-text/70 py-12">No results for this section yet.</div>
-            )}
-          </div>
-
-          <div className="hidden lg:block overflow-x-auto">
-            <table className="evl-table min-w-[980px]">
-              <thead>
-                <tr>
-                  <th>Group</th>
-                  <th>Members</th>
-                  {criteriaColumns.map((criteria) => (
-                    <th key={criteria.key} className="text-center">
-                      {criteria.label}
-                      <span className="block text-[10px] font-semibold text-text/65">/{criteria.maxScore}</span>
-                    </th>
-                  ))}
-                  <th className="text-center">Final</th>
-                  <th className="col-actions">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {results.map((result) => {
-                  const { group, averaged, finalTotal, evaluatedBy, missingPanels, isIncomplete, comments, evaluationRecords } = result;
-                  const resultMaxTotal = getResultMaxTotal(result, maxTotal);
-                  return (
-                    <tr key={group._id}>
-                      <td className="whitespace-nowrap">
-                        <div className="flex flex-col">
-                          <p className="font-semibold text-text">{group.name}</p>
-                          {evaluatedBy && evaluatedBy.length > 0 && (
-                            <p className="text-[10px] text-success/80 font-semibold tracking-wide uppercase mt-1">
-                              Eval by: {evaluatedBy.join(', ')}
-                            </p>
-                          )}
-                          {isIncomplete && missingPanels && missingPanels.length > 0 && (
-                            <p className="text-[10px] text-danger font-bold tracking-wide uppercase mt-0.5">
-                              Did not evaluate yet: {missingPanels.join(', ')}
-                            </p>
-                          )}
-                          {comments && comments.length > 0 && (
-                            <button 
-                              onClick={() => setViewFeedback({ group: group.name, items: comments })}
-                              className="text-[9px] font-bold text-primary uppercase text-left mt-2 hover:underline"
-                            >
-                              👁 View {comments.length} Comments
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                      <td className="text-text/70 text-xs max-w-[200px]">{formatMemberList(group.members) || '—'}</td>
-                      {criteriaColumns.map((criteria) => (
-                        <td key={criteria.key} className={`text-center ${!isIncomplete && averaged ? scoreColor(averaged[criteria.key] || 0, criteria.maxScore) : 'text-text/70'}`}>
-                          {!isIncomplete && averaged ? (averaged[criteria.key] ?? 0) : '—'}
-                        </td>
-                      ))}
-                      <td className="text-center">
-                        {isIncomplete || finalTotal === null ? (
-                          <span className="text-danger font-bold text-[10px] uppercase tracking-tight">
-                            Pending Complete Evaluation
-                          </span>
-                        ) : (
-                          <span className={`text-lg ${scoreBadge(finalTotal, resultMaxTotal)} !text-base`}>
-                            {finalTotal}
-                            {resultMaxTotal > 0 && <span className="ml-1 text-[10px] font-semibold opacity-60">/{resultMaxTotal}</span>}
-                          </span>
-                        )}
-                      </td>
-                      <td className="col-actions">
-                        {evaluationRecords && evaluationRecords.length > 0 ? (
-                          <button
-                            onClick={() => setClearModal({ group: result })}
-                            title="Clear a panel's score for this group"
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold border border-danger/30 text-danger bg-danger/5 hover:bg-danger/15 hover:border-danger/60 transition-all duration-150"
-                          >
-                            🗑 Clear Score
-                          </button>
-                        ) : (
-                          <span className="text-text/60 text-xs">—</span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-                {!results.length && (
-                  <tr><td colSpan={criteriaColumns.length + 4} className="text-center text-text/70 py-12">No results for this section yet.</td></tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
+          <table className="w-full table-fixed" aria-label="Group results overview">
+            <thead className="hidden md:table-header-group bg-bg text-left text-xs text-text/60">
+              <tr><th scope="col" className="px-5 py-3 w-[32%] font-semibold">Group</th><th scope="col" className="px-5 py-3 w-[24%] font-semibold">Panel progress</th><th scope="col" className="px-5 py-3 w-[20%] font-semibold">Final score</th><th scope="col" className="px-5 py-3 w-[24%] font-semibold text-right">Details</th></tr>
+            </thead>
+            <tbody className="block md:table-row-group">
+              {results.map(result => {
+                const submitted = result.evaluatedBy?.length || 0;
+                const expected = submitted + (result.missingPanels?.length || 0);
+                const pending = result.isIncomplete || result.finalTotal === null;
+                const resultMax = getResultMaxTotal(result, maxTotal);
+                const open = expandedGroup === result.group._id;
+                return <Fragment key={result.group._id}>
+                  <tr className={`block md:table-row border-t border-muted/30 ${open ? 'bg-primary/[0.03]' : 'hover:bg-bg/60'}`}>
+                    <td className="block md:table-cell px-5 pt-4 pb-2 md:py-4 align-middle">
+                      <p className="font-bold text-sm text-text break-words">{result.group.name}</p>
+                      <p className="text-xs text-text/55 mt-1">{result.group.members.length} members</p>
+                    </td>
+                    <td className="block md:table-cell px-5 py-2 md:py-4 align-middle">
+                      <p className="text-xs font-semibold text-text/75">{expected ? `${submitted} of ${expected} panels submitted` : submitted ? `${submitted} panels submitted` : 'No submissions yet'}</p>
+                      {expected > 0 && <div className="h-1.5 bg-muted/30 rounded-full mt-2 max-w-40 overflow-hidden" role="progressbar" aria-label={`Panel progress for ${result.group.name}`} aria-valuemin={0} aria-valuemax={expected} aria-valuenow={submitted}><div className={`h-full rounded-full ${pending ? 'bg-primary' : 'bg-success'}`} style={{ width: `${submitted / expected * 100}%` }} /></div>}
+                      {!!result.missingPanels?.length && <p className="mt-2 text-xs text-danger font-medium break-words">Not evaluated yet: {result.missingPanels.join(', ')}</p>}
+                    </td>
+                    <td className="block md:table-cell px-5 py-2 md:py-4 align-middle">
+                      {pending ? <span className="inline-flex rounded-md bg-warning/10 text-warning px-2.5 py-1 text-xs font-semibold">Pending</span> : <span className="text-xl font-bold text-text tabular-nums">{result.finalTotal}{resultMax > 0 && <span className="text-xs font-medium text-text/50 ml-1">/ {resultMax}</span>}</span>}
+                    </td>
+                    <td className="block md:table-cell px-5 pt-2 pb-4 md:py-4 md:text-right align-middle">
+                      <button type="button" aria-expanded={open} aria-controls={`result-${result.group._id}`} aria-label={`${open ? 'Hide' : 'View'} breakdown for ${result.group.name}`} onClick={() => setExpandedGroup(open ? null : result.group._id)} className="evl-btn-secondary !text-xs !py-2">{open ? 'Hide breakdown' : 'View breakdown'}<span aria-hidden="true" className="ml-2">{open ? '-' : '+'}</span></button>
+                    </td>
+                  </tr>
+                  <tr className={open ? 'block md:table-row bg-bg/50' : 'hidden'} id={`result-${result.group._id}`}>
+                    <td colSpan={4} className="block md:table-cell px-5 py-5 border-t border-muted/20">
+                      {open && <ResultBreakdown result={result} criteriaColumns={criteriaColumns} onViewFeedback={setViewFeedback} onClearScore={setClearModal} />}
+                    </td>
+                  </tr>
+                </Fragment>;
+              })}
+              {!results.length && <tr className="block md:table-row"><td colSpan={4} className="block md:table-cell text-center text-text/60 py-12">No results for this section yet.</td></tr>}
+            </tbody>
+          </table>
+        </section>
       )}
 
       {/* Feedback modal */}
@@ -489,94 +410,36 @@ export default function Results() {
   );
 }
 
-function MobileResultCard({
-  result,
-  criteriaColumns,
-  maxTotal,
-  onViewFeedback,
-  onClearScore,
-}: {
+function ResultBreakdown({ result, criteriaColumns, onViewFeedback, onClearScore }: {
   result: GroupResult;
   criteriaColumns: RubricCriteria[];
-  maxTotal: number;
   onViewFeedback: (value: { group: string; items: { panel: string; text: string }[] }) => void;
   onClearScore: (value: { group: GroupResult }) => void;
 }) {
   const { group, averaged, finalTotal, evaluatedBy, missingPanels, isIncomplete, comments, evaluationRecords } = result;
-  const resultMaxTotal = getResultMaxTotal(result, maxTotal);
-
-  return (
-    <div className="px-0 py-4">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h3 className="font-black text-text text-base break-words">{group.name}</h3>
-          {evaluatedBy && evaluatedBy.length > 0 && (
-            <p className="text-[11px] text-success font-bold uppercase mt-1">
-              Eval by: {evaluatedBy.join(', ')}
-            </p>
-          )}
-        </div>
-        {isIncomplete || finalTotal === null ? (
-          <span className="evl-badge-danger shrink-0 !text-[10px]">Pending</span>
-        ) : (
-          <span className={`${scoreBadge(finalTotal, resultMaxTotal)} shrink-0`}>
-            {finalTotal}
-            {resultMaxTotal > 0 && <span className="ml-1 text-[10px] opacity-70">/{resultMaxTotal}</span>}
-          </span>
-        )}
-      </div>
-
-      <div className="mt-3 rounded-lg border border-muted/40 bg-bg/60 p-3">
-        <p className="text-[10px] font-black uppercase tracking-widest text-text/60 mb-1">Members</p>
-        <p className="text-sm text-text/80 leading-relaxed break-words">
-          {formatMemberList(group.members) || 'No members'}
-        </p>
-      </div>
-
-      {isIncomplete && missingPanels && missingPanels.length > 0 && (
-        <p className="mt-3 text-xs text-danger font-bold leading-relaxed">
-          Did not evaluate yet: {missingPanels.join(', ')}
-        </p>
-      )}
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3">
-        {criteriaColumns.map((criteria) => (
-          <div key={criteria.key} className="rounded-lg border border-muted/40 bg-white px-3 py-2">
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-xs font-bold text-text/75 break-words">{criteria.label}</p>
-              <p className={`text-sm ${!isIncomplete && averaged ? scoreColor(averaged[criteria.key] || 0, criteria.maxScore) : 'text-text/70 font-bold'}`}>
-                {!isIncomplete && averaged ? (averaged[criteria.key] ?? 0) : '-'}
-                <span className="text-[10px] text-text/50 ml-1">/{criteria.maxScore}</span>
-              </p>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-4">
-        {comments && comments.length > 0 && (
-          <button
-            type="button"
-            onClick={() => onViewFeedback({ group: group.name, items: comments })}
-            className="evl-btn-secondary !py-2 !px-3 !text-xs"
-          >
-            View {comments.length} Comments
-          </button>
-        )}
-        {evaluationRecords && evaluationRecords.length > 0 && (
-          <button
-            type="button"
-            onClick={() => onClearScore({ group: result })}
-            className="evl-btn-danger !py-2 !px-3 !text-xs"
-          >
-            Clear Score
-          </button>
-        )}
-      </div>
+  const pending = isIncomplete || finalTotal === null;
+  const sections = new Map<string, RubricCriteria[]>();
+  for (const criterion of result.rubricCriteria || criteriaColumns) {
+    const name = criterion.section || 'Criteria';
+    sections.set(name, [...(sections.get(name) || []), criterion]);
+  }
+  return <div className="space-y-5" role="region" aria-label={`Score breakdown for ${group.name}`}>
+    <div className="grid sm:grid-cols-2 gap-4 text-xs">
+      <div><p className="font-semibold text-text/60 mb-1">Panel evaluations</p><p className="text-text/80">{evaluatedBy?.length ? `Submitted: ${evaluatedBy.join(', ')}` : 'No panels have submitted yet.'}</p>{!!missingPanels?.length && <p className="text-text/65 mt-1">Awaiting: {missingPanels.join(', ')}</p>}</div>
+      <details><summary className="cursor-pointer font-semibold text-primary">Members ({group.members.length})</summary><p className="mt-2 text-text/75 leading-relaxed">{formatMemberList(group.members) || 'No members'}</p></details>
     </div>
-  );
+    {[...sections].map(([section, criteria]) => <section key={section} aria-label={section}>
+      <div className="flex justify-between items-center gap-3 mb-2"><h4 className="text-sm font-bold text-text">{section}</h4><span className="text-xs text-text/60">{criteria.reduce((sum, criterion) => sum + criterion.maxScore, 0)} possible points</span></div>
+      <dl className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2">
+        {criteria.map(criterion => <div key={criterion.key} className="flex items-start justify-between gap-4 rounded-lg border border-muted/30 bg-surface px-3 py-3">
+          <dt className="text-xs text-text/80 leading-relaxed" title={criterion.description}>{criterion.label}</dt>
+          <dd className={`shrink-0 text-sm tabular-nums ${!pending && averaged ? scoreColor(averaged[criterion.key] || 0, criterion.maxScore) : 'text-text/45'}`}>{!pending && averaged ? averaged[criterion.key] ?? 0 : '-'}<span className="text-xs font-normal text-text/50"> / {criterion.maxScore}</span></dd>
+        </div>)}
+      </dl>
+    </section>)}
+    <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-muted/30">
+      <p className="text-xs text-text/55">{pending ? 'Final score appears when all assigned panels submit.' : 'Final score is the average across panel evaluations.'}</p>
+      <div className="flex gap-2">{!!comments?.length && <button type="button" onClick={() => onViewFeedback({ group: group.name, items: comments })} className="evl-btn-secondary !text-xs !py-2">View {comments.length} Comments</button>}{!!evaluationRecords?.length && <button type="button" onClick={() => onClearScore({ group: result })} className="evl-btn-secondary !text-xs !py-2 !text-danger">Clear Score</button>}</div>
+    </div>
+  </div>;
 }
-
-
-
-

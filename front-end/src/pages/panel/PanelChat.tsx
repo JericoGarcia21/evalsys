@@ -1,11 +1,11 @@
 import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../context/useAuth';
-import { useChat } from '../../context/useChat';
+import { useSubjectChat } from '../../context/useChat';
 import ChatConversation from '../../components/ChatConversation';
 
 export default function PanelChat() {
   const { user } = useAuth();
-  const { rooms, loading, error, refreshRooms } = useChat();
+  const { rooms, loading, error, refreshRooms, followsSubject, subjectId } = useSubjectChat();
   const [params, setParams] = useSearchParams();
   const userId = user?.id || user?._id || '';
   const savedRoomKey = 'evalsys_chat_team:' + user?.role + ':' + userId;
@@ -36,7 +36,7 @@ export default function PanelChat() {
       <div className="min-h-[540px] h-[calc(100dvh-13rem)] border border-muted/30 rounded-xl overflow-hidden bg-surface">
         {selected ? <ChatConversation key={selected._id} room={selected} />
           : <div className="flex flex-col items-center justify-center h-full p-8 text-center text-text/60 text-sm">
-            {loading ? <p role="status">Preparing your panel chat...</p> : <><h3 className="text-text font-bold text-base mb-2">No panel team assigned yet</h3><p>Ask your instructor to assign you to a subject's block or group. Your general team chat will appear here.</p></>}
+            {loading ? <p role="status">Preparing your panel chat...</p> : followsSubject ? <><h3 className="text-text font-bold text-base mb-2">{subjectId ? 'No panel chat for this subject' : 'Choose a subject'}</h3><p>Select a subject with an assigned panel team to start a conversation.</p></> : <><h3 className="text-text font-bold text-base mb-2">No panel team assigned yet</h3><p>Ask your instructor to assign you to a subject's block or group. Your general team chat will appear here.</p></>}
           </div>}
       </div>
     </div>

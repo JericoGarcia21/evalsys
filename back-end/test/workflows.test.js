@@ -35,6 +35,139 @@ const api = (method, url, user = instructor, scope = true) => {
 };
 const submit = (user = panel, scores = { quality: 8 }, selectedRubric = rubric) => api('post', '/api/evaluations/group/' + group._id, user).send({ rubricId: selectedRubric._id.toString(), scores, comments: 'QA comment' });
 
+const databaseTemplate = () => {
+  const template = require('../../front-end/src/data/databaseRubric.json');
+  return { title: 'Database Final Project', instructions: template.instructions, criteria: template.criteria.map(criterion => ({
+    ...criterion, levels: [100, 90, 80, 70, 0].map(percentage => ({ label: `${percentage}%`, percentage,
+      minScore: Math.round(criterion.maxScore * percentage) / 100, maxScore: Math.round(criterion.maxScore * percentage) / 100,
+    })),
+  })) };
+};
+
+test('complete document template survives create, read, update, grading, results, activation and deletion', async () => {
+  const payload = databaseTemplate();
+  assert.equal(payload.criteria.length, 16);
+  const totals = Object.values(payload.criteria.reduce((sums, c) => ({ ...sums, [c.section]: (sums[c.section] || 0) + c.maxScore }), {}));
+  assert.deepEqual(totals, [40, 30, 30]);
+  const created = await api('post', '/api/rubrics').send(payload).expect(201);
+  const id = created.body._id;
+  const list = await api('get', '/api/rubrics').expect(200);
+  assert.deepEqual(list.body.find(item => item._id === id).criteria, created.body.criteria);
+  const edited = await api('put', '/api/rubrics/' + id).send({ instructions: 'Updated instructions', title: 'Edited template' }).expect(200);
+  assert.deepEqual(edited.body.criteria, created.body.criteria);
+  const scores = Object.fromEntries(payload.criteria.map(c => [c.key, Math.round(c.maxScore * 90) / 100]));
+  const submitted = await submit(panel, scores, created.body).expect(200);
+  assert.equal(submitted.body.total, 90);
+  await submit(secondPanel, scores, created.body).expect(200);
+  const results = await api('get', '/api/evaluations/section/' + section._id + '/results').expect(200);
+  const result = results.body.find(item => item.group._id === group._id.toString());
+  assert.equal(result.finalTotal, 90);
+  assert.equal(result.averaged.section0criterion2, 10.8);
+  assert.equal(result.rubricCriteria[0].section, 'Project Requirements');
+  assert.equal(result.rubricCriteria[0].description, payload.criteria[0].description);
+  await api('patch', '/api/rubrics/' + id + '/activate').expect(200);
+  assert.equal(await Rubric.countDocuments({ subject: subject._id, createdBy: instructor._id, isActive: true }), 1);
+  await api('delete', '/api/rubrics/' + id).expect(200);
+  assert.equal(await Evaluation.countDocuments({ group: group._id }), 2);
+  assert.equal(await Rubric.countDocuments({ subject: subject._id, isActive: true }), 1);
+});
+
+for (const panelCount of [1, 2, 3]) {
+  test(`document rubric averages by ${panelCount} assigned panels consistently in results and exports`, async () => {
+    const judges = [panel, secondPanel];
+    if (panelCount === 3) judges.push(await Panel.create({ name: 'Panel C', email: 'qa-average-c@evalsys.com', password,
+      createdBy: instructor._id, mustChangePassword: false }));
+    judges.length = panelCount;
+    const sectionPanels = panelCount === 2 ? [] : judges.slice(0, 2).map(judge => judge._id);
+    const groupPanels = panelCount === 3 ? [panel._id, judges[2]._id] : judges.map(judge => judge._id);
+    await Section.updateOne({ _id: section._id }, { assignedPanels: sectionPanels });
+    await Group.updateOne({ _id: group._id }, { assignedPanels: groupPanels });
+    const created = await api('post', '/api/rubrics').send(databaseTemplate()).expect(201);
+    await api('patch', '/api/rubrics/' + created.body._id + '/activate').expect(200);
+    const ratings = panelCount === 1 ? [70] : panelCount === 2 ? [100, 90] : [100, 90, 70];
+    for (let index = 0; index < judges.length; index++) {
+      if (index === judges.length - 1) {
+        const pending = await api('get', '/api/evaluations/section/' + section._id + '/results').expect(200);
+        assert.equal(pending.body[0].isIncomplete, true);
+        assert.deepEqual(pending.body[0].missingPanels, [judges[index].name]);
+        const pendingExport = await api('get', '/api/evaluations/export-all').expect(200);
+        assert.equal(pendingExport.body[0].AverageScore, 'Pending Complete Evaluation');
+      }
+      const scores = Object.fromEntries(created.body.criteria.map(criterion => [criterion.key, Math.round(criterion.maxScore * ratings[index]) / 100]));
+      await submit(judges[index], scores, created.body).expect(200);
+    }
+    const expected = Math.round(ratings.reduce((sum, rating) => sum + rating, 0) / panelCount * 100) / 100;
+    const results = await api('get', '/api/evaluations/section/' + section._id + '/results').expect(200);
+    const result = results.body[0];
+    assert.equal(result.isIncomplete, false);
+    assert.deepEqual(result.missingPanels, []);
+    assert.equal(result.evaluatedBy.length, panelCount);
+    assert.equal(result.finalTotal, expected);
+    for (const criterion of created.body.criteria) {
+      const sum = ratings.reduce((total, rating) => total + Math.round(criterion.maxScore * rating) / 100, 0);
+      assert.equal(result.averaged[criterion.key], Math.round(sum / panelCount * 100) / 100);
+    }
+    const detail = await api('get', '/api/evaluations/group/' + group._id + '/result').expect(200);
+    assert.equal(detail.body.finalTotal, expected);
+    const exported = await api('get', '/api/evaluations/export-all').expect(200);
+    assert.equal(exported.body[0].AverageScore, expected);
+  });
+}
+
+test('percentage rubric edits enforce ownership, preserve protected fields and reject invalid metadata', async () => {
+  const payload = databaseTemplate();
+  const created = await api('post', '/api/rubrics').send(payload).expect(201);
+  const id = created.body._id;
+  await api('put', '/api/rubrics/' + id, otherInstructor).send({ title: 'Stolen' }).expect(403);
+  await api('put', '/api/rubrics/' + id).send({ title: 'Allowed', subject: otherSubject._id, createdBy: otherInstructor._id, isActive: true }).expect(200);
+  const stored = await Rubric.findById(id);
+  assert.equal(stored.createdBy.toString(), instructor._id.toString());
+  assert.equal(stored.subject.toString(), subject._id.toString());
+  assert.equal(stored.isActive, false);
+  for (const instructions of [null, {}, 12]) await api('put', '/api/rubrics/' + id).send({ instructions }).expect(400);
+  for (const [field, value] of [['section', {}], ['description', 4], ['scoringMode', 'invalid'], ['scoringMode', '']]) {
+    const invalid = databaseTemplate(); invalid.criteria[0][field] = value;
+    await api('post', '/api/rubrics').send(invalid).expect(400);
+  }
+  for (const percentage of [-1, 101, null, '90']) {
+    const invalid = databaseTemplate(); invalid.criteria[0].levels[1].percentage = percentage;
+    await api('post', '/api/rubrics').send(invalid).expect(400);
+  }
+  const duplicate = databaseTemplate(); duplicate.criteria[1].label = duplicate.criteria[0].label;
+  await api('post', '/api/rubrics').send(duplicate).expect(400);
+});
+
+test('percentage scores include zero, reject non-ratings without changing saved scores and preserve range rounding', async () => {
+  const created = await api('post', '/api/rubrics').send(databaseTemplate()).expect(201);
+  const scores = Object.fromEntries(created.body.criteria.map(c => [c.key, 0]));
+  await submit(panel, scores, created.body).expect(200);
+  for (const invalid of [undefined, null, '', -1, 10.01, 11, 'bad']) {
+    await submit(panel, { ...scores, section0criterion2: invalid }, created.body).expect(400);
+    assert.equal((await Evaluation.findOne({ group: group._id, panel: panel._id })).scores.get('section0criterion2'), 0);
+  }
+  await submit(panel, { quality: 8.6 }).expect(200);
+  assert.equal((await Evaluation.findOne({ group: group._id, panel: panel._id })).scores.get('quality'), 9);
+});
+
+test('sectioned percentage rubric preserves metadata and decimal rating scores', async () => {
+  const criteria = ['Requirements', 'Documentation'].map((section, index) => ({
+    key: `design${index}`, label: 'Design', section, description: 'Correct database design', maxScore: 12,
+    scoringMode: 'percentage', levels: [100, 90, 80, 70, 0].map(percentage => ({
+      label: `${percentage}%`, percentage, minScore: Math.round(12 * percentage) / 100, maxScore: Math.round(12 * percentage) / 100,
+    })),
+  }));
+  const created = await api('post', '/api/rubrics').send({ title: 'Sectioned rubric', instructions: 'Demonstrate the database', criteria }).expect(201);
+  assert.equal(created.body.criteria[0].section, 'Requirements');
+  assert.equal(created.body.instructions, 'Demonstrate the database');
+  const saved = await submit(panel, { design0: 10.8, design1: 9.6 }, created.body).expect(200);
+  const evaluation = await Evaluation.findOne({ group: group._id, panel: panel._id });
+  assert.equal(evaluation.scores.get('design0'), 10.8);
+  assert.ok(Math.abs(evaluation.total - 20.4) < 0.000001);
+  await submit(panel, { design0: 11, design1: 9.6 }, created.body).expect(400);
+  criteria[0].levels[1].minScore = 11;
+  await api('post', '/api/rubrics').send({ title: 'Invalid scale', criteria }).expect(400);
+});
+
 before(async () => {
   mongo = await MongoMemoryServer.create({ instance: { dbName: 'evalsys_qa_temporary' } });
   await mongoose.connect(mongo.getUri());

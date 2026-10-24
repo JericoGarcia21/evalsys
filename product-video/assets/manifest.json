@@ -1,0 +1,82 @@
+{
+  "assets": [
+    {
+      "path": "remotion-clips/setup.mp4",
+      "origin": "Fresh isolated synthetic EvalSys capture, 2026-10-24; new blue theme and focus grading",
+      "permission": "Project-owned demo capture",
+      "limitations": "Native uncropped 1440x800; actual interactions condensed; no live data",
+      "scenes": [
+        "setup"
+      ]
+    },
+    {
+      "path": "remotion-clips/registration.mp4",
+      "origin": "Fresh isolated synthetic EvalSys capture, 2026-10-24; new blue theme and focus grading",
+      "permission": "Project-owned demo capture",
+      "limitations": "Native uncropped 1440x800; actual interactions condensed; no live data",
+      "scenes": [
+        "registration"
+      ]
+    },
+    {
+      "path": "remotion-clips/grading.mp4",
+      "origin": "Fresh isolated synthetic EvalSys capture, 2026-10-24; new blue theme and focus grading",
+      "permission": "Project-owned demo capture",
+      "limitations": "Native uncropped 1440x800; actual interactions condensed; no live data",
+      "scenes": [
+        "grading"
+      ]
+    },
+    {
+      "path": "remotion-clips/results.mp4",
+      "origin": "Fresh isolated synthetic EvalSys capture, 2026-10-24; new blue theme and focus grading",
+      "permission": "Project-owned demo capture",
+      "limitations": "Native uncropped 1440x800; actual interactions condensed; no live data",
+      "scenes": [
+        "results"
+      ]
+    },
+    {
+      "path": "app-icon.svg",
+      "origin": "Existing project brand icon",
+      "permission": "Existing project use",
+      "scenes": [
+        "intro",
+        "setup",
+        "registration",
+        "grading",
+        "results",
+        "pwa",
+        "outro"
+      ]
+    },
+    {
+      "path": "audio/product-bed.wav",
+      "origin": "Original procedural 132 BPM score from music.mjs",
+      "permission": "No external samples or downloaded music",
+      "scenes": [
+        "intro",
+        "setup",
+        "registration",
+        "grading",
+        "results",
+        "pwa",
+        "outro"
+      ]
+    },
+    {
+      "path": null,
+      "origin": "System Arial font",
+      "permission": "Local rendering; font file not redistributed",
+      "scenes": [
+        "intro",
+        "setup",
+        "registration",
+        "grading",
+        "results",
+        "pwa",
+        "outro"
+      ]
+    }
+  ]
+}

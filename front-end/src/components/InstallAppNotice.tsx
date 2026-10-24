@@ -62,7 +62,7 @@ export default function InstallAppNotice() {
     <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[80] w-[min(440px,calc(100vw-2rem))] rounded-2xl border border-primary/30 bg-surface shadow-2xl shadow-dark/25 p-6 sm:p-7">
       <p className="text-lg font-black text-text">Install EvalSys</p>
       <p className="text-sm text-text/70 mt-2 leading-relaxed">
-        Add EvalSys to this device for faster access and an app-like grading experience.
+        EvalSys is an installable web app (PWA). Add it to this device and open it from your home screen or desktop. Signing in and grading require an internet connection.
       </p>
       <div className="mt-5 flex items-center justify-end gap-3">
         <button

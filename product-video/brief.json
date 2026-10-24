@@ -1,0 +1,37 @@
+{
+  "objective": "Rebuild the real UI advertisement after user review found cropped content, unclear cursor and missing middle names",
+  "authorization": "User requested personal playback review, complete names, better fitting and a thrilling ad",
+  "audience": [
+    "instructors",
+    "assigned panels",
+    "students"
+  ],
+  "durationSeconds": 77,
+  "width": 1920,
+  "height": 1080,
+  "fps": 30,
+  "renderer": "Remotion 4.0.538",
+  "CTA": "Open the portal or install EvalSys",
+  "restrictions": [
+    "Real synthetic capture only",
+    "No offline submission claim",
+    "No voiceover",
+    "Preserve chapter timing"
+  ],
+  "direction": "Blue and slate, uncropped native-size footage, explicit cursor halo, purposeful edit beats, driving 132 BPM score",
+  "hooks": [
+    "Every rating. One clear result.",
+    "Every criterion. Every panel.",
+    "From project registration to a verified result."
+  ],
+  "selectedHook": "Every rating.\nOne clear result.",
+  "framing": {
+    "sourceWidth": 1440,
+    "sourceHeight": 800,
+    "filmX": 64,
+    "filmY": 198,
+    "filmWidth": 1440,
+    "filmHeight": 800,
+    "cropped": false
+  }
+}

@@ -1,0 +1,43 @@
+.evl-legal-links { display:flex; flex-wrap:wrap; gap:12px 22px; font-size:11px; line-height:1.7; }
+.evl-legal-links a { text-decoration:underline; text-underline-offset:4px; }
+.evl-legal-links a:hover { color:#2563eb; }
+.evl-copyright { font-size:10px; line-height:1.8; }
+.legal-page { min-height:100dvh; background:#f8fafc; color:#0f172a; }
+.legal-header { background:#0f172a; color:#f8fafc; }
+.legal-header > div { width:min(1100px,calc(100% - 48px)); margin:auto; min-height:80px; display:flex; align-items:center; justify-content:space-between; gap:25px; }
+.legal-header > div > a:last-child { color:#bfdbfe; font-size:12px; }
+.legal-brand { display:flex; align-items:center; gap:12px; font-size:22px; font-weight:750; letter-spacing:-.6px; }
+.legal-main { max-width:850px; margin:auto; padding:65px 24px; }
+.legal-eyebrow { color:#2563eb; font-size:10px; font-weight:700; letter-spacing:1.5px; margin-bottom:18px; }
+.legal-main h1 { font-size:clamp(35px,5vw,52px); font-weight:650; letter-spacing:-1.5px; line-height:1.15; }
+.legal-updated { font-size:12px; color:#64748b; margin-top:16px; }
+.legal-intro { font-size:16px; color:#475569; line-height:1.8; margin-top:25px; max-width:650px; }
+.legal-contents { display:grid; grid-template-columns:1fr 1fr; gap:12px 26px; padding:26px 0; margin-block:32px; border-block:1px solid #dce3ec; font-size:12px; }
+.legal-main a { color:#1d4ed8; text-decoration:underline; text-underline-offset:3px; overflow-wrap:anywhere; }
+.legal-main article section { margin-top:38px; scroll-margin-top:25px; }
+.legal-main h2 { font-size:22px; line-height:1.4; letter-spacing:-.4px; font-weight:650; margin-bottom:16px; }
+.legal-main article p,.legal-main article li { font-size:14px; line-height:1.95; color:#475569; }
+.legal-main article p + p { margin-top:14px; }
+.legal-main ul { list-style:disc; padding-left:22px; }
+.legal-main li + li { margin-top:12px; }
+.legal-main strong { color:#334155; font-weight:650; }
+.legal-contact { margin-top:48px; padding:26px; background:#e8effc; border-radius:8px; }
+.legal-contact h2 { font-size:21px; margin-bottom:10px; }
+.legal-contact p { color:#475569; font-size:13px; line-height:1.8; margin-bottom:12px; }
+.legal-contact > a { font-size:14px; }
+.legal-main a.legal-request-button { display:inline-flex; align-items:center; gap:24px; padding:13px 18px; margin-block:20px; background:#2563eb; color:white; border-radius:6px; text-decoration:none; font-size:13px; font-weight:600; }
+.legal-main a.legal-request-button:hover { background:#1d4ed8; }
+.legal-footer { max-width:1100px; margin:auto; border-top:1px solid #dce3ec; padding:25px 24px; display:flex; justify-content:space-between; flex-wrap:wrap; gap:20px; color:#475569; }
+.legal-page :focus-visible { outline:3px solid #2563eb; outline-offset:4px; }
+.legal-header :focus-visible { outline-color:#93c5fd; }
+.legal-skip { position:fixed; top:-100px; left:16px; z-index:100; background:#2563eb; color:white; padding:12px 18px; }
+.legal-skip:focus { top:12px; }
+.workspace-legal-footer { margin-top:42px; border-top:1px solid #dce3ec; padding-top:22px; display:flex; justify-content:space-between; flex-wrap:wrap; gap:14px; color:#526176; }
+.workspace-shell:has(.grading-workspace[data-focus-mode='true']) .workspace-legal-footer { display:none; }
+.landing-footer .landing-legal-footer { border-top:1px solid #ffffff20; padding-top:20px; margin-top:24px; display:flex; justify-content:space-between; flex-wrap:wrap; gap:15px; }
+.landing-footer .landing-legal-footer p { width:auto; order:0; text-align:left; }
+.landing-footer .evl-legal-links a { color:#cbd5e1; }
+.landing-footer .evl-legal-links a:hover { color:#93c5fd; }
+.login-footer .evl-legal-links { font-size:10px; }
+.registration-legal-links { margin-top:14px; color:#1d4ed8; }
+@media(max-width:560px) { .legal-main { padding:42px 20px; } .legal-contents { grid-template-columns:1fr; } .legal-header > div { width:calc(100% - 40px); min-height:72px; } .legal-main article section { margin-top:32px; } .legal-main h2 { font-size:20px; } .legal-contact { padding:22px; } .legal-footer { padding-inline:20px; } }

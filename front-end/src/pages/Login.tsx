@@ -1,10 +1,12 @@
 import { useState, useEffect, type FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../context/useAuth';
 import { ensureServerReady, type LoginPhase } from '../services/loginConnection';
 import { notify } from '../utils/notify';
 import PasswordField from '../components/PasswordField';
+import LegalLinks, { CopyrightNotice } from '../components/LegalLinks';
+import './Login.css';
 
 export default function Login() {
   const { login } = useAuth();
@@ -54,86 +56,32 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-bg flex items-center justify-center px-4">
-      <div className="w-full max-w-sm">
-        {/* Brand */}
-        <div className="text-center mb-8">
-          <div className="w-12 h-12 rounded-xl bg-primary flex items-center justify-center text-white text-xl font-extrabold mx-auto mb-4">
-            E
-          </div>
-          <h1 className="text-2xl font-extrabold text-text tracking-tight">Welcome back</h1>
-          <p className="text-text/70 text-sm mt-1">Sign in to EvalSys</p>
-        </div>
-
-        {/* Card */}
-        <div className="evl-card p-8">
-          {error && (
-            <div role="alert" className="evl-alert-error mb-5 text-center">{error}</div>
-          )}
-          
-          {(isWakingUp || (loading && loginPhase !== 'signing-in')) && !error && (
-            <div role="status" className="bg-primary/10 text-primary text-[11px] font-bold py-2 px-3 rounded-lg mb-5 text-center flex items-center justify-center gap-2 animate-pulse">
-              <span className="w-2 h-2 bg-primary rounded-full animate-bounce" />
-              {loading && loginPhase === 'reconnecting' ? 'Reconnecting automatically. Please keep this page open.' : 'Connecting to the server. It may take a moment to start.'}
-            </div>
-          )}
-
-          <form onSubmit={handleSubmit}>
-            <fieldset disabled={loading} className="space-y-5">
-            <div>
-              <label className="evl-label" htmlFor="login-email">Email or username</label>
-              <input
-                id="login-email"
-                autoComplete="username"
-                type="text"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                className="evl-input"
-                placeholder="username or username@evalsys.com"
-              />
-            </div>
-            <PasswordField
-              id="login-password"
-              label="Password"
-              value={password}
-              onChange={setPassword}
-              placeholder="Password"
-              autoComplete="current-password"
-            />
-            <div className="flex justify-end mt-2">
-              <button 
-                type="button" 
-                onClick={() => notify('Please contact the System Administrator or your instructor to give you a temporary password.')}
-                className="text-xs text-primary font-bold hover:underline"
-              >
-                Forgot password?
-              </button>
-            </div>
-            <button
-              type="submit"
-              disabled={loading}
-              className="evl-btn-primary w-full py-3 mt-4"
-            >
-              {loading ? (
-                <span className="flex items-center gap-2">
-                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  {loginPhase === 'connecting' ? 'Connecting…' : loginPhase === 'reconnecting' ? 'Reconnecting…' : 'Signing in…'}
-                </span>
-              ) : (
-                'Sign in'
-              )}
-            </button>
+    <div className="login-page">
+      <aside className="login-story" aria-label="About EvalSys">
+        <Link to="/" className="login-brand" aria-label="EvalSys home"><img src="/app-icon.svg" alt="" width="38" height="38" /><span>EvalSys<small>PROJECT EVALUATION</small></span></Link>
+        <div className="login-story-body"><p className="login-eyebrow">FROM RUBRIC TO RESULTS</p><h2>Good evaluations<br />start with<br /><em>a clear process.</em></h2><p>A shared workflow for instructors, student groups, and assigned panels.</p><ol><li><span>01</span> Set your criteria</li><li><span>02</span> Evaluate with feedback</li><li><span>03</span> Review the results</li></ol></div>
+        <p className="login-story-footer">Your subject. Your rubric. Your evaluation.</p>
+      </aside>
+      <div className="login-main">
+        <Link className="login-back" to="/"><span aria-hidden="true">←</span> Back to home</Link>
+        <main className="login-form-panel">
+          <p className="login-eyebrow">THE EVALSYS PORTAL</p>
+          <h1>Welcome back.</h1>
+          <p className="login-intro">Sign in to your evaluation workspace.</p>
+          {error && <div id="login-error" role="alert" className="login-error">{error}</div>}
+          {(isWakingUp || (loading && loginPhase !== 'signing-in')) && !error && <div role="status" className="login-status"><span aria-hidden="true" />{loading && loginPhase === 'reconnecting' ? 'Reconnecting automatically. Please keep this page open.' : 'Connecting to the server. It may take a moment to start.'}</div>}
+          <form onSubmit={handleSubmit} aria-label="Sign in" aria-busy={loading} aria-describedby={error ? 'login-error' : undefined}>
+            <fieldset disabled={loading}>
+              <div><label className="evl-label" htmlFor="login-email">Email or username</label><input id="login-email" name="username" autoComplete="username" autoCapitalize="none" spellCheck={false} type="text" value={email} onChange={e => setEmail(e.target.value)} required className="evl-input" placeholder="Enter your email or username" /></div>
+              <PasswordField id="login-password" label="Password" value={password} onChange={setPassword} placeholder="Enter your password" autoComplete="current-password" />
+              <div className="login-forgot"><button type="button" onClick={() => notify('Please contact the System Administrator or your instructor to give you a temporary password.')}>Forgot password?</button></div>
+              <button type="submit" disabled={loading} aria-label={loading ? (loginPhase === 'connecting' ? 'Connecting…' : loginPhase === 'reconnecting' ? 'Reconnecting…' : 'Signing in…') : 'Sign in'} className="evl-btn-primary login-submit">{loading ? <span role="status">{loginPhase === 'connecting' ? 'Connecting…' : loginPhase === 'reconnecting' ? 'Reconnecting…' : 'Signing in…'}</span> : <><span>Sign in</span><span aria-hidden="true">↗</span></>}</button>
             </fieldset>
           </form>
-        </div>
-        <div className="mt-8 text-center border-t border-muted/20 pt-8">
-          <p className="text-text/60 text-[10px] font-bold uppercase tracking-widest mb-1">Developed & Maintained by</p>
-          <p className="text-text/65 text-sm font-black tracking-tight">Jerico B. Garcia</p>
-        </div>
+          <div className="login-help"><p>Need an instructor account?</p><p>Contact Jerico B. Garcia, the developer. Include your full name, school or institution, department, and subjects.</p><a className="login-contact" href="https://mail.google.com/mail/?view=cm&amp;fs=1&amp;to=garciajerico217%40gmail.com&amp;su=EvalSys%20Instructor%20Account%20Request" target="_blank" rel="noopener noreferrer">garciajerico217@gmail.com</a><p>Panel judges receive an account from their instructor. Students register through their class registration link.</p></div>
+        </main>
+        <footer className="login-footer"><span>EvalSys · Project Evaluation System</span><CopyrightNotice /><LegalLinks newTab /></footer>
       </div>
     </div>
   );
 }
-
-

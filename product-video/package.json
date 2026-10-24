@@ -1,0 +1,21 @@
+{
+  "name": "product-video",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node remotion/prepare.mjs",
+    "preview": "node remotion/render.mjs --preview",
+    "prepare-clips": "node prepare-clips.mjs",
+    "capture": "cd ../front-end && npx playwright test --config video.config.ts",
+    "dev": "npm --prefix remotion run studio",
+    "check": "npm --prefix remotion run check",
+    "render": "node remotion/render.mjs",
+    "build:hyperframes": "node music.mjs && node build.mjs",
+    "render:hyperframes": "node render.mjs",
+    "verify": "node verify.mjs"
+  },
+  "devDependencies": {
+    "ffmpeg-static": "5.2.0",
+    "ffprobe-static": "3.1.0"
+  }
+}

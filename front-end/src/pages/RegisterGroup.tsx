@@ -5,6 +5,7 @@ import api from '../services/api';
 import { formatMemberName, type StructuredMember } from '../utils/members';
 import { useConfirmDialog } from '../hooks/useConfirmDialog';
 import TutorialLauncher from '../tutorial/TutorialLauncher';
+import LegalLinks from '../components/LegalLinks';
 
 interface Subject { _id: string; code: string; title: string; }
 interface Section { _id: string; name: string; block: string; subject?: string | Subject; }
@@ -137,7 +138,7 @@ export default function RegisterGroup() {
 
   if (success) {
     return (
-      <div className="min-h-screen bg-bg flex items-center justify-center p-4">
+      <div className="evl-public-page min-h-screen bg-bg flex items-center justify-center p-4">
         <div className="w-full max-w-md evl-card p-8 text-center animate-in fade-in zoom-in duration-300">
           <div className="w-20 h-20 bg-success/10 text-success rounded-full flex items-center justify-center text-4xl mx-auto mb-6">
             ✓
@@ -167,7 +168,7 @@ export default function RegisterGroup() {
 
   if (registrationClosed) {
     return (
-      <div className="min-h-screen bg-bg flex items-center justify-center p-4">
+      <div className="evl-public-page min-h-screen bg-bg flex items-center justify-center p-4">
         <div className="w-full max-w-md evl-card p-8 text-center">
           <div className="w-12 h-12 rounded-xl bg-primary flex items-center justify-center text-white text-xl font-extrabold mx-auto mb-5">
             E
@@ -185,11 +186,11 @@ export default function RegisterGroup() {
   }
 
   return (
-    <div className="min-h-screen bg-bg flex items-center justify-center p-4 py-10">
+    <div className="evl-public-page min-h-screen bg-bg flex items-center justify-center p-4 py-10">
       <ConfirmDialog />
       <div className="w-full max-w-4xl">
         {/* Header */}
-        <div className="text-center mb-8">
+        <div className="evl-public-heading mb-8">
           <div className="w-12 h-12 rounded-xl bg-primary flex items-center justify-center text-white text-xl font-extrabold mx-auto mb-4 shadow-lg shadow-primary/20">
             E
           </div>
@@ -415,9 +416,10 @@ export default function RegisterGroup() {
                       className="mt-0.5 w-4 h-4 rounded border-muted text-primary focus:ring-primary/30 cursor-pointer"
                     />
                     <span className="text-[11px] text-text/70 leading-relaxed">
-                      By registering, you agree that the information provided will be used solely for project evaluation and grading within the <span className="font-bold text-primary">EvalSys Platform</span>.
+                      I confirm that I am authorized to submit these group and member details for project registration, evaluation, and related administration.
                     </span>
                   </label>
+                  <div className="registration-legal-links"><LegalLinks newTab /></div>
                 </div>
 
                 <button 

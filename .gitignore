@@ -20,3 +20,11 @@ Thumbs.db
 # Local QA reports and browser artifacts
 playwright-report/
 test-results/
+
+# Local agent skills, reference kits, and assistant workspace files
+.agents/
+.engineering-kit/
+.codex/
+.aider-desk/
+skills/
+skills-lock.json

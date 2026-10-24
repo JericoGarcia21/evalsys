@@ -5,6 +5,7 @@ import { useAuth } from '../context/useAuth';
 import api from '../services/api';
 import { useConfirmDialog } from '../hooks/useConfirmDialog';
 import TutorialLauncher from '../tutorial/TutorialLauncher';
+import LegalLinks, { CopyrightNotice } from './LegalLinks';
 import {
   currentInstructorKey,
   currentSubjectKey,
@@ -314,7 +315,8 @@ export default function Layout({ children }: { children: ReactNode }) {
   };
 
   return (
-    <div className="flex min-h-screen bg-bg relative">
+    <div className="workspace-shell flex min-h-screen bg-bg relative" data-workspace-route={location.pathname}>
+      <a className="workspace-skip" href="#workspace-main">Skip to workspace</a>
       <ConfirmDialog />
       {/* Mobile Top Bar */}
       <div className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-dark flex items-center justify-between px-4 z-40">
@@ -348,7 +350,7 @@ export default function Layout({ children }: { children: ReactNode }) {
       <aside
         id="workspace-sidebar"
         aria-label="Workspace sidebar"
-        className={`
+        className={`workspace-sidebar
           ${collapsed ? 'lg:w-[72px]' : 'lg:w-64'} 
           ${mobileOpen ? 'translate-x-0 visible' : '-translate-x-full invisible lg:visible'} w-72 max-w-[calc(100vw-1rem)]
           lg:translate-x-0 lg:flex
@@ -357,11 +359,9 @@ export default function Layout({ children }: { children: ReactNode }) {
         `}
       >
         {/* Brand */}
-        <div className="h-[70px] flex items-center justify-between px-4 border-b border-white/10 shrink-0">
+        <div className="workspace-sidebar-brand flex items-center justify-between px-4 border-b border-white/10 shrink-0">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-primary flex items-center justify-center text-white text-sm font-extrabold shadow-sm shadow-primary/30">
-              E
-            </div>
+            <img src="/app-icon.svg" alt="" className="w-9 h-9 shrink-0" />
             {(!collapsed || mobileOpen) && (
               <div>
                 <h1 className="text-white font-extrabold text-sm leading-none">EvalSys</h1>
@@ -381,6 +381,9 @@ export default function Layout({ children }: { children: ReactNode }) {
           </button>
           {/* Collapse toggle (only desktop) */}
           <button
+            type="button"
+            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            aria-expanded={!collapsed}
             onClick={() => setCollapsed(!collapsed)}
             className="hidden lg:flex w-7 h-7 items-center justify-center rounded-lg text-white/55 hover:text-white hover:bg-white/10 transition-colors text-xs"
           >
@@ -465,7 +468,7 @@ export default function Layout({ children }: { children: ReactNode }) {
               <Link
                 to="/subjects"
                 onClick={() => setMobileOpen(false)}
-                className="mt-2 w-full text-[10px] font-black text-primary hover:text-white hover:bg-primary/20 rounded-lg py-2 transition-colors flex items-center justify-center gap-1"
+                className="workspace-sidebar-manage mt-2 w-full text-[10px] font-black hover:text-white hover:bg-primary/20 rounded-lg py-2 transition-colors flex items-center justify-center gap-1"
               >
                 Manage Subjects
               </Link>
@@ -484,8 +487,11 @@ export default function Layout({ children }: { children: ReactNode }) {
               <Link
                 key={link.to}
                 to={link.to}
+                aria-current={isActive ? 'page' : undefined}
+                aria-label={link.label}
+                title={collapsed ? link.label : undefined}
                 onClick={() => setMobileOpen(false)}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] font-bold transition-all duration-150 ${isActive
+                className={`workspace-nav-link flex items-center gap-3 px-3 py-2.5 text-[13px] transition-all duration-150 ${isActive
                     ? 'bg-primary text-white shadow-sm shadow-primary/25'
                     : 'text-white/70 hover:text-white hover:bg-white/[0.07]'
                   }`}
@@ -531,6 +537,7 @@ export default function Layout({ children }: { children: ReactNode }) {
             </>
           ) : (
             <button
+              aria-label="Sign out"
               onClick={handleLogout}
               className="w-full text-white/65 hover:text-danger py-2 flex items-center justify-center text-sm transition-colors"
             >
@@ -541,13 +548,18 @@ export default function Layout({ children }: { children: ReactNode }) {
       </aside>
 
       {/* Main Content */}
-      <main className={`flex-1 min-w-0 ${location.pathname === '/grade' ? 'overflow-x-clip' : 'overflow-auto'} pt-16 lg:pt-0`}>
+      <main id="workspace-main" tabIndex={-1} className={`flex-1 min-w-0 ${location.pathname === '/grade' ? 'overflow-x-clip' : 'overflow-auto'} pt-16 lg:pt-0`}>
+        <header className="workspace-topbar">
+          <div className="workspace-breadcrumb"><span>EvalSys</span><span aria-hidden="true">/</span><strong>{links.find(link => link.to === location.pathname)?.label || (location.pathname === '/account-security' ? 'Account security' : location.pathname === '/chat' ? 'Team chat' : 'Workspace')}</strong></div>
+          <span className="workspace-topbar-context">{roleLabel(user?.role)} workspace</span>
+        </header>
         <div
           key={`${currentInstructorId || 'self'}:${currentSubjectId || 'none'}`}
-          className="px-4 py-6 sm:px-6 lg:px-10 lg:py-8 2xl:px-14"
+          className="workspace-content px-4 py-6 sm:px-6 lg:px-10 lg:py-8 2xl:px-14"
         >
-          <div className="flex justify-end mb-4"><TutorialLauncher /></div>
+          <div className="workspace-tools"><span>{currentSubject ? `${currentSubject.code} / ${currentSubject.title}` : 'Project evaluation workspace'}</span><TutorialLauncher /></div>
           {children}
+          <footer className="workspace-legal-footer"><CopyrightNotice /><LegalLinks newTab /></footer>
         </div>
       </main>
       <FloatingPanelChat key={user?.role + ":" + (user?.id || user?._id || "")} />

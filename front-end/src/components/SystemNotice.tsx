@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '../context/useAuth';
 import api from '../services/api';
 import { maintenanceStatus, formatMaintenanceDate, formatMaintenanceCountdown } from '../utils/maintenance';
+import { useLocation } from 'react-router-dom';
+import LegalLinks from './LegalLinks';
 
 interface PublicSettings {
   isMaintenanceMode: boolean;
@@ -16,6 +18,7 @@ interface PublicSettings {
 }
 
 export default function SystemNotice() {
+  const { pathname } = useLocation();
   const { user, logout } = useAuth();
   const [settings, setSettings] = useState<PublicSettings | null>(null);
   const [now, setNow] = useState(0);
@@ -68,6 +71,7 @@ export default function SystemNotice() {
   const showAnnouncement = isUserAudience && settings?.announcement?.isActive && settings.announcement.message;
   const remainingTime = formatMaintenanceCountdown((status.start || now) - now);
 
+  if (['/terms', '/privacy', '/copyright'].includes(pathname)) return null;
   if (!showMaintenance && !showMaintenanceWarning && !showAnnouncement) return null;
 
   return (
@@ -92,6 +96,7 @@ export default function SystemNotice() {
                 Sign Out
               </button>
             )}
+            <div className="mt-5 text-text/70"><LegalLinks newTab /></div>
           </div>
         </div>
       )}

@@ -23,16 +23,6 @@ body {
   font-size: 14px;
 }
 
-@keyframes evalsys-demo-progress {
-  0% { width: 8%; }
-  45% { width: 58%; }
-  100% { width: 92%; }
-}
-
-.evalsys-demo-progress {
-  animation: evalsys-demo-progress 7s ease-in-out infinite alternate;
-}
-
 /* ── Scrollbar ── */
 ::-webkit-scrollbar {
   width: 6px;

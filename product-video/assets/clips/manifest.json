@@ -1,0 +1,37 @@
+[
+  {
+    "scene": "setup",
+    "sourceSeconds": 4.88,
+    "trimStart": 0.6399999999999997,
+    "outputSeconds": 9,
+    "output": "assets/clips/setup.mp4"
+  },
+  {
+    "scene": "registration",
+    "sourceSeconds": 20.749,
+    "trimStart": 0.5310000000000024,
+    "outputSeconds": 12,
+    "output": "assets/clips/registration.mp4"
+  },
+  {
+    "scene": "grading",
+    "sourceSeconds": 25.276,
+    "trimStart": 0.48400000000000176,
+    "outputSeconds": 15,
+    "output": "assets/clips/grading.mp4"
+  },
+  {
+    "scene": "results",
+    "sourceSeconds": 6.152,
+    "trimStart": 0.36799999999999944,
+    "outputSeconds": 11,
+    "output": "assets/clips/results.mp4"
+  },
+  {
+    "scene": "pwa",
+    "sourceSeconds": 5.772,
+    "trimStart": 0.34799999999999986,
+    "outputSeconds": 9,
+    "output": "assets/clips/pwa.mp4"
+  }
+]

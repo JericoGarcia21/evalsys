@@ -1,0 +1,39 @@
+{
+  "palette": {
+    "background": "#0f172a",
+    "foreground": "#f8fafc",
+    "primary": "#2563eb",
+    "accent": "#93c5fd"
+  },
+  "type": {
+    "display": "Arial",
+    "body": "Arial",
+    "source": "System font, not redistributed"
+  },
+  "layout": {
+    "safeSidePixels": 64,
+    "headerHeight": 198,
+    "footage": {
+      "x": 64,
+      "y": 198,
+      "width": 1440,
+      "height": 800,
+      "objectFit": "contain",
+      "zoom": 1
+    },
+    "proofRail": {
+      "x": 1540,
+      "y": 198,
+      "width": 316,
+      "height": 800
+    },
+    "target": "1920x1080 landscape; native full UI and separate proof rail"
+  },
+  "motion": {
+    "fastFrames": 9,
+    "mediumFrames": 18,
+    "slowFrames": 30,
+    "cutBias": "Motivated cuts, no UI camera crop",
+    "bpm": 132
+  }
+}

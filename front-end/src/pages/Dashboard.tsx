@@ -173,12 +173,12 @@ function AdminDashboard({ name, role, userId }: { name: string; role: 'admin' | 
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+      <div className="workspace-shortcuts grid grid-cols-1 sm:grid-cols-2">
         {adminCards.filter((card) => role !== 'superadmin' || card.to !== '/rubrics').map((card) => (
           <Link
             key={card.to}
             to={card.to}
-            className="evl-card p-6 group hover:border-primary/50 hover:shadow-md transition-all duration-200"
+            className="workspace-shortcut evl-card group transition-colors duration-150"
           >
             <div className="flex items-start justify-between mb-4">
               <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
@@ -191,7 +191,7 @@ function AdminDashboard({ name, role, userId }: { name: string; role: 'admin' | 
             <p className="text-text/70 text-sm leading-relaxed">
               {role === 'superadmin' && 'superadminDesc' in card ? card.superadminDesc : card.desc}
             </p>
-            <div className="mt-4 text-primary text-xs font-semibold flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            <div className="workspace-shortcut-action text-primary text-xs font-semibold flex items-center gap-1">
               Open →
             </div>
           </Link>

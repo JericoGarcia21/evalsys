@@ -33,7 +33,7 @@ export default function PanelChat() {
           </select>
         </div>
       )}
-      <div className="min-h-[540px] h-[calc(100dvh-13rem)] border border-muted/30 rounded-xl overflow-hidden bg-surface">
+      <div className="evl-card min-h-[440px] h-[calc(100dvh-17rem)] overflow-hidden bg-surface">
         {selected ? <ChatConversation key={selected._id} room={selected} />
           : <div className="flex flex-col items-center justify-center h-full p-8 text-center text-text/60 text-sm">
             {loading ? <p role="status">Preparing your panel chat...</p> : followsSubject ? <><h3 className="text-text font-bold text-base mb-2">{subjectId ? 'No panel chat for this subject' : 'Choose a subject'}</h3><p>Select a subject with an assigned panel team to start a conversation.</p></> : <><h3 className="text-text font-bold text-base mb-2">No panel team assigned yet</h3><p>Ask your instructor to assign you to a subject's block or group. Your general team chat will appear here.</p></>}

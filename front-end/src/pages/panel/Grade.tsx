@@ -91,6 +91,8 @@ export default function Grade() {
   const [missingCriteria, setMissingCriteria] = useState<string[]>([]);
   const [isOnline, setIsOnline] = useState(() => navigator.onLine);
   const [proposalError, setProposalError] = useState('');
+  const [focusGrading, setFocusGrading] = useState(false);
+  const [showListDetails, setShowListDetails] = useState(false);
   const { confirm, ConfirmDialog } = useConfirmDialog();
 
   const [searchParams] = useSearchParams();
@@ -563,12 +565,17 @@ export default function Grade() {
     : [];
 
   return (
-    <div data-tutorial="panel-workspace" data-selected-group={selectedGroup?._id || ''} data-loading={loadingRubrics ? 'true' : 'false'} className="flex flex-col lg:flex-row gap-6">
+    <div data-tutorial="panel-workspace" data-selected-group={selectedGroup?._id || ''} data-loading={loadingRubrics ? 'true' : 'false'} data-focus-mode={focusGrading ? 'true' : 'false'} className="grading-workspace">
       <ConfirmDialog />
+      <div className="grading-view-toolbar">
+        <span>{focusGrading ? 'Focused evaluation' : 'Evaluation workspace'}</span>
+        <button type="button" className="evl-btn-secondary" aria-pressed={focusGrading} disabled={!selectedGroup} onClick={() => setFocusGrading(value => !value)}>{focusGrading ? 'Exit focus view' : 'Focus grading'}<span aria-hidden="true">{focusGrading ? '↙' : '↗'}</span></button>
+      </div>
+      <div className="flex flex-col lg:flex-row gap-6">
       {/* Group sidebar */}
-      <div className="w-full lg:w-72 shrink-0">
+      <div hidden={focusGrading} className="w-full lg:w-72 shrink-0">
         <div className="sticky top-0 pr-2 pb-8">
-          <h3 className="text-text font-bold text-base mb-4 px-1">Assigned Groups</h3>
+          <div className="flex items-center justify-between gap-3 mb-4 px-1"><h3 className="text-text font-bold text-base">Assigned Groups</h3><button type="button" className="text-xs text-primary font-semibold" aria-pressed={showListDetails} onClick={() => setShowListDetails(value => !value)}>{showListDetails ? 'Hide list details' : 'Show list details'}</button></div>
           {!loadingSidebar && assignedSubjects.length > 0 && (
             <div className="mb-4">
               <label htmlFor="panel-assigned-subject" className="evl-label">Subject</label>
@@ -586,7 +593,7 @@ export default function Grade() {
                   <option key={subject.id} value={subject.id}>{subject.label}</option>
                 ))}
               </select>
-              <p className="text-xs text-text/60 mt-2">Choose a subject, then select a block and group.</p>
+              {showListDetails && <p className="text-xs text-text/60 mt-2">Choose a subject, then select a block and group.</p>}
             </div>
           )}
 
@@ -608,7 +615,7 @@ export default function Grade() {
                     }`}
                 >
                   <span className="block">{section.block}</span>
-                  <span className={`block text-xs mt-1 truncate font-semibold ${selectedSidebarSectionId === section._id ? 'text-white/85' : 'text-text/55'}`}>
+                  <span hidden={!showListDetails} className={`text-xs mt-1 truncate font-semibold ${selectedSidebarSectionId === section._id ? 'text-white/85' : 'text-text/55'}`}>
                     {getSubjectLabel(section)}
                   </span>
                 </button>
@@ -651,10 +658,10 @@ export default function Grade() {
                           </span>
                         )}
                       </div>
-                      <p className={`text-[11px] mt-1 truncate ${selectedGroup?._id === g._id ? 'text-white/85' : 'text-text/70'}`}>
+                      <p hidden={!showListDetails} className={`text-[11px] mt-1 truncate ${selectedGroup?._id === g._id ? 'text-white/85' : 'text-text/70'}`}>
                         {getSubjectLabel(g.section)}
                       </p>
-                      <p className={`text-[11px] mt-0.5 truncate ${selectedGroup?._id === g._id ? 'text-white/85' : 'text-text/70'}`}>
+                      <p hidden={!showListDetails} className={`text-[11px] mt-0.5 truncate ${selectedGroup?._id === g._id ? 'text-white/85' : 'text-text/70'}`}>
                         {formatMemberList(g.members) || 'No members'}
                       </p>
                     </button>
@@ -772,14 +779,19 @@ export default function Grade() {
         ) : (
           <form onSubmit={handleSubmit}>
             {/* Header with total */}
-            <div className="flex flex-col md:flex-row justify-between items-start gap-6 mb-8">
+            <div className="flex flex-col md:flex-row justify-between items-start gap-4 mb-5">
               <div className="w-full md:flex-1">
                 <h2 data-tutorial="panel-details" className="text-2xl md:text-3xl font-extrabold text-text leading-tight">{selectedGroup.name}</h2>
+                <details className="grading-group-details">
+                  <summary>Group &amp; rubric details</summary>
                 <p className="text-text/70 text-sm mt-2 font-medium">
                   <span className="bg-primary/10 text-primary px-2 py-0.5 rounded text-xs uppercase tracking-wider">{selectedGroup.section?.block}</span>
                   <span className="ml-2">{getSubjectLabel(selectedGroup.section)}</span>
                 </p>
                 {!!selectedGroup.members.length && <details className="text-xs text-text/65 mt-2"><summary className="cursor-pointer font-semibold text-primary">Members ({selectedGroup.members.length})</summary><p className="mt-1 leading-relaxed">{formatMemberList(selectedGroup.members)}</p></details>}
+                  <p className="mt-3 text-xs text-text/65">Grading rubric: <strong className="font-semibold text-text">{visibleRubric.title}</strong></p>
+                  <p className="mt-1 text-xs text-text/65">{gradingLocked && submittedRubric ? 'Rubric used for submitted score' : 'Active rubric selected by instructor'}</p>
+                </details>
                 <div data-tutorial="panel-proposal" className="mt-4 flex flex-wrap items-center gap-3">
                   {selectedGroup.proposalFile?.path ? (
                     <a href={`/proposal/${selectedGroup._id}`} target="_blank" rel="noreferrer" className="evl-btn-secondary text-xs px-4 py-2">
@@ -796,10 +808,6 @@ export default function Grade() {
                   </span>
                 )}
 
-                <div className="mt-4 text-xs text-text/60">
-                  <p>Grading rubric: <span className="font-semibold text-text">{visibleRubric.title}</span></p>
-                  <p className="mt-1">{gradingLocked && submittedRubric ? 'Rubric used for submitted score' : 'Active rubric selected by instructor'}</p>
-                </div>
               </div>
 
               <div className="w-full md:w-auto flex flex-col items-stretch md:items-end gap-3">
@@ -843,11 +851,7 @@ export default function Grade() {
                         Clear Draft
                       </button>
                     </div>
-                  ) : (
-                    <span className="text-[10px] font-bold text-text/60 uppercase tracking-widest">
-                      No local draft yet
-                    </span>
-                  )}
+                  ) : null}
                   {!isOnline && (
                     <span className="text-[10px] font-bold text-danger uppercase tracking-widest">
                       Offline - draft stays local
@@ -965,6 +969,7 @@ export default function Grade() {
             </button>
           </form>
         )}
+      </div>
       </div>
     </div>
   );

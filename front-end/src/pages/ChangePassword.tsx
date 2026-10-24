@@ -48,7 +48,7 @@ export default function ChangePassword() {
   const passwordsMismatch = Boolean(confirmPassword) && newPassword !== confirmPassword;
   const canSubmit = isStrongPassword(newPassword) && passwordsMatch && !saving;
 
-  if (loading) return <div className="min-h-screen bg-bg" />;
+  if (loading) return <div className="evl-public-page min-h-screen bg-bg" />;
   if (!user) return <Navigate to="/login" replace />;
   if (!user.mustChangePassword) return <Navigate to="/dashboard" replace />;
 
@@ -75,7 +75,7 @@ export default function ChangePassword() {
   };
 
   return (
-    <div className="min-h-screen bg-bg flex items-center justify-center px-4 py-10">
+    <main className="evl-public-page min-h-screen bg-bg flex items-center justify-center px-4 py-10">
       <div className="w-full max-w-md">
         <div className="mb-6">
           <div className="w-11 h-11 rounded-xl bg-primary text-white flex items-center justify-center font-black text-lg mb-5">
@@ -136,7 +136,7 @@ export default function ChangePassword() {
           </div>
         </form>
       </div>
-    </div>
+    </main>
   );
 }
 

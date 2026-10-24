@@ -1,0 +1,46 @@
+<template>
+<style>
+  * { box-sizing: border-box; margin: 0; }
+  #root { position: absolute; inset: 0; overflow: hidden; background: #071324; color: #f8fafc; font-family: Inter, sans-serif; }
+  .atmosphere { position:absolute; inset:0; background:radial-gradient(ellipse at 12% 15%, #124677 0%, transparent 58%),radial-gradient(ellipse at 90% 90%, #123d45 0%, transparent 60%),#071324; }
+  .grid { position:absolute; inset:0; opacity:.12; background-image:linear-gradient(#7dd3fc 1px,transparent 1px),linear-gradient(90deg,#7dd3fc 1px,transparent 1px);background-size:80px 80px; }
+  .content { position: absolute; inset: 0; }
+  .kicker { font-size: 28px; letter-spacing: 5px; font-weight: 700; color: #93c5fd; }
+  .heading { position: absolute; left: 200px; top: 40px; width: 1000px; }
+  h1 { font-size: 60px; line-height: 1.15; letter-spacing: -2px; font-weight: 800; margin-top: 12px; }
+  .screen { position: absolute; left: 240px; top: 210px; width: 1440px; height: 800px; border:2px solid #5386a8; border-radius: 20px; overflow: hidden; background: #f8fafc; box-shadow:0 24px 80px #0008; }
+  .camera { position:absolute; inset:0; }
+  .screen video { display: block; width: 100%; height: 100%; object-fit: contain; }
+  .note { position: absolute; top: 167px; left: 200px; right: 200px; font-size: 28px; color: #cbd5e1; line-height: 1.35; }
+  .fixture { position:absolute; left:1200px; top:35px; width:520px; text-align:right; color:#cbd5e1; font-size:28px; }
+  .action { position:absolute; left:1250px; top:88px; width:470px; height:60px; }
+  .action .clip { position:absolute; inset:0; display:flex;align-items:center;justify-content:center; border:1px solid #67e8f9; border-radius:30px;background:#123747;color:#a5f3fc;font-size:28px;font-weight:700; }
+  .rail { position:absolute; left:240px; top:1028px; width:1440px; display:flex;justify-content:space-between;font-size:28px;font-weight:700;color:#9cacbe; }
+  .rail .active { color:#67e8f9; }
+  .title-line { display:block; overflow:hidden; }
+  .title-word { display:block; }
+  .card { position: absolute; left: 200px; right: 200px; top: 200px; }
+  .mark { width: 90px; height: 90px; margin-bottom: 24px; }
+  .card h1 { font-size: 110px; line-height: 1.08; margin-top: 30px; letter-spacing: -4px; max-width:950px; }
+  .card p { font-size: 32px; line-height: 1.5; color: #cbd5e1; max-width: 860px; margin-top: 38px; }
+  .hero-art { position:absolute; left:1190px; top:350px; width:480px;height:480px;border:2px solid #5386a8;border-radius:100px;display:flex;flex-direction:column;justify-content:center;align-items:center;background:#153956;box-shadow:0 30px 90px #0007; }
+  .hero-art img { width:180px;height:180px;margin-bottom:35px; }
+  .hero-art p { font-size:32px;font-weight:800;color:#a5f3fc; }
+  .line { position: absolute; bottom: 0; left: 0; width: 1920px; height: 8px; background: #2563eb; transform-origin: left center; }
+</style>
+<div id="root" data-composition-id="outro" data-width="1920" data-height="1080">
+  <div id="outro-atmosphere" class="atmosphere" data-layout-ignore></div><div class="grid" data-layout-ignore></div>
+  <div id="outro-content" class="content" data-hold="Intentional reading time for the product explanation"><div class="card"><div class="kicker">EVALSYS · WEB + PWA</div><h1><span class="title-line" data-layout-allow-overflow><span class="title-word">Your workspace.</span></span><span class="title-line" data-layout-allow-overflow><span class="title-word">On your device.</span></span></h1><p>Open the portal or install EvalSys. Signing in and grading require internet.</p></div><div class="hero-art"><img src="assets/app-icon.svg" alt="EvalSys"><p>WEB + INSTALLABLE PWA</p></div></div>
+  <div id="outro-line" class="line" data-layout-ignore></div>
+</div>
+<script>
+  const tl = gsap.timeline({ paused: true });
+  tl.fromTo('#outro-content', { opacity: 0.85, y: 12 }, { opacity: 1, y: 0, duration: 0.45, ease: 'power2.out' }, 0);
+  tl.fromTo('#outro-line', { scaleX: 0 }, { scaleX: 1, duration: 4, ease: 'none' }, 0);
+  tl.fromTo('#outro-atmosphere', { opacity:.65 }, { opacity:1, duration:4, ease:'none' }, 0);
+  tl.fromTo('.title-word', { y:125 }, { y:0, stagger:.13, duration:.8, ease:'power4.out' }, .08);
+  tl.fromTo('.hero-art', { x:70, rotation:8, scale:.8, opacity:.3 }, { x:0, rotation:0, scale:1, opacity:1, duration:1, ease:'power3.out' }, 0);
+  tl.to('.hero-art', { y:-16, duration:3, ease:'sine.inOut' }, 1);
+  window.__timelines['outro'] = tl;
+</script>
+</template>

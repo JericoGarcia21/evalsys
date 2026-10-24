@@ -1,0 +1,98 @@
+[
+  {
+    "id": "intro",
+    "start": 0,
+    "duration": 3,
+    "eyebrow": "EVALSYS / PRODUCT WALKTHROUGH",
+    "title": "Every rating.\nOne clear result.",
+    "explanation": "EvalSys. Project evaluation, from rubric to results."
+  },
+  {
+    "id": "setup",
+    "start": 3,
+    "duration": 9,
+    "eyebrow": "01 / INSTRUCTOR",
+    "title": "Set the standard.",
+    "explanation": "Database preset: Requirements 40% · Documentation 30% · Presentation 30%.",
+    "actions": [
+      "Open the active rubric",
+      "Review the section weights",
+      "16 actual project criteria"
+    ],
+    "actionAt": [
+      0,
+      2.8,
+      6
+    ]
+  },
+  {
+    "id": "registration",
+    "start": 12,
+    "duration": 16,
+    "eyebrow": "02 / STUDENTS",
+    "title": "A place for every member.",
+    "explanation": "Follow the instructor link, add four members, review, and confirm.",
+    "actions": [
+      "Enter the project details",
+      "Complete every member name",
+      "Review and confirm"
+    ],
+    "actionAt": [
+      0,
+      3,
+      11.5
+    ]
+  },
+  {
+    "id": "grading",
+    "start": 28,
+    "duration": 22,
+    "eyebrow": "03 / ASSIGNED PANELS",
+    "title": "Every rating matters.",
+    "explanation": "Use the actual performance levels, review earned points, and submit feedback.",
+    "actions": [
+      "Open the assigned project",
+      "Rate with guidance in view",
+      "Review and submit feedback"
+    ],
+    "actionAt": [
+      0,
+      4.5,
+      18
+    ]
+  },
+  {
+    "id": "results",
+    "start": 50,
+    "duration": 11,
+    "eyebrow": "04 / INSTRUCTOR RESULTS",
+    "title": "From panels to one result.",
+    "explanation": "Demo panel totals: 90 and 80. Actual average: 85 / 100.",
+    "actions": [
+      "Open the class block",
+      "Review the 85 / 100 average",
+      "Download member grades"
+    ],
+    "actionAt": [
+      0,
+      2.2,
+      8.6
+    ]
+  },
+  {
+    "id": "pwa",
+    "start": 61,
+    "duration": 12,
+    "eyebrow": "05 / INSTALLABLE PWA",
+    "title": "Take EvalSys with you.",
+    "explanation": "Install from your browser, then use the same EvalSys account."
+  },
+  {
+    "id": "outro",
+    "start": 73,
+    "duration": 4,
+    "eyebrow": "EVALSYS / WEB + PWA",
+    "title": "Make your next\nevaluation count.",
+    "explanation": "Open the portal or install EvalSys. An internet connection is required."
+  }
+]

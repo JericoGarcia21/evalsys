@@ -54,12 +54,12 @@ export default function AppAlert() {
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-dark/60 backdrop-blur-sm p-4">
-      <div className="w-full max-w-sm overflow-hidden rounded-2xl bg-surface shadow-2xl border border-muted/30">
+      <div className="evl-card w-full max-w-sm overflow-hidden bg-surface shadow-xl">
         <div className="px-6 pt-6 pb-4 text-center">
           <div className={`mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full text-xl font-black ${style.iconClass}`}>
             {style.icon}
           </div>
-          <h3 className="text-base font-black text-text">{alert.title}</h3>
+          <h3 className="text-lg font-semibold tracking-tight text-text">{alert.title}</h3>
           <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-text/60">
             {alert.message}
           </p>
@@ -68,7 +68,7 @@ export default function AppAlert() {
           <button
             type="button"
             onClick={() => setAlert(null)}
-            className={`w-full rounded-lg px-4 py-2.5 text-xs font-extrabold uppercase tracking-widest text-white transition-colors ${style.buttonClass}`}
+            className={`w-full rounded-lg px-4 py-2.5 text-xs font-semibold text-white transition-colors ${style.buttonClass}`}
           >
             OK
           </button>

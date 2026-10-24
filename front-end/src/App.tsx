@@ -24,6 +24,7 @@ import SecurityMonitor from './pages/admin/SecurityMonitor';
 import Grade from './pages/panel/Grade';
 import RegisterGroup from './pages/RegisterGroup';
 import Landing from './pages/Landing';
+import Legal from './pages/Legal';
 import AppAlert from './components/AppAlert';
 import UpdateAvailableNotice from './components/UpdateAvailableNotice';
 import InstallAppNotice from './components/InstallAppNotice';
@@ -52,13 +53,16 @@ export default function App() {
       <AppAlert />
       <UpdateAvailableNotice />
       <InstallAppNotice />
-      <SystemNotice />
       <BrowserRouter>
+        <SystemNotice />
         <TutorialProvider>
         <AuthGuard />
         <Routes>
           <Route path="/" element={<Landing />} />
           <Route path="/login" element={<Login />} />
+          <Route path="/terms" element={<Legal policy="terms" />} />
+          <Route path="/privacy" element={<Legal policy="privacy" />} />
+          <Route path="/copyright" element={<Legal policy="copyright" />} />
           <Route path="/change-password" element={<ChangePassword />} />
           <Route path="/account-security" element={<ProtectedRoute><AccountSecurity /></ProtectedRoute>} />
           <Route path="/proposal/:groupId" element={<ProtectedRoute><ProposalViewer /></ProtectedRoute>} />

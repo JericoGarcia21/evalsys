@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="EvalSys">
+  <rect width="512" height="512" rx="112" fill="#2563EB"/>
+  <rect x="96" y="96" width="320" height="320" rx="72" fill="#0F172A" opacity="0.16"/>
+  <path fill="#FFFFFF" d="M168 144h188v60H236v50h106v58H236v56h126v60H168V144Z"/>
+</svg>

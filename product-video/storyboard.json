@@ -1,0 +1,106 @@
+{
+  "fps": 30,
+  "width": 1920,
+  "height": 1080,
+  "totalFrames": 2310,
+  "scenes": [
+    {
+      "id": "intro",
+      "startFrame": 0,
+      "endFrame": 90,
+      "screenCopy": "Every rating.\nOne clear result.",
+      "supportingCopy": "EvalSys. Project evaluation, from rubric to results.",
+      "voiceover": null,
+      "assets": [
+        "app-icon.svg"
+      ],
+      "visual": "Bold product identity and outcome hook",
+      "transition": "Clean cut with restrained frame-driven title entrance",
+      "audio": "Original driving 132 BPM electronic score; section accents and result reveal dip"
+    },
+    {
+      "id": "setup",
+      "startFrame": 90,
+      "endFrame": 360,
+      "screenCopy": "Set the standard.",
+      "supportingCopy": "Database preset: Requirements 40% · Documentation 30% · Presentation 30%.",
+      "voiceover": null,
+      "assets": [
+        "remotion-clips/setup.mp4"
+      ],
+      "visual": "Real native-size 1440x800 UI, large cursor and separate proof rail",
+      "transition": "Clean cut with restrained frame-driven title entrance",
+      "audio": "Original driving 132 BPM electronic score; section accents and result reveal dip"
+    },
+    {
+      "id": "registration",
+      "startFrame": 360,
+      "endFrame": 840,
+      "screenCopy": "A place for every member.",
+      "supportingCopy": "Follow the instructor link, add four members, review, and confirm.",
+      "voiceover": null,
+      "assets": [
+        "remotion-clips/registration.mp4"
+      ],
+      "visual": "Real native-size 1440x800 UI, large cursor and separate proof rail",
+      "transition": "Clean cut with restrained frame-driven title entrance",
+      "audio": "Original driving 132 BPM electronic score; section accents and result reveal dip"
+    },
+    {
+      "id": "grading",
+      "startFrame": 840,
+      "endFrame": 1500,
+      "screenCopy": "Every rating matters.",
+      "supportingCopy": "Use the actual performance levels, review earned points, and submit feedback.",
+      "voiceover": null,
+      "assets": [
+        "remotion-clips/grading.mp4"
+      ],
+      "visual": "Real native-size 1440x800 UI, large cursor and separate proof rail",
+      "transition": "Clean cut with restrained frame-driven title entrance",
+      "audio": "Original driving 132 BPM electronic score; section accents and result reveal dip"
+    },
+    {
+      "id": "results",
+      "startFrame": 1500,
+      "endFrame": 1830,
+      "screenCopy": "From panels to one result.",
+      "supportingCopy": "Demo panel totals: 90 and 80. Actual average: 85 / 100.",
+      "voiceover": null,
+      "assets": [
+        "remotion-clips/results.mp4"
+      ],
+      "visual": "Real native-size 1440x800 UI, large cursor and separate proof rail",
+      "transition": "Clean cut with restrained frame-driven title entrance",
+      "audio": "Original driving 132 BPM electronic score; section accents and result reveal dip"
+    },
+    {
+      "id": "pwa",
+      "startFrame": 1830,
+      "endFrame": 2190,
+      "screenCopy": "Take EvalSys with you.",
+      "supportingCopy": "Install from your browser, then use the same EvalSys account.",
+      "voiceover": null,
+      "assets": [
+        "app-icon.svg"
+      ],
+      "visual": "Platform installation instructions",
+      "transition": "Clean cut with restrained frame-driven title entrance",
+      "audio": "Original driving 132 BPM electronic score; section accents and result reveal dip"
+    },
+    {
+      "id": "outro",
+      "startFrame": 2190,
+      "endFrame": 2310,
+      "screenCopy": "Make your next\nevaluation count.",
+      "supportingCopy": "Open the portal or install EvalSys. An internet connection is required.",
+      "voiceover": null,
+      "assets": [
+        "app-icon.svg"
+      ],
+      "visual": "Bold product identity and outcome hook",
+      "transition": "Clean cut with restrained frame-driven title entrance",
+      "audio": "Original driving 132 BPM electronic score; section accents and result reveal dip"
+    }
+  ]
+}

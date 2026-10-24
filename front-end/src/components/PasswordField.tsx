@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useId, useState } from 'react';
 
 function EyeIcon({ hidden }: { hidden: boolean }) {
   const common = {
@@ -57,13 +57,15 @@ export default function PasswordField({
   defaultVisible = false,
 }: PasswordFieldProps) {
   const [visible, setVisible] = useState(defaultVisible);
+  const generatedId = useId();
+  const inputId = id || generatedId;
 
   return (
     <div className={className}>
-      {label && <label className="evl-label" htmlFor={id}>{label}</label>}
+      {label && <label className="evl-label" htmlFor={inputId}>{label}</label>}
       <div className="relative">
         <input
-          id={id}
+          id={inputId}
           type={visible ? 'text' : 'password'}
           value={value}
           onChange={(e) => onChange(e.target.value)}
@@ -77,6 +79,7 @@ export default function PasswordField({
           onClick={() => setVisible((current) => !current)}
           className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-md flex items-center justify-center text-text/65 hover:text-primary hover:bg-primary/5 transition-colors"
           aria-label={visible ? 'Hide password' : 'Show password'}
+          aria-pressed={visible}
           title={visible ? 'Hide password' : 'Show password'}
         >
           <EyeIcon hidden={!visible} />

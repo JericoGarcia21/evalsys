@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import api from '../../services/api';
 import databaseRubric from '../../data/databaseRubric.json';
+import websiteRubric from '../../data/websiteRubric.json';
 import { percentageLevels, ratingPoints } from '../../data/ratingScale';
 import { CardSkeleton } from '../../components/LoadingSkeleton';
 import { notify } from '../../utils/notify';
@@ -188,6 +189,15 @@ export default function Rubrics() {
     setError('');
   };
 
+  const useWebsiteTemplate = () => {
+    setTitle('SIA - Website Project Presentation');
+    setInstructions(websiteRubric.instructions);
+    setCriteria(websiteRubric.criteria.map(c => ({ ...c, levels: c.levels.map(l => ({
+      ...l,
+    })) })));
+    setError('');
+  };
+
   const slugify = (text: string) => {
     return text
       .toLowerCase()
@@ -318,6 +328,7 @@ export default function Rubrics() {
 
           <div className="mb-5">
             {!editingId && <button type="button" className="evl-btn-secondary mb-4" onClick={useDatabaseTemplate}>Use Database Final Project Template</button>}
+            {!editingId && <button type="button" className="evl-btn-secondary mb-4 ml-3" onClick={useWebsiteTemplate}>Use SIA Website Project Template</button>}
             <label className="evl-label">Rubric Title</label>
             <input value={title} onChange={(e) => setTitle(e.target.value)} required
               className="evl-input max-w-xl" placeholder="e.g. Project Defense Rubric" />

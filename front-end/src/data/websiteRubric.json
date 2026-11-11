@@ -1,0 +1,75 @@
+{
+  "criteria": [
+    {
+      "label": "Website Deployment",
+      "section": "Website Project Presentation",
+      "description": "Successfully deployed and accessible online.",
+      "maxScore": 40,
+      "key": "section1criterion1",
+      "scoringMode": "range",
+      "levels": [
+        { "label": "Excellent", "minScore": 36, "maxScore": 40, "description": "Successfully deployed and accessible online." },
+        { "label": "Good", "minScore": 31, "maxScore": 35, "description": "Deployed but has minor accessibility issues." },
+        { "label": "Fair", "minScore": 21, "maxScore": 30, "description": "Deployed but has several issues accessing the website." },
+        { "label": "Poor", "minScore": 0, "maxScore": 20, "description": "Website is not successfully deployed or accessible." }
+      ]
+    },
+    {
+      "label": "Website Functionality",
+      "section": "Website Project Presentation",
+      "description": "All major features work properly.",
+      "maxScore": 25,
+      "key": "section1criterion2",
+      "scoringMode": "range",
+      "levels": [
+        { "label": "Excellent", "minScore": 23, "maxScore": 25, "description": "All major features work properly." },
+        { "label": "Good", "minScore": 19, "maxScore": 22, "description": "Most features work with minor issues." },
+        { "label": "Fair", "minScore": 13, "maxScore": 18, "description": "Several features have errors." },
+        { "label": "Poor", "minScore": 0, "maxScore": 12, "description": "Most features are not working." }
+      ]
+    },
+    {
+      "label": "User Interface",
+      "section": "Website Project Presentation",
+      "description": "Clean, organized, and user-friendly design.",
+      "maxScore": 10,
+      "key": "section1criterion3",
+      "scoringMode": "range",
+      "levels": [
+        { "label": "Excellent", "minScore": 9, "maxScore": 10, "description": "Clean, organized, and user-friendly design." },
+        { "label": "Good", "minScore": 7, "maxScore": 8, "description": "Good design with minor issues." },
+        { "label": "Fair", "minScore": 5, "maxScore": 6, "description": "Basic design with navigation issues." },
+        { "label": "Poor", "minScore": 0, "maxScore": 4, "description": "Poor layout and difficult navigation." }
+      ]
+    },
+    {
+      "label": "Project Explanation",
+      "section": "Website Project Presentation",
+      "description": "Clearly explains the project and its features.",
+      "maxScore": 10,
+      "key": "section1criterion4",
+      "scoringMode": "range",
+      "levels": [
+        { "label": "Excellent", "minScore": 9, "maxScore": 10, "description": "Clearly explains the project and its features." },
+        { "label": "Good", "minScore": 7, "maxScore": 8, "description": "Explains most project features." },
+        { "label": "Fair", "minScore": 5, "maxScore": 6, "description": "Explanation lacks some important details." },
+        { "label": "Poor", "minScore": 0, "maxScore": 4, "description": "Unable to explain the project properly." }
+      ]
+    },
+    {
+      "label": "Question and Answer",
+      "section": "Website Project Presentation",
+      "description": "Answers questions correctly and confidently.",
+      "maxScore": 15,
+      "key": "section1criterion5",
+      "scoringMode": "range",
+      "levels": [
+        { "label": "Excellent", "minScore": 14, "maxScore": 15, "description": "Answers questions correctly and confidently." },
+        { "label": "Good", "minScore": 11, "maxScore": 13, "description": "Answers most questions correctly." },
+        { "label": "Fair", "minScore": 8, "maxScore": 10, "description": "Answers only some questions correctly." },
+        { "label": "Poor", "minScore": 0, "maxScore": 7, "description": "Unable to answer most questions." }
+      ]
+    }
+  ],
+  "instructions": "SIA - WEBSITE PROJECT\nWEBSITE PROJECT PRESENTATION RUBRIC\nGroup Size: 4–5 members     Related Subject: SIA (Systems Integration and Architecture)\nTotal – 100%\nI. Website Project Presentation Rubric (100%)\nEvaluates the website deployment, functionality, user interface, project explanation, and question and answer.\nII. Performance Rating Scale\nFor each criterion, select the performance level that best reflects the submitted work based on the defined score ranges.\nIII. Final Grade Computation\nFinal Project Grade = Sum of all criterion scores earned out of 100 points."
+}

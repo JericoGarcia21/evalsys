@@ -53,11 +53,11 @@ const downloadCsvFile = (filename: string, headers: string[], rows: unknown[][])
 
 const safeFilename = (value: string) => value.replace(/[^a-z0-9_-]+/gi, '_');
 
-const getGroupScore = (result: GroupResult) => (
-  result.isIncomplete || result.finalTotal === null
-    ? 'Pending Complete Evaluation'
-    : (result.finalTotal?.toFixed(2) ?? 'Pending Complete Evaluation')
-);
+const getGroupScore = (result: GroupResult, bonus: number = 0, maxTotal: number = 0) => {
+  if (result.isIncomplete || result.finalTotal === null) return 'Pending Complete Evaluation';
+  const score = Math.min((result.finalTotal ?? 0) + bonus, maxTotal || 0) || (result.finalTotal ?? 0);
+  return score.toFixed(2);
+};
 
 const isStructuredMember = (member: Member): member is StructuredMember => typeof member !== 'string';
 
@@ -98,7 +98,20 @@ export default function Results() {
   const [clearModal, setClearModal] = useState<{ group: GroupResult } | null>(null);
   const [clearingId, setClearingId] = useState<string | null>(null);
   const [confirmClearId, setConfirmClearId] = useState<string | null>(null);
+  // Bonus / plus points per group (frontend-only, not saved to backend)
+  const [bonusPoints, setBonusPoints] = useState<Record<string, number>>({});
   const { version: scopeVersion } = useOperationalScope();
+
+  const setBonus = (groupId: string, value: string) => {
+    const num = Number(value);
+    if (!Number.isFinite(num)) return;
+    setBonusPoints((prev) => {
+      const next = { ...prev };
+      if (num === 0) delete next[groupId];
+      else next[groupId] = num;
+      return next;
+    });
+  };
 
   const criteriaColumns = useMemo(() => {
     const byKey = new Map<string, RubricCriteria>();
@@ -169,15 +182,18 @@ export default function Results() {
     if (!selected || !results.length) return;
 
     const headers = ['Block', 'Group', 'Members', 'Group Score', 'Evaluated By', 'Missing Panels', 'Comments'];
-    const rows = [...results].sort((a, b) => compareNames(a.group.name, b.group.name)).map((r) => [
-      selected.block,
-      r.group.name,
-      formatMemberList([...r.group.members].sort(compareMembers), '; '),
-      getGroupScore(r),
-      r.evaluatedBy?.join('; ') ?? '',
-      r.missingPanels?.join('; ') ?? '',
-      r.comments?.map(c => `[${c.panel}]: ${c.text}`).join(' | ') ?? '',
-    ]);
+    const rows = [...results].sort((a, b) => compareNames(a.group.name, b.group.name)).map((r) => {
+      const bonus = bonusPoints[r.group._id] ?? 0;
+      return [
+        selected.block,
+        r.group.name,
+        formatMemberList([...r.group.members].sort(compareMembers), '; '),
+        getGroupScore(r, bonus, maxTotal),
+        r.evaluatedBy?.join('; ') ?? '',
+        r.missingPanels?.join('; ') ?? '',
+        r.comments?.map(c => `[${c.panel}]: ${c.text}`).join(' | ') ?? '',
+      ];
+    });
 
     downloadCsvFile(`${safeFilename(selected.block)}_Group_Summary.csv`, headers, rows);
   };
@@ -189,11 +205,12 @@ export default function Results() {
     const rows = results
       .flatMap((result) => result.group.members.map((member) => {
         const memberParts = getMemberNameParts(member);
+        const bonus = bonusPoints[result.group._id] ?? 0;
         return {
           block: selected.block,
           group: result.group.name,
           ...memberParts,
-          score: getGroupScore(result),
+          score: getGroupScore(result, bonus, maxTotal),
         };
       }))
       .sort((a, b) => (
@@ -260,7 +277,7 @@ export default function Results() {
           </div>
           <table className="w-full table-fixed" aria-label="Group results overview">
             <thead className="hidden md:table-header-group bg-bg text-left text-xs text-text/60">
-              <tr><th scope="col" className="px-5 py-3 w-[32%] font-semibold">Group</th><th scope="col" className="px-5 py-3 w-[24%] font-semibold">Panel progress</th><th scope="col" className="px-5 py-3 w-[20%] font-semibold">Final score</th><th scope="col" className="px-5 py-3 w-[24%] font-semibold text-right">Details</th></tr>
+              <tr><th scope="col" className="px-5 py-3 w-[32%] font-semibold">Group</th><th scope="col" className="px-5 py-3 w-[24%] font-semibold">Panel progress</th><th scope="col" className="px-5 py-3 w-[20%] font-semibold">Final score</th><th scope="col" className="px-5 py-3 w-[24%] font-semibold text-right">Bonus / Details</th></tr>
             </thead>
             <tbody className="block md:table-row-group">
               {results.map(result => {
@@ -284,6 +301,18 @@ export default function Results() {
                       {pending ? <span className="inline-flex rounded-md bg-warning/10 text-warning px-2.5 py-1 text-xs font-semibold">Pending</span> : <span className="text-xl font-bold text-text tabular-nums">{result.finalTotal}{resultMax > 0 && <span className="text-xs font-medium text-text/50 ml-1">/ {resultMax}</span>}</span>}
                     </td>
                     <td className="block md:table-cell px-5 pt-2 pb-4 md:py-4 md:text-right align-middle">
+                      <div className="flex flex-col items-end gap-1">
+                        <label className="text-[10px] text-text/50 uppercase font-bold">Bonus (+)</label>
+                        <input
+                          type="number"
+                          value={bonusPoints[result.group._id] ?? ''}
+                          onChange={(e) => setBonus(result.group._id, e.target.value)}
+                          min={0}
+                          step="0.01"
+                          className="w-16 evl-input !text-[11px] !px-1.5 !py-1 text-right border border-muted/40 rounded hover:border-primary/50 focus:border-primary focus:ring-0"
+                          placeholder="0"
+                        />
+                      </div>
                       <button type="button" aria-expanded={open} aria-controls={`result-${result.group._id}`} aria-label={`${open ? 'Hide' : 'View'} breakdown for ${result.group.name}`} onClick={() => setExpandedGroup(open ? null : result.group._id)} className="evl-btn-secondary !text-xs !py-2">{open ? 'Hide breakdown' : 'View breakdown'}<span aria-hidden="true" className="ml-2">{open ? '-' : '+'}</span></button>
                     </td>
                   </tr>

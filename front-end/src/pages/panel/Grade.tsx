@@ -15,8 +15,8 @@ interface Section { _id: string; name: string; block: string; subject?: string |
 interface ProposalFile { path?: string; originalName?: string; mimeType?: string; size?: number; uploadedAt?: string; }
 interface Group { _id: string; name: string; section: Section; members: Member[]; isGraded?: boolean; proposalFile?: ProposalFile; }
 
-const draftKey = (panelId: string, groupId: string) => `grading_draft_${panelId}_${groupId}`;
-const legacyDraftKey = (groupId: string) => `grading_draft_${groupId}`;
+const draftKey = (panelId: string, groupId: string, subjectId?: string | null) => `grading_draft_${panelId}_${groupId}_${subjectId || 'legacy'}`;
+const legacyDraftKey = (groupId: string, subjectId?: string | null) => `grading_draft_${groupId}_${subjectId || 'legacy'}`;
 const lastSelectedGroupKey = (panelId: string) => `grading_last_selected_group_${panelId}`;
 const groupNameCacheKey = 'grading_group_names';
 const groupStatusCacheKey = (panelId: string) => `grading_group_status_${panelId}`;
@@ -161,20 +161,20 @@ export default function Grade() {
   const submittedAt = formatSubmittedTime(selectedExisting?.updatedAt || selectedExisting?.createdAt);
   const canEditScores = !gradingLocked && !submitting;
 
-  const getStoredDraft = (groupId: string) => {
-    const saved = localStorage.getItem(draftKey(panelId, groupId)) || localStorage.getItem(legacyDraftKey(groupId));
+  const getStoredDraft = (groupId: string, subjectId?: string | null) => {
+    const saved = localStorage.getItem(draftKey(panelId, groupId, subjectId)) || localStorage.getItem(legacyDraftKey(groupId, subjectId));
     if (!saved) return null;
     try {
       return JSON.parse(saved);
     } catch {
-      localStorage.removeItem(draftKey(panelId, groupId));
-      localStorage.removeItem(legacyDraftKey(groupId));
+      localStorage.removeItem(draftKey(panelId, groupId, subjectId));
+      localStorage.removeItem(legacyDraftKey(groupId, subjectId));
       return null;
     }
   };
 
-  const groupHasDraft = (groupId: string) => {
-    const draft = getStoredDraft(groupId);
+  const groupHasDraft = (groupId: string, subjectId?: string | null) => {
+    const draft = getStoredDraft(groupId, subjectId);
     const matchesCurrentRubric = !activeRubric || draft?.rubricId === activeRubric._id;
     return Boolean(matchesCurrentRubric && draft?.scores && (hasScoreValues(draft.scores) || draft.comments?.trim()));
   };
@@ -187,16 +187,18 @@ export default function Grade() {
   ) => {
     if (!group || !rubric) return;
     if (!hasScoreValues(nextScores) && !nextComments.trim()) return;
+    const subjectId = getGroupSubjectId(group);
 
     const backupData = {
       groupId: group._id,
       groupName: group.name,
+      subjectId,
       rubricId: rubric._id,
       scores: nextScores,
       comments: nextComments,
       updatedAt: new Date().toISOString()
     };
-    localStorage.setItem(draftKey(panelId, group._id), JSON.stringify(backupData));
+    localStorage.setItem(draftKey(panelId, group._id, subjectId), JSON.stringify(backupData));
     if (selectedGroup?._id === group._id) {
       setDraftSavedAt(backupData.updatedAt);
       setHasCurrentDraft(true);
@@ -276,8 +278,8 @@ export default function Grade() {
   };
 
   // Restore unsaved local draft when returning to a group.
-  const restoreBackup = useEffectEvent((groupId: string, rubricId: string) => {
-    const data = getStoredDraft(groupId);
+  const restoreBackup = useEffectEvent((groupId: string, rubricId: string, subjectId?: string | null) => {
+    const data = getStoredDraft(groupId, subjectId);
     if (data?.rubricId === rubricId && data.scores && (hasScoreValues(data.scores) || data.comments?.trim())) {
       return data as {
         groupId: string;
@@ -320,7 +322,8 @@ export default function Grade() {
   useEffect(() => {
     if (selectedGroup && activeRubric) {
       skipAutosaveRef.current = true;
-      const draft = restoreBackup(selectedGroup._id, activeRubric._id);
+      const subjectId = getGroupSubjectId(selectedGroup);
+      const draft = restoreBackup(selectedGroup._id, activeRubric._id, subjectId);
       const matchingExisting = selectedExisting &&
         getRefId(selectedExisting.rubric) === activeRubric._id
         ? selectedExisting
@@ -404,8 +407,9 @@ export default function Grade() {
       setSuccess('Scores and feedback submitted successfully.');
       const res = await api.get(`/evaluations/group/${selectedGroup!._id}/mine`);
       setExisting(res.data);
-      localStorage.removeItem(draftKey(panelId, selectedGroup!._id));
-      localStorage.removeItem(legacyDraftKey(selectedGroup!._id));
+      const subjectId = getGroupSubjectId(selectedGroup);
+      localStorage.removeItem(draftKey(panelId, selectedGroup!._id, subjectId));
+      localStorage.removeItem(legacyDraftKey(selectedGroup!._id, subjectId));
       setDraftSavedAt(null);
       setHasCurrentDraft(false);
       setGroups((current) => current.map((g) => (
@@ -464,8 +468,9 @@ export default function Grade() {
       danger: true,
     });
     if (!ok) return;
-    localStorage.removeItem(draftKey(panelId, selectedGroup._id));
-    localStorage.removeItem(legacyDraftKey(selectedGroup._id));
+    const subjectId = getGroupSubjectId(selectedGroup);
+    localStorage.removeItem(draftKey(panelId, selectedGroup._id, subjectId));
+    localStorage.removeItem(legacyDraftKey(selectedGroup._id, subjectId));
     setDraftSavedAt(null);
     setHasCurrentDraft(false);
     if (!selectedExisting && activeRubric) {
@@ -648,7 +653,7 @@ export default function Grade() {
                           <span className={`text-[9px] font-black uppercase rounded px-1.5 py-0.5 shrink-0 ${selectedGroup?._id === g._id ? 'bg-white/20 text-white' : 'bg-success/10 text-success'}`}>
                             Submitted
                           </span>
-                        ) : groupHasDraft(g._id) ? (
+                        ) : groupHasDraft(g._id, getGroupSubjectId(g)) ? (
                           <span className={`text-[9px] font-black uppercase rounded px-1.5 py-0.5 shrink-0 ${selectedGroup?._id === g._id ? 'bg-white/20 text-white' : 'bg-warning/10 text-warning'}`}>
                             Draft
                           </span>

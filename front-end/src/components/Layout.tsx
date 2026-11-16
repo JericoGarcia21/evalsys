@@ -555,11 +555,13 @@ export default function Layout({ children }: { children: ReactNode }) {
         </header>
         <div
           key={`${currentInstructorId || 'self'}:${currentSubjectId || 'none'}`}
-          className="workspace-content px-4 py-6 sm:px-6 lg:px-10 lg:py-8 2xl:px-14"
+          className="workspace-content flex flex-col flex-1 min-w-0 px-4 py-6 sm:px-6 lg:px-10 lg:py-8 2xl:px-14"
         >
           <div className="workspace-tools"><span>{currentSubject ? `${currentSubject.code} / ${currentSubject.title}` : 'Project evaluation workspace'}</span><TutorialLauncher /></div>
-          {children}
-          <footer className="workspace-legal-footer"><CopyrightNotice /><LegalLinks newTab /></footer>
+          <div className="flex-1 min-w-0">
+            {children}
+          </div>
+          <footer className="workspace-legal-footer mt-auto"><CopyrightNotice /><LegalLinks newTab /></footer>
         </div>
       </main>
       <FloatingPanelChat key={user?.role + ":" + (user?.id || user?._id || "")} />

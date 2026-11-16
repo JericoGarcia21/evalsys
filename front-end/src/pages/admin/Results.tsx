@@ -232,11 +232,12 @@ export default function Results() {
   };
 
   return (
-    <div>
-      <div className="mb-6">
-        <h2 className="evl-page-title">Results</h2>
-        <p className="evl-page-subtitle">View averaged evaluation scores per group by section.</p>
-      </div>
+    <div className="min-h-screen flex flex-col">
+      <div className="flex-1">
+        <div className="mb-6">
+          <h2 className="evl-page-title">Results</h2>
+          <p className="evl-page-subtitle">View averaged evaluation scores per group by section.</p>
+        </div>
 
       {/* Section selector */}
       <div data-tutorial="results-blocks" className="flex gap-2 overflow-x-auto sm:flex-wrap mb-6 pb-1 -mx-1 px-1">
@@ -435,6 +436,7 @@ export default function Results() {
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 }

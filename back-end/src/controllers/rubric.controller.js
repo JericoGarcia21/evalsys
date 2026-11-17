@@ -2,6 +2,7 @@ const Rubric = require('../models/Rubric');
 const Admin = require('../models/Admin');
 const { getPagination, paginatedPayload } = require('../utils/pagination');
 const { generateRubricFromText } = require('../services/aiService');
+const { recordAuditLog } = require('../services/audit.service');
 
 const getSubjectId = (req) => req.headers['x-subject-id'] || req.query.subject || req.body.subject;
 const canAccessSubject = (req, subjectId) => (
@@ -378,21 +379,23 @@ exports.generateAIRubric = async (req, res) => {
     instructor.aiRubricCredits = Math.max(0, (instructor.aiRubricCredits || 5) - 1);
     await instructor.save();
 
-    await recordAuditLog(req, {
+    // Fire-and-forget: audit log errors must never crash the response
+    recordAuditLog(req, {
       action: 'rubric.generate_ai',
       entity: { type: 'rubric', name: generated.title },
       instructor: req.user._id,
       subject: subject || undefined,
       metadata: { creditsRemaining: instructor.aiRubricCredits, criteriaCount: generated.criteria.length },
-    });
+    }).catch(() => {});
 
-    res.json({
+    return res.json({
       ...generated,
       subject: subject || null,
       creditsRemaining: instructor.aiRubricCredits,
       message: `Rubric generated. ${instructor.aiRubricCredits} AI credit(s) remaining.`,
     });
   } catch (err) {
-    res.status(500).json({ message: 'AI rubric generation failed', error: err.message, status: err.status });
+    const message = err.message || 'AI rubric generation failed';
+    return res.status(500).json({ message, error: message });
   }
 };

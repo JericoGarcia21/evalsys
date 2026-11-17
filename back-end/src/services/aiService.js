@@ -9,7 +9,11 @@ Output requirements:
 - Level ranges must not overlap and must stay within 0 to maxScore.
 - All scores must be valid numbers.`;
 
-const extractTextFromJson = (text) => {
+/**
+ * Strip markdown fences and extract the outermost JSON object from an AI response string.
+ * Returns a parsed JS object (not a string).
+ */
+const extractAndParseJson = (text) => {
   // Strip markdown fences if present
   let cleaned = text.replace(/```json/g, '').replace(/```/g, '').trim();
 
@@ -20,44 +24,53 @@ const extractTextFromJson = (text) => {
 
   let jsonText = cleaned.slice(start, end + 1);
 
-  // Try parsing; if it fails, attempt to fix common issues (trailing commas, unquoted keys)
+  // Try parsing; if it fails, attempt to fix common issues (trailing commas)
   try {
     return JSON.parse(jsonText);
   } catch (firstErr) {
-    // Remove trailing commas before } or ]
-    const fixed = jsonText
-      .replace(/,\s*}/g, '}')
-      .replace(/,\s*\]/g, ']');
+    let fixed = jsonText;
+    let previous = '';
+    while (fixed !== previous) {
+      previous = fixed;
+      fixed = fixed
+        .replace(/,\s*}/g, '}')
+        .replace(/,\s*\]/g, ']');
+    }
     try {
       return JSON.parse(fixed);
-    } catch (secondErr) {
+    } catch {
       throw new Error('Invalid JSON from AI: ' + firstErr.message);
     }
   }
 };
 
 const normalizeResult = (parsed) => {
-  if (!parsed.criteria || !Array.isArray(parsed.criteria) || parsed.criteria.length === 0) {
+  // Handle different JSON shapes: { criteria: [...] } or { rubric: { criteria: [...] } }
+  let criteriaArray = parsed.criteria;
+  if (!criteriaArray && parsed.rubric && Array.isArray(parsed.rubric.criteria)) {
+    criteriaArray = parsed.rubric.criteria;
+  }
+  if (!criteriaArray || !Array.isArray(criteriaArray) || criteriaArray.length === 0) {
     throw new Error('AI response missing criteria array');
   }
 
-  const normalizedCriteria = parsed.criteria.map((c) => ({
-    label: String(c.label || 'Criterion').trim(),
+  const normalizedCriteria = criteriaArray.map((c) => ({
+    label: String(c.label || c.name || 'Criterion').trim(),
     section: String(c.section || 'General').trim(),
     description: String(c.description || '').trim(),
-    maxScore: Number(c.maxScore) || 0,
+    maxScore: Number(c.maxScore || c.points || 0) || 0,
     scoringMode: c.scoringMode === 'percentage' ? 'percentage' : 'range',
     key: String(c.key || '').trim() || '',
     levels: (c.levels || []).map((l) => ({
-      label: String(l.label || 'Level').trim(),
-      minScore: Number(l.minScore) || 0,
-      maxScore: Number(l.maxScore) || 0,
+      label: String(l.label || l.name || 'Level').trim(),
+      minScore: Number(l.minScore || l.min_score || 0) || 0,
+      maxScore: Number(l.maxScore || l.max_score || 0) || 0,
       description: String(l.description || '').trim(),
     })),
   }));
 
   return {
-    title: String(parsed.title || 'AI-Generated Rubric').trim(),
+    title: String(parsed.title || parsed.rubric?.title || 'AI-Generated Rubric').trim(),
     instructions: String(parsed.instructions || '').trim(),
     criteria: normalizedCriteria,
   };
@@ -95,16 +108,18 @@ const callGroq = async (inputText) => {
   const text = data.choices?.[0]?.message?.content || '';
   if (!text) throw new Error('Groq returned empty response');
 
-  const jsonText = extractTextFromJson(text);
-  return normalizeResult(JSON.parse(jsonText));
+  // extractAndParseJson already returns a parsed object — do NOT JSON.parse again
+  const parsed = extractAndParseJson(text);
+  return normalizeResult(parsed);
 };
 
 const callGemini = async (inputText) => {
   const apiKey = process.env.GEMINI_API_KEY || '';
   if (!apiKey) throw new Error('GEMINI_API_KEY not configured');
 
-  const model = process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite';
-  const url = `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${apiKey}`;
+  // gemini-1.5-flash and newer models require the v1beta endpoint
+  const model = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
   const res = await fetch(url, {
     method: 'POST',
@@ -138,8 +153,10 @@ const callGemini = async (inputText) => {
   const text = candidates[0].content?.parts?.[0]?.text || '';
   if (!text) throw new Error('Gemini returned empty response');
 
-  const jsonText = extractTextFromJson(text);
-  return normalizeResult(JSON.parse(jsonText));
+  const textString = typeof text === 'string' ? text : JSON.stringify(text);
+  // extractAndParseJson already returns a parsed object — do NOT JSON.parse again
+  const parsed = extractAndParseJson(textString);
+  return normalizeResult(parsed);
 };
 
 exports.generateRubricFromText = async (inputText) => {
@@ -150,20 +167,20 @@ exports.generateRubricFromText = async (inputText) => {
     throw new Error('No AI provider configured. Set GROQ_API_KEY (free, at console.groq.com) or GEMINI_API_KEY on the backend.');
   }
 
-  // Try Gemini first (currently working), fall back to Groq
+  // Try Groq first (free, fast, reliable), fall back to Gemini
   const errors = [];
-  if (geminiKey) {
-    try {
-      return await callGemini(inputText);
-    } catch (err) {
-      errors.push('Gemini: ' + err.message);
-    }
-  }
   if (groqKey) {
     try {
       return await callGroq(inputText);
     } catch (err) {
       errors.push('Groq: ' + err.message);
+    }
+  }
+  if (geminiKey) {
+    try {
+      return await callGemini(inputText);
+    } catch (err) {
+      errors.push('Gemini: ' + err.message);
     }
   }
 

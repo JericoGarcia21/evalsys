@@ -401,6 +401,31 @@ exports.updateCsvExportLock = async (req, res) => {
   res.json(instructor);
 };
 
+exports.updateAiRubricCredits = async (req, res) => {
+  if (req.user.role !== 'superadmin') {
+    return res.status(403).json({ message: 'Only super admin can update AI rubric credits' });
+  }
+
+  const { credits } = req.body;
+  const val = parseInt(credits, 10);
+  if (!Number.isFinite(val) || val < 0) {
+    return res.status(400).json({ message: 'Credits must be a non-negative number' });
+  }
+
+  const instructor = await Admin.findOne({ _id: req.params.id, role: 'admin' }).select('-password');
+  if (!instructor) return res.status(404).json({ message: 'Instructor not found' });
+
+  instructor.aiRubricCredits = val;
+  await instructor.save();
+  await recordAuditLog(req, {
+    action: 'instructor.ai_rubric_credits.update',
+    entity: { type: 'admin', id: instructor._id, name: instructor.name },
+    instructor: instructor._id,
+    metadata: { aiRubricCredits: val },
+  });
+  res.json(instructor);
+};
+
 exports.updateGradingLock = async (req, res) => {
   if (!['superadmin', 'admin'].includes(req.user.role)) {
     return res.status(403).json({ message: 'Admin access required' });

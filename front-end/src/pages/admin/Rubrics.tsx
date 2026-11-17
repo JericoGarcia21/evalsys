@@ -144,11 +144,22 @@ export default function Rubrics() {
   const { confirm, ConfirmDialog } = useConfirmDialog();
   const { version: scopeVersion } = useOperationalScope();
 
+  // AI rubric generator state
+  const [aiModal, setAiModal] = useState<boolean>(false);
+  const [aiMode, setAiMode] = useState<'paste' | 'file'>('paste');
+  const [aiText, setAiText] = useState('');
+  const [aiFile, setAiFile] = useState<File | null>(null);
+  const [aiGenerating, setAiGenerating] = useState<boolean>(false);
+  const [aiCredits, setAiCredits] = useState<number | null>(null);
+  const [aiGenerated, setAiGenerated] = useState<{ title: string; instructions: string; criteria: Criteria[] } | null>(null);
+  const [aiError, setAiError] = useState('');
+
   const load = () => {
     setLoading(true);
     api.get('/rubrics')
       .then((r) => setRubrics(r.data))
       .finally(() => setLoading(false));
+    fetchAiCredits();
   };
   useEffect(() => {
     api.get('/rubrics')
@@ -196,6 +207,87 @@ export default function Rubrics() {
       ...l,
     })) })));
     setError('');
+  };
+
+  // AI Rubric Generator
+  const openAiGenerator = () => {
+    setAiMode('paste');
+    setAiText('');
+    setAiFile(null);
+    setAiGenerated(null);
+    setAiError('');
+    setAiModal(true);
+  };
+
+  const fetchAiCredits = async () => {
+    try {
+      const res = await api.get('/auth/me');
+      setAiCredits(res.data.aiRubricCredits ?? null);
+    } catch {
+      // credits unavailable; backend will enforce
+    }
+  };
+
+  const handleAiGenerate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (aiGenerating) return;
+    if (!aiText.trim() && !aiFile) {
+      setAiError('Please paste rubric text or upload a file.');
+      return;
+    }
+    setAiGenerating(true);
+    setAiError('');
+    try {
+      const formData = new FormData();
+      if (aiText.trim()) formData.append('text', aiText.trim());
+      if (aiFile) formData.append('file', aiFile);
+      const res = await api.post('/rubrics/generate-ai', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      const data = res.data;
+      setAiGenerated({
+        title: data.title || 'AI-Generated Rubric',
+        instructions: data.instructions || '',
+        criteria: (data.criteria || []).map((c: any) => ({
+          key: c.key || '',
+          label: c.label || 'Criterion',
+          section: c.section || 'General',
+          description: c.description || '',
+          maxScore: Number(c.maxScore) || 0,
+          scoringMode: c.scoringMode || 'range',
+          levels: (c.levels || []).map((l: any) => ({
+            label: l.label || 'Level',
+            minScore: Number(l.minScore) || 0,
+            maxScore: Number(l.maxScore) || 0,
+            description: l.description || '',
+          })),
+        })),
+      });
+      setAiCredits(data.creditsRemaining ?? aiCredits);
+      notify(`AI rubric generated. ${data.creditsRemaining ?? 0} credit(s) remaining.`);
+    } catch (err: unknown) {
+      setAiError(getErrorMessage(err, 'AI rubric generation failed.'));
+    } finally {
+      setAiGenerating(false);
+    }
+  };
+
+  const loadAiGenerated = () => {
+    if (!aiGenerated) return;
+    setTitle(aiGenerated.title);
+    setInstructions(aiGenerated.instructions);
+    setCriteria(aiGenerated.criteria);
+    setAiModal(false);
+    setError('');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const closeAiModal = () => {
+    setAiModal(false);
+    setAiGenerated(null);
+    setAiError('');
+    setAiText('');
+    setAiFile(null);
   };
 
   const slugify = (text: string) => {
@@ -313,7 +405,10 @@ export default function Rubrics() {
           <p className="evl-page-subtitle">Define grading criteria with score levels.</p>
         </div>
         {!showForm ? (
-          <button onClick={startCreate} className="evl-btn-primary">+ New Rubric</button>
+          <div className="flex items-center gap-2">
+            <button onClick={startCreate} className="evl-btn-primary">+ New Rubric</button>
+            <button onClick={openAiGenerator} className="evl-btn-secondary">Generate with AI</button>
+          </div>
         ) : (
           <button onClick={resetForm} className="evl-btn-secondary">Cancel</button>
         )}
@@ -555,6 +650,121 @@ export default function Rubrics() {
           </>
         )}
       </div>
+
+      {/* AI Rubric Generator Modal */}
+      {aiModal && (
+        <div className="fixed inset-0 bg-dark/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-surface w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
+            <div className="px-6 py-4 border-b border-muted/30 flex justify-between items-center bg-bg">
+              <h3 className="font-bold text-text">Generate Rubric with AI</h3>
+              <button
+                onClick={closeAiModal}
+                className="text-text/70 hover:text-text text-xl"
+              >×</button>
+            </div>
+            <div className="p-6 space-y-5">
+              <p className="text-text/60 text-xs mb-2">
+                {aiCredits !== null ? `AI credits remaining: <span className="font-bold text-text">{aiCredits}</span>` : 'Checking AI credits…'}
+                {aiCredits === 0 && <span className="ml-2 text-xs font-bold text-danger">(No credits left — contact your Super Admin)</span>}
+              </p>
+
+              {aiGenerated && (
+                <div className="bg-success/5 border border-success/20 text-success text-xs p-3 rounded-xl font-medium">
+                  Rubric generated — review the form below, then save.
+                </div>
+              )}
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setAiMode('paste')}
+                  className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${aiMode === 'paste' ? 'bg-primary text-white' : 'border border-muted/30 text-text/70 bg-surface hover:text-text'}`}
+                >
+                  Paste text
+                </button>
+                <button
+                  onClick={() => setAiMode('file')}
+                  className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${aiMode === 'file' ? 'bg-primary text-white' : 'border border-muted/30 text-text/70 bg-surface hover:text-text'}`}
+                >
+                  Upload file
+                </button>
+              </div>
+              <form onSubmit={handleAiGenerate} className="space-y-4">
+                {aiMode === 'paste' && (
+                  <div>
+                    <label className="evel-label block text-xs font-bold text-text/70 mb-1 uppercase">Rubric description / criteria text</label>
+                    <textarea
+                      className="evel-input w-full min-h-[160px] rounded-lg border border-muted/30 p-3 text-text focus:border-primary focus:ring-0"
+                      rows={8}
+                      value={aiText}
+                      onChange={(e) => setAiText(e.target.value)}
+                      placeholder="Paste the rubric description, criteria, and scoring levels here…"
+                    />
+                  </div>
+                )}
+                {aiMode === 'file' && (
+                  <div>
+                    <label className="evel-label block text-xs font-bold text-text/70 mb-1 uppercase">Upload rubric file (PDF, DOCX, TXT)</label>
+                    <input
+                      type="file"
+                      accept=".pdf,.doc,.docx,.txt"
+                      className="evel-input w-full rounded-lg border border-muted/30 p-3 text-text focus:border-primary focus:ring-0"
+                      onChange={(e) => {
+                        if (e.target.files?.[0]) setAiFile(e.target.files[0]);
+                      }}
+                    />
+                    {aiFile && <p className="text-[10px] text-text/50 mt-1">{aiFile.name}</p>}
+                    <p className="text-[10px] text-text/50 mt-1">Tip: If text cannot be extracted from the file, paste the rubric text instead.</p>
+                  </div>
+                )}
+                {aiError && (
+                  <div className="bg-danger/5 border border-danger/20 text-danger text-xs p-3 rounded-xl font-medium">
+                    {aiError}
+                  </div>
+                )}
+                <div className="flex justify-end gap-2 pt-2">
+                  {aiGenerated ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={loadAiGenerated}
+                        className="evl-btn-secondary !py-2 !text-xs"
+                        disabled={aiGenerating}
+                      >
+                        Apply to Form
+                      </button>
+                      <button
+                        type="button"
+                        onClick={closeAiModal}
+                        className="evl-btn-ghost !py-2 !text-xs"
+                        disabled={aiGenerating}
+                      >
+                        Close
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        onClick={closeAiModal}
+                        className="evl-btn-secondary !py-2 !text-xs"
+                        disabled={aiGenerating}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={aiGenerating || aiCredits === 0 || (!aiText.trim() && !aiFile)}
+                        className="evl-btn-primary !py-2 !text-xs disabled:opacity-40"
+                      >
+                        {aiGenerating ? 'Generating…' : 'Generate Criteria'}
+                      </button>
+                    </>
+                  )}
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

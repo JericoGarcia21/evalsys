@@ -1,6 +1,7 @@
 const Rubric = require('../models/Rubric');
 const Admin = require('../models/Admin');
 const { getPagination, paginatedPayload } = require('../utils/pagination');
+const { generateRubricFromText } = require('../services/aiService');
 
 const getSubjectId = (req) => req.headers['x-subject-id'] || req.query.subject || req.body.subject;
 const canAccessSubject = (req, subjectId) => (
@@ -339,4 +340,59 @@ exports.deleteRubric = async (req, res) => {
   }
 
   res.json({ message: 'Rubric deleted' });
+};
+
+// Instructor: Generate a rubric using AI (Gemini). Decrements aiRubricCredits by 1.
+// Body: { subject, title?, text? } or multipart with file
+exports.generateAIRubric = async (req, res) => {
+  try {
+    const { subject: subjectId, title: suggestedTitle } = req.body;
+    const subject = getSubjectId(req) || subjectId;
+
+    const instructor = await Admin.findById(req.user._id).select('aiRubricCredits');
+    if (!instructor) return res.status(404).json({ message: 'Instructor not found' });
+    if (!Number.isFinite(instructor.aiRubricCredits) || instructor.aiRubricCredits <= 0) {
+      return res.status(403).json({ message: 'No AI rubric credits remaining. Contact your Super Admin to top up.' });
+    }
+
+    let inputText = req.body.text || '';
+    if (req.file && req.file.buffer) {
+      try {
+        inputText = req.file.buffer.toString('utf-8');
+      } catch {
+        inputText = '';
+      }
+      if (!inputText || inputText.length < 10) {
+        return res.status(400).json({
+          message: 'Unable to extract text from the uploaded file. Please paste the rubric text instead.',
+        });
+      }
+    }
+    if (!inputText || inputText.trim().length < 10) {
+      return res.status(400).json({ message: 'Please provide rubric text (paste or upload).' });
+    }
+
+    const generated = await generateRubricFromText(inputText);
+
+    // Decrement AI credit
+    instructor.aiRubricCredits = Math.max(0, (instructor.aiRubricCredits || 5) - 1);
+    await instructor.save();
+
+    await recordAuditLog(req, {
+      action: 'rubric.generate_ai',
+      entity: { type: 'rubric', name: generated.title },
+      instructor: req.user._id,
+      subject: subject || undefined,
+      metadata: { creditsRemaining: instructor.aiRubricCredits, criteriaCount: generated.criteria.length },
+    });
+
+    res.json({
+      ...generated,
+      subject: subject || null,
+      creditsRemaining: instructor.aiRubricCredits,
+      message: `Rubric generated. ${instructor.aiRubricCredits} AI credit(s) remaining.`,
+    });
+  } catch (err) {
+    res.status(500).json({ message: 'AI rubric generation failed', error: err.message, status: err.status });
+  }
 };

@@ -13,6 +13,7 @@ interface Instructor {
   csvExportLocked?: boolean;
   gradingLocked?: boolean;
   gradingLockedSubjects?: Array<string | { _id: string; code?: string; title?: string }>;
+  aiRubricCredits?: number;
 }
 
 type UserRow = Instructor & { role: string };
@@ -107,6 +108,8 @@ export default function Subscription() {
   const [savingLimitId, setSavingLimitId] = useState<string | null>(null);
   const [savingCsvLockId, setSavingCsvLockId] = useState<string | null>(null);
   const [savingGradingLockId, setSavingGradingLockId] = useState<string | null>(null);
+  const [savingAiCreditsId, setSavingAiCreditsId] = useState<string | null>(null);
+  const [aiCreditInputs, setAiCreditInputs] = useState<Record<string, string>>({});
   const [dataAction, setDataAction] = useState('');
   const [usage, setUsage] = useState<UsageStatus | null>(null);
   const { confirm, ConfirmDialog } = useConfirmDialog();
@@ -120,6 +123,15 @@ export default function Subscription() {
       instructorRows.forEach((instructor) => {
         if (next[instructor._id] === undefined) {
           next[instructor._id] = String(instructor.subjectLimit ?? 1);
+        }
+      });
+      return next;
+    });
+    setAiCreditInputs((prev) => {
+      const next = { ...prev };
+      instructorRows.forEach((instructor) => {
+        if (next[instructor._id] === undefined) {
+          next[instructor._id] = String(instructor.aiRubricCredits ?? 5);
         }
       });
       return next;
@@ -222,6 +234,25 @@ export default function Subscription() {
       notify(getErrorMessage(err, 'Failed to update grading access'), { type: 'error' });
     } finally {
       setSavingGradingLockId(null);
+    }
+  };
+
+  const handleSaveAiCredits = async (instructor: Instructor) => {
+    const val = parseInt(aiCreditInputs[instructor._id], 10);
+    if (!Number.isFinite(val) || val < 0) return;
+
+    setSavingAiCreditsId(instructor._id);
+    try {
+      const res = await api.patch(`/users/${instructor._id}/ai-rubric-credits`, { credits: val });
+      setInstructors((prev) =>
+        prev.map((item) => (item._id === instructor._id ? { ...item, aiRubricCredits: res.data.aiRubricCredits } : item))
+      );
+      setAiCreditInputs((prev) => ({ ...prev, [instructor._id]: String(res.data.aiRubricCredits) }));
+      notify('AI rubric credits updated', { type: 'success' });
+    } catch (err: unknown) {
+      notify(getErrorMessage(err, 'Failed to update AI credits'), { type: 'error' });
+    } finally {
+      setSavingAiCreditsId(null);
     }
   };
 
@@ -468,6 +499,7 @@ export default function Subscription() {
                   <th>Status</th>
                   <th className="text-center">Subjects Used</th>
                   <th className="text-center">Paid Limit</th>
+                  <th className="text-center">AI Credits</th>
                   <th className="text-center">CSV Export</th>
                   <th className="text-center">Grading</th>
                   <th className="col-actions">Actions</th>
@@ -481,6 +513,11 @@ export default function Subscription() {
                   const parsedInput = parseInt(inputValue, 10);
                   const unchanged = parsedInput === currentLimit;
                   const invalid = !parsedInput || parsedInput < 1;
+                  const aiCurrent = instructor.aiRubricCredits ?? 5;
+                  const aiInputValue = aiCreditInputs[instructor._id] ?? String(aiCurrent);
+                  const aiParsedInput = parseInt(aiInputValue, 10);
+                  const unchangedAi = aiParsedInput === aiCurrent;
+                  const aiInvalid = !Number.isFinite(aiParsedInput) || aiParsedInput < 0;
                   const assignedToCurrentSubject = isSubjectAssigned(instructor);
                   const currentSubjectLocked = isSubjectGradingLocked(instructor);
                   const gradingSavingKey = `${instructor._id}:${currentSubjectId}`;
@@ -515,6 +552,17 @@ export default function Subscription() {
                           className="evl-input !py-2 text-center max-w-28 mx-auto"
                         />
                       </td>
+                      <td data-label="AI Credits" className="text-center">
+                        <input
+                          aria-label={"AI credits for " + instructor.name}
+                          type="number"
+                          min={0}
+                          max={1000}
+                          value={aiCreditInputs[instructor._id] ?? String(instructor.aiRubricCredits ?? 5)}
+                          onChange={(e) => setAiCreditInputs((prev) => ({ ...prev, [instructor._id]: e.target.value }))}
+                          className="evl-input !py-2 text-center max-w-28 mx-auto"
+                        />
+                      </td>
                       <td data-label="CSV Export" className="text-center">
                         <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-full ${instructor.csvExportLocked ? 'bg-danger/10 text-danger' : 'bg-success/10 text-success'}`}>
                           {instructor.csvExportLocked ? 'Locked' : 'Allowed'}
@@ -537,6 +585,13 @@ export default function Subscription() {
                             className="px-3 py-1.5 rounded-lg text-[11px] font-bold border border-primary/30 text-primary bg-primary/5 hover:bg-primary/15 transition-all disabled:opacity-40 whitespace-nowrap"
                           >
                             {savingLimitId === instructor._id ? 'Saving...' : 'Update Limit'}
+                          </button>
+                          <button
+                            onClick={() => handleSaveAiCredits(instructor)}
+                            disabled={savingAiCreditsId === instructor._id || unchangedAi || aiInvalid}
+                            className="px-3 py-1.5 rounded-lg text-[11px] font-bold border border-purple/30 text-purple-700 bg-purple/5 hover:bg-purple/15 transition-all disabled:opacity-40 whitespace-nowrap"
+                          >
+                            {savingAiCreditsId === instructor._id ? 'Saving...' : 'Update AI Credits'}
                           </button>
                           <button
                             onClick={() => handleToggleInstructorCsv(instructor)}
@@ -574,7 +629,7 @@ export default function Subscription() {
           )}
           <div className="px-6 py-3 border-t border-muted/30 bg-bg/60">
             <p className="text-[11px] text-text/65 leading-relaxed">
-              Updating a limit changes how many paid subjects the instructor can manage. CSV export is per instructor. Grading lock applies only to the selected subject.
+              Updating a limit changes how many paid subjects the instructor can manage. CSV export is per instructor. Grading lock applies only to the selected subject. AI credits control how many AI-generated rubrics the instructor can create.
             </p>
           </div>
         </div>

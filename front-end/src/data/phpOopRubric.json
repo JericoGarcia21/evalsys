@@ -1,0 +1,271 @@
+{
+  "criteria": [
+    {
+      "label": "Marketing Message and SME Identity",
+      "section": "Marketing Website Front Page and Functionality",
+      "description": "Front page clearly shows the SME's identity, products or services, target customers, value proposition, contact details, and a working call to action.",
+      "maxScore": 6,
+      "key": "sectionAcriterion1",
+      "scoringMode": "range",
+      "levels": [
+        { "label": "Excellent", "minScore": 6, "maxScore": 6, "description": "Front page fully and clearly communicates the SME's identity, offerings, target customers, value proposition, contact details, and a fully working call to action." },
+        { "label": "Good", "minScore": 4, "maxScore": 5, "description": "Most elements are present and clear; one element is missing or slightly unclear." },
+        { "label": "Fair", "minScore": 2, "maxScore": 3, "description": "Some key elements are missing or unclear; the marketing message is incomplete." },
+        { "label": "Poor", "minScore": 0, "maxScore": 1, "description": "Front page fails to communicate the SME's identity or marketing message." }
+      ]
+    },
+    {
+      "label": "Visual Design and Usability",
+      "section": "Marketing Website Front Page and Functionality",
+      "description": "Consistent, readable layout and branding with clear, working navigation and visible feedback on every page.",
+      "maxScore": 6,
+      "key": "sectionAcriterion2",
+      "scoringMode": "range",
+      "levels": [
+        { "label": "Excellent", "minScore": 6, "maxScore": 6, "description": "Layout, branding, navigation, and feedback are all consistent, polished, and fully functional across all pages." },
+        { "label": "Good", "minScore": 4, "maxScore": 5, "description": "Design is mostly consistent and usable; minor issues with feedback or navigation on one page." },
+        { "label": "Fair", "minScore": 2, "maxScore": 3, "description": "Layout or branding has noticeable inconsistencies; navigation or feedback is missing on some pages." },
+        { "label": "Poor", "minScore": 0, "maxScore": 1, "description": "Design is inconsistent or unusable; navigation is broken or feedback is absent." }
+      ]
+    },
+    {
+      "label": "Responsive Design and Accessibility Basics",
+      "section": "Marketing Website Front Page and Functionality",
+      "description": "Layout adapts to desktop, tablet, and phone screens; semantic headings, alt text, labeled form fields, and sufficient contrast.",
+      "maxScore": 4,
+      "key": "sectionAcriterion3",
+      "scoringMode": "range",
+      "levels": [
+        { "label": "Excellent", "minScore": 4, "maxScore": 4, "description": "Layout fully adapts to all screen sizes; semantic headings, alt text, labeled fields, and contrast requirements are all met." },
+        { "label": "Good", "minScore": 3, "maxScore": 3, "description": "Responsive on most screens; one or two accessibility elements are missing or incomplete." },
+        { "label": "Fair", "minScore": 2, "maxScore": 2, "description": "Responsive on desktop only or multiple accessibility basics are missing." },
+        { "label": "Poor", "minScore": 0, "maxScore": 1, "description": "Layout does not adapt to smaller screens; accessibility basics are largely absent." }
+      ]
+    },
+    {
+      "label": "Front-Page Features and Interactions",
+      "section": "Marketing Website Front Page and Functionality",
+      "description": "Links, buttons, calls to action, and PHP-processed features (e.g., inquiry form) work end to end and support the SME's marketing goals.",
+      "maxScore": 8,
+      "key": "sectionAcriterion4",
+      "scoringMode": "range",
+      "levels": [
+        { "label": "Excellent", "minScore": 7, "maxScore": 8, "description": "All interactive elements and PHP-processed features work end to end and clearly support the SME's marketing goals." },
+        { "label": "Good", "minScore": 5, "maxScore": 6, "description": "Most features work; one interactive element or PHP feature has a minor issue." },
+        { "label": "Fair", "minScore": 3, "maxScore": 4, "description": "Some features are broken or missing; PHP processing is partially implemented." },
+        { "label": "Poor", "minScore": 0, "maxScore": 2, "description": "Most features do not work; PHP-processed features are absent or non-functional." }
+      ]
+    },
+    {
+      "label": "PHP OOP Design and Code Organization",
+      "section": "Marketing Website Front Page and Functionality",
+      "description": "Relevant OOP concepts (encapsulation, inheritance, polymorphism, abstraction) applied purposefully, with organized, well-separated code.",
+      "maxScore": 7,
+      "key": "sectionAcriterion5",
+      "scoringMode": "range",
+      "levels": [
+        { "label": "Excellent", "minScore": 6, "maxScore": 7, "description": "OOP concepts are applied purposefully and correctly; code is well-organized and clearly separated into logical files or classes." },
+        { "label": "Good", "minScore": 4, "maxScore": 5, "description": "Most OOP concepts are correctly applied; code organization is mostly clean with minor issues." },
+        { "label": "Fair", "minScore": 2, "maxScore": 3, "description": "OOP concepts are present but misapplied or superficial; code organization needs improvement." },
+        { "label": "Poor", "minScore": 0, "maxScore": 1, "description": "OOP concepts are absent or incorrectly applied; code is disorganized." }
+      ]
+    },
+    {
+      "label": "Forms, Data Handling, Validation, and Security",
+      "section": "Marketing Website Front Page and Functionality",
+      "description": "Server-side validation, escaped output, safe data handling, and exception handling; PDO prepared statements where applicable.",
+      "maxScore": 5,
+      "key": "sectionAcriterion6",
+      "scoringMode": "range",
+      "levels": [
+        { "label": "Excellent", "minScore": 5, "maxScore": 5, "description": "Server-side validation, output escaping, exception handling, and PDO prepared statements are all correctly implemented." },
+        { "label": "Good", "minScore": 4, "maxScore": 4, "description": "Most security and validation measures are present; one area has a minor gap." },
+        { "label": "Fair", "minScore": 2, "maxScore": 3, "description": "Validation or security measures are partial; notable gaps in escaping or prepared statements." },
+        { "label": "Poor", "minScore": 0, "maxScore": 1, "description": "Validation and security measures are largely absent." }
+      ]
+    },
+    {
+      "label": "Reliability and Completeness",
+      "section": "Marketing Website Front Page and Functionality",
+      "description": "Website runs from the submitted package without major errors and meets the essential project requirements.",
+      "maxScore": 4,
+      "key": "sectionAcriterion7",
+      "scoringMode": "range",
+      "levels": [
+        { "label": "Excellent", "minScore": 4, "maxScore": 4, "description": "Website runs without errors from the submitted package and meets all essential project requirements." },
+        { "label": "Good", "minScore": 3, "maxScore": 3, "description": "Website runs with only minor, non-blocking errors; most requirements are met." },
+        { "label": "Fair", "minScore": 2, "maxScore": 2, "description": "Website has noticeable errors that affect some functionality; some requirements are unmet." },
+        { "label": "Poor", "minScore": 0, "maxScore": 1, "description": "Website fails to run or has major errors; essential requirements are not met." }
+      ]
+    },
+    {
+      "label": "Project Overview and SME / Marketing Requirements",
+      "section": "Paper Documentation",
+      "description": "Explains the SME, objectives, target audience, scope, and prioritized, testable website requirements.",
+      "maxScore": 5,
+      "key": "sectionBcriterion1",
+      "scoringMode": "range",
+      "levels": [
+        { "label": "Excellent", "minScore": 5, "maxScore": 5, "description": "SME, objectives, target audience, scope, and prioritized testable requirements are all clearly and completely documented." },
+        { "label": "Good", "minScore": 4, "maxScore": 4, "description": "Most elements are well-documented; one element is missing or slightly underdeveloped." },
+        { "label": "Fair", "minScore": 2, "maxScore": 3, "description": "Some elements are missing or superficial; requirements are not prioritized or testable." },
+        { "label": "Poor", "minScore": 0, "maxScore": 1, "description": "Project overview is largely absent or does not address the SME or requirements." }
+      ]
+    },
+    {
+      "label": "System Design and Structure",
+      "section": "Paper Documentation",
+      "description": "Site map, wireframes or screenshots, class diagram, and folder/namespace structure that match the system actually built.",
+      "maxScore": 5,
+      "key": "sectionBcriterion2",
+      "scoringMode": "range",
+      "levels": [
+        { "label": "Excellent", "minScore": 5, "maxScore": 5, "description": "Site map, wireframes or screenshots, class diagram, and folder structure are all present and accurately reflect the built system." },
+        { "label": "Good", "minScore": 4, "maxScore": 4, "description": "Most design artifacts are present and accurate; one is missing or slightly inconsistent with the built system." },
+        { "label": "Fair", "minScore": 2, "maxScore": 3, "description": "Some design artifacts are missing or do not match the built system." },
+        { "label": "Poor", "minScore": 0, "maxScore": 1, "description": "Design artifacts are largely absent or do not reflect the actual system." }
+      ]
+    },
+    {
+      "label": "PHP OOP Implementation Explanation",
+      "section": "Paper Documentation",
+      "description": "Accurately explains the classes, relationships, and OOP concepts used, with annotated code excerpts that match the actual code.",
+      "maxScore": 7,
+      "key": "sectionBcriterion3",
+      "scoringMode": "range",
+      "levels": [
+        { "label": "Excellent", "minScore": 6, "maxScore": 7, "description": "Classes, relationships, and OOP concepts are accurately explained with annotated code excerpts that match the actual implementation." },
+        { "label": "Good", "minScore": 4, "maxScore": 5, "description": "Most OOP concepts are explained accurately; one concept or excerpt is missing or slightly inaccurate." },
+        { "label": "Fair", "minScore": 2, "maxScore": 3, "description": "Explanation is incomplete or inaccurate in notable areas; code excerpts are missing or do not match." },
+        { "label": "Poor", "minScore": 0, "maxScore": 1, "description": "OOP implementation explanation is absent or largely incorrect." }
+      ]
+    },
+    {
+      "label": "Data, Forms, Database, and Security Documentation",
+      "section": "Paper Documentation",
+      "description": "Describes the form handling, data storage, validation, and security measures that apply to the project (database documentation only if a database is used).",
+      "maxScore": 5,
+      "key": "sectionBcriterion4",
+      "scoringMode": "range",
+      "levels": [
+        { "label": "Excellent", "minScore": 5, "maxScore": 5, "description": "Form handling, data storage, validation, and security measures are all clearly and accurately documented." },
+        { "label": "Good", "minScore": 4, "maxScore": 4, "description": "Most areas are well-documented; one area has minor gaps." },
+        { "label": "Fair", "minScore": 2, "maxScore": 3, "description": "Documentation is partial; some key areas are missing or unclear." },
+        { "label": "Poor", "minScore": 0, "maxScore": 1, "description": "Documentation of data handling and security is largely absent." }
+      ]
+    },
+    {
+      "label": "Testing and Evidence",
+      "section": "Paper Documentation",
+      "description": "Test cases with expected and actual results, screenshots or logs, and recorded defects and fixes.",
+      "maxScore": 4,
+      "key": "sectionBcriterion5",
+      "scoringMode": "range",
+      "levels": [
+        { "label": "Excellent", "minScore": 4, "maxScore": 4, "description": "Test cases with expected and actual results, supporting screenshots or logs, and all recorded defects and fixes are present." },
+        { "label": "Good", "minScore": 3, "maxScore": 3, "description": "Most testing evidence is present; screenshots or defect records have minor gaps." },
+        { "label": "Fair", "minScore": 2, "maxScore": 2, "description": "Testing section is incomplete; expected/actual results or evidence is missing for several cases." },
+        { "label": "Poor", "minScore": 0, "maxScore": 1, "description": "Testing section is largely absent or only token entries are provided." }
+      ]
+    },
+    {
+      "label": "Organization, Writing, and References",
+      "section": "Paper Documentation",
+      "description": "Complete, well-organized, clearly written, and consistently formatted paper with properly acknowledged sources.",
+      "maxScore": 4,
+      "key": "sectionBcriterion6",
+      "scoringMode": "range",
+      "levels": [
+        { "label": "Excellent", "minScore": 4, "maxScore": 4, "description": "Paper is complete, clearly organized, well-written, consistently formatted, and all sources are properly acknowledged." },
+        { "label": "Good", "minScore": 3, "maxScore": 3, "description": "Paper is mostly organized and well-written; minor formatting or reference issues." },
+        { "label": "Fair", "minScore": 2, "maxScore": 2, "description": "Organization or writing has noticeable issues; some sources are missing or improperly cited." },
+        { "label": "Poor", "minScore": 0, "maxScore": 1, "description": "Paper is disorganized, poorly written, or references are absent." }
+      ]
+    },
+    {
+      "label": "Organization and Clarity",
+      "section": "Presentation and Demonstration",
+      "description": "Presents the project clearly and in logical order, from business context to testing and conclusion.",
+      "maxScore": 5,
+      "key": "sectionCcriterion1",
+      "scoringMode": "range",
+      "levels": [
+        { "label": "Excellent", "minScore": 5, "maxScore": 5, "description": "Presentation follows a clear and logical order from business context to testing and conclusion; all transitions are smooth." },
+        { "label": "Good", "minScore": 4, "maxScore": 4, "description": "Presentation is mostly organized and clear; one section is out of order or unclear." },
+        { "label": "Fair", "minScore": 2, "maxScore": 3, "description": "Structure is present but difficult to follow; key sections are missing or disjointed." },
+        { "label": "Poor", "minScore": 0, "maxScore": 1, "description": "Presentation is disorganized or lacks a coherent flow." }
+      ]
+    },
+    {
+      "label": "Live Website Demonstration",
+      "section": "Presentation and Demonstration",
+      "description": "Demonstrates the running website's features, navigation, interactions, and at least one invalid-input case.",
+      "maxScore": 7,
+      "key": "sectionCcriterion2",
+      "scoringMode": "range",
+      "levels": [
+        { "label": "Excellent", "minScore": 6, "maxScore": 7, "description": "Website is live and runs; all features, navigation, and interactions are demonstrated, including at least one invalid-input case." },
+        { "label": "Good", "minScore": 4, "maxScore": 5, "description": "Most features are demonstrated; the invalid-input case or one feature is omitted." },
+        { "label": "Fair", "minScore": 2, "maxScore": 3, "description": "Demonstration is partial; several features are skipped or the website has errors during demo." },
+        { "label": "Poor", "minScore": 0, "maxScore": 1, "description": "Website cannot be demonstrated live or most features are non-functional during the demo." }
+      ]
+    },
+    {
+      "label": "PHP OOP Technical Understanding",
+      "section": "Presentation and Demonstration",
+      "description": "Explains the PHP implementation and accurately discusses the OOP concepts used in the project.",
+      "maxScore": 6,
+      "key": "sectionCcriterion3",
+      "scoringMode": "range",
+      "levels": [
+        { "label": "Excellent", "minScore": 6, "maxScore": 6, "description": "PHP implementation and all OOP concepts used are accurately explained and clearly connected to the actual project." },
+        { "label": "Good", "minScore": 4, "maxScore": 5, "description": "Most OOP concepts are correctly explained; one concept is unclear or slightly inaccurate." },
+        { "label": "Fair", "minScore": 2, "maxScore": 3, "description": "OOP concepts are partially explained; notable inaccuracies or missing concepts." },
+        { "label": "Poor", "minScore": 0, "maxScore": 1, "description": "PHP OOP explanation is absent or largely incorrect." }
+      ]
+    },
+    {
+      "label": "Documentation and Design Justification",
+      "section": "Presentation and Demonstration",
+      "description": "Justifies key design choices and shows consistency between the website, the code, and the paper.",
+      "maxScore": 3,
+      "key": "sectionCcriterion4",
+      "scoringMode": "range",
+      "levels": [
+        { "label": "Excellent", "minScore": 3, "maxScore": 3, "description": "Key design choices are clearly justified and the website, code, and paper are fully consistent." },
+        { "label": "Good", "minScore": 2, "maxScore": 2, "description": "Most design choices are justified; minor inconsistency between deliverables." },
+        { "label": "Fair", "minScore": 1, "maxScore": 1, "description": "Justification is weak; noticeable inconsistencies between the website, code, and paper." },
+        { "label": "Poor", "minScore": 0, "maxScore": 0, "description": "No justification provided; deliverables are inconsistent." }
+      ]
+    },
+    {
+      "label": "Question-and-Answer Defense",
+      "section": "Presentation and Demonstration",
+      "description": "Answers questions accurately and shows understanding of the project and its technical decisions.",
+      "maxScore": 5,
+      "key": "sectionCcriterion5",
+      "scoringMode": "range",
+      "levels": [
+        { "label": "Excellent", "minScore": 5, "maxScore": 5, "description": "All questions are answered accurately and confidently, demonstrating deep understanding of the project and its technical decisions." },
+        { "label": "Good", "minScore": 4, "maxScore": 4, "description": "Most questions are answered correctly; one answer is incomplete or slightly off." },
+        { "label": "Fair", "minScore": 2, "maxScore": 3, "description": "Answers are partially correct; several questions are unanswered or unclear." },
+        { "label": "Poor", "minScore": 0, "maxScore": 1, "description": "Unable to answer most questions; little to no understanding demonstrated." }
+      ]
+    },
+    {
+      "label": "Delivery, Teamwork, and Time Management",
+      "section": "Presentation and Demonstration",
+      "description": "Clear, professional delivery; balanced participation of all members; stays within the allotted time.",
+      "maxScore": 4,
+      "key": "sectionCcriterion6",
+      "scoringMode": "range",
+      "levels": [
+        { "label": "Excellent", "minScore": 4, "maxScore": 4, "description": "Delivery is clear and professional; all members participate; presentation stays within the allotted time." },
+        { "label": "Good", "minScore": 3, "maxScore": 3, "description": "Delivery is mostly professional; minor imbalance in participation or slight overtime." },
+        { "label": "Fair", "minScore": 2, "maxScore": 2, "description": "Delivery has noticeable issues; some members do not participate; time is poorly managed." },
+        { "label": "Poor", "minScore": 0, "maxScore": 1, "description": "Delivery is unprofessional; participation is unbalanced; time management is poor." }
+      ]
+    }
+  ],
+  "instructions": "UNIVERSIDAD DE DAGUPAN\nSCHOOL OF INFORMATION TECHNOLOGY EDUCATION\n\nFinal Project Rubrics — PHP OOP Marketing Website\nTotal: 100 pts\n\nA. Marketing Website Front Page and Functionality (40 pts)\nEvaluates the SME identity and marketing message, visual design and usability, responsive design and accessibility, front-page features and PHP interactions, PHP OOP code quality, forms and security, and overall reliability.\n\nB. Paper Documentation (30 pts)\nEvaluates the completeness and accuracy of the project overview, system design artifacts, PHP OOP explanation with annotated code, data/forms/security documentation, testing evidence, and writing quality.\n\nC. Presentation and Demonstration (30 pts)\nEvaluates the organization and clarity of the presentation, the live website demo including an invalid-input case, PHP OOP technical understanding, documentation and design justification, Q&A defense, and delivery and teamwork.\n\nPerformance Rating Scale\nFor each criterion, select the performance level that best reflects the group's work based on the defined score ranges.\n\nFinal Grade Computation\nFinal Grade = Sum of scores from Parts A + B + C (out of 100 pts)."
+}

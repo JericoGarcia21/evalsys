@@ -11,6 +11,7 @@ const adminSchema = new mongoose.Schema({
   csvExportLocked: { type: Boolean, default: false },
   gradingLocked: { type: Boolean, default: false },
   gradingLockedSubjects: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Subject' }],
+  aiRubricCredits: { type: Number, default: 5, min: 0 },
   mustChangePassword: { type: Boolean, default: false },
   failedLoginAttempts: { type: Number, default: 0 },
   lockUntil: { type: Date },

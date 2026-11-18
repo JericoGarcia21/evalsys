@@ -1,4 +1,6 @@
 import FloatingPanelChat from './FloatingPanelChat';
+import WhatsNew, { openWhatsNewEvent } from './WhatsNew';
+import { CURRENT_VERSION } from '../data/whatsNew';
 import { type ReactNode, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/useAuth';
@@ -523,6 +525,13 @@ export default function Layout({ children }: { children: ReactNode }) {
                   <p className="text-white/55 text-[10px] truncate">{user?.email}</p>
                 </div>
               </div>
+              <button
+                type="button"
+                onClick={() => window.dispatchEvent(new Event(openWhatsNewEvent))}
+                className="mb-2 w-full text-left text-[10px] font-bold text-white/40 hover:text-white/80 transition-colors"
+              >
+                What's new · v{CURRENT_VERSION}
+              </button>
               <div className="flex items-center gap-2">
                 <Link
                   to="/account-security"
@@ -570,6 +579,7 @@ export default function Layout({ children }: { children: ReactNode }) {
         </div>
       </main>
       <FloatingPanelChat key={user?.role + ":" + (user?.id || user?._id || "")} />
+      <WhatsNew />
     </div>
   );
 }

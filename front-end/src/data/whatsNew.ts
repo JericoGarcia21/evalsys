@@ -1,3 +1,6 @@
+// Release notes shown in the one-time "What's New" popup.
+// Workflow + history: see WHATS_NEW.md at the repository root.
+// Every user-visible feature: add an entry below and bump CURRENT_VERSION.
 export type WhatsNewAudience = 'admin' | 'superadmin' | 'panel';
 
 export interface ReleaseNote {

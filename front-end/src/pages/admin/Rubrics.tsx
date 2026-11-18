@@ -164,6 +164,7 @@ export default function Rubrics() {
   const [aiConfigured, setAiConfigured] = useState<boolean | null>(null);
   const [aiGenerated, setAiGenerated] = useState<{ title: string; instructions: string; criteria: Criteria[] } | null>(null);
   const [aiError, setAiError] = useState('');
+  const [aiSaving, setAiSaving] = useState(false);
   const [aiStage, setAiStage] = useState(0);
   const [aiElapsed, setAiElapsed] = useState(0);
 
@@ -351,6 +352,36 @@ export default function Rubrics() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const saveAiGenerated = async () => {
+    if (!aiGenerated || aiSaving) return;
+    const validationError = validateRubricForm(aiGenerated.title, aiGenerated.criteria);
+    if (validationError) {
+      setAiError(validationError);
+      return;
+    }
+    setAiSaving(true);
+    setAiError('');
+    try {
+      await api.post('/rubrics', {
+        title: aiGenerated.title.trim(),
+        instructions: aiGenerated.instructions,
+        criteria: aiGenerated.criteria,
+      });
+      closeAiModal();
+      resetForm();
+      load();
+      notify('Rubric created. Activate it when you are ready to grade with it.');
+    } catch (err: unknown) {
+      setAiError(getErrorMessage(err, 'Could not save the generated rubric.'));
+    } finally {
+      setAiSaving(false);
+    }
+  };
+
+  const aiTotalPoints = aiGenerated
+    ? aiGenerated.criteria.reduce((sum, criterion) => sum + (Number(criterion.maxScore) || 0), 0)
+    : 0;
+
   const closeAiModal = () => {
     setAiModal(false);
     setAiGenerated(null);
@@ -512,11 +543,14 @@ export default function Rubrics() {
             {criteria.map((c, ci) => (
               <div key={ci} className="border border-muted/30 rounded-2xl overflow-hidden bg-surface/30 shadow-sm transition-all duration-200">
                 <div className="bg-muted/10 px-5 py-4 border-b border-muted/30 flex justify-between items-center">
-                  <div className="flex items-center gap-3">
-                    <span className="w-6 h-6 rounded-full bg-primary/10 text-primary flex items-center justify-center text-[11px] font-bold">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <span className="w-6 h-6 rounded-full bg-primary/10 text-primary flex items-center justify-center text-[11px] font-bold shrink-0">
                       {ci + 1}
                     </span>
-                    <h4 className="font-bold text-text text-sm">{c.label || 'New Criteria'}</h4>
+                    <div className="min-w-0">
+                      <h4 className="truncate font-bold text-text text-sm">{c.label || 'New Criteria'}</h4>
+                      {c.key && <p className="truncate font-mono text-[10px] text-text/40">{c.key}</p>}
+                    </div>
                   </div>
                   <button type="button" onClick={() => removeCriteria(ci)}
                     className="text-danger hover:text-danger/70 text-xs font-semibold px-2 py-1 rounded-md hover:bg-danger/5 transition-colors">
@@ -541,20 +575,11 @@ export default function Rubrics() {
                   <label className="evl-label mb-5">Criterion Description
                     <textarea className="evl-input" value={c.description || ''} onChange={e => updateCriteria(ci, 'description', e.target.value)} rows={2} />
                   </label>
-                  <div className="grid grid-cols-1 md:grid-cols-12 gap-6 mb-8">
-                    <div className="md:col-span-5">
+                  <div className="grid grid-cols-1 md:grid-cols-12 gap-6 mb-6">
+                    <div className="md:col-span-9">
                       <label className="evl-label !mb-1.5">Criteria Name</label>
                       <input value={c.label} onChange={(e) => updateCriteria(ci, 'label', e.target.value)} required
                         className="evl-input" placeholder="e.g. System Functionality" />
-                    </div>
-                    <div className="md:col-span-4">
-                      <label className="evl-label !mb-1.5 flex items-center gap-2">
-                        System Key
-                        <span className="text-[9px] bg-muted/40 px-1 rounded text-text/65">Auto</span>
-                      </label>
-                      <input value={c.key} readOnly
-                        className="evl-input bg-muted/20 border-muted/30 text-text/65 cursor-not-allowed font-mono text-[11px]" 
-                        placeholder="Auto-generated..." />
                     </div>
                     <div className="md:col-span-3">
                       <label className="evl-label !mb-1.5">Max Score</label>
@@ -725,76 +750,120 @@ export default function Rubrics() {
       {aiModal && (
         <div className="fixed inset-0 bg-dark/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-surface w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
-            <div className="px-6 py-4 border-b border-muted/30 flex justify-between items-center bg-bg">
-              <h3 className="font-bold text-text">Generate Rubric with AI</h3>
+            <div className="flex items-start justify-between gap-4 border-b border-muted/30 bg-bg px-6 py-4">
+              <div className="flex items-center gap-3">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M12 3v3" /><path d="M12 18v3" /><path d="M3 12h3" /><path d="M18 12h3" />
+                    <path d="m5.6 5.6 2.1 2.1" /><path d="m16.3 16.3 2.1 2.1" /><path d="m18.4 5.6-2.1 2.1" /><path d="m7.7 16.3-2.1 2.1" />
+                    <circle cx="12" cy="12" r="3" />
+                  </svg>
+                </span>
+                <div>
+                  <h3 className="font-bold text-text leading-tight">Generate Rubric with AI</h3>
+                  <p className="text-[11px] text-text/50">
+                    {!aiCreditsLoaded
+                      ? 'Checking AI credits…'
+                      : aiCredits !== null
+                        ? `${aiCredits} AI credit${aiCredits === 1 ? '' : 's'} remaining`
+                        : 'AI credits unavailable'}
+                    {aiCreditsLoaded && aiCredits === 0 && (
+                      <span className="ml-1 font-bold text-danger">— contact your Super Admin</span>
+                    )}
+                  </p>
+                </div>
+              </div>
               <button
                 onClick={closeAiModal}
-                className="text-text/70 hover:text-text text-xl"
+                aria-label="Close AI rubric generator"
+                disabled={aiGenerating || aiSaving}
+                className="text-text/50 hover:text-text text-xl leading-none disabled:opacity-30"
               >×</button>
             </div>
-            <div className="p-6 space-y-5">
-              <div className="space-y-2">
-                <p className="text-text/60 text-xs mb-2">
-                  {!aiCreditsLoaded ? (
-                    'Checking AI credits…'
-                  ) : aiCredits !== null ? (
-                    <>AI credits remaining: <span className="font-bold text-text">{aiCredits}</span></>
-                  ) : (
-                    'AI credits unavailable'
-                  )}
-                  {aiCreditsLoaded && aiCredits === 0 && (
-                    <span className="ml-2 text-xs font-bold text-danger">(No credits left — contact your Super Admin)</span>
-                  )}
-                </p>
-                {aiConfigured === false && (
-                  <div className="bg-warning/10 border border-warning/30 text-warning text-xs p-3 rounded-xl font-medium">
-                    AI is not configured on this server. Add a <code className="font-bold">GEMINI_API_KEY</code> (or{' '}
-                    <code className="font-bold">GROQ_API_KEY</code>) to <code className="font-bold">back-end/.env</code>, then restart the backend.
-                  </div>
-                )}
-              </div>
+            <div className="max-h-[70vh] overflow-y-auto p-6 space-y-4">
+              {aiConfigured === false && (
+                <div className="rounded-xl border border-warning/30 bg-warning/10 p-3 text-xs font-medium text-warning">
+                  AI is not configured on this server. Add a <code className="font-bold">GEMINI_API_KEY</code> (or{' '}
+                  <code className="font-bold">GROQ_API_KEY</code>) to <code className="font-bold">back-end/.env</code>, then restart the backend.
+                </div>
+              )}
 
               {aiGenerated && (
-                <div className="space-y-2">
-                  <div className="bg-success/5 border border-success/20 text-success text-xs p-3 rounded-xl font-medium">
-                    Rubric generated — review the criteria below, then apply to the form to save it.
+                <div className="space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-success/20 bg-success/5 px-4 py-3">
+                    <p className="inline-flex items-center gap-2 text-xs font-bold text-success">
+                      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-success/15">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                          <path d="m5 13 4 4L19 7" />
+                        </svg>
+                      </span>
+                      Rubric ready
+                    </p>
+                    <p className="text-[11px] font-semibold text-text/60">
+                      {aiGenerated.criteria.length} criteria · {aiTotalPoints} pts
+                    </p>
                   </div>
-                  <div className="rounded-xl border border-muted/30 bg-bg p-4">
-                    <div className="flex items-center justify-between gap-3 mb-2">
-                      <p className="text-xs font-bold text-text truncate">{aiGenerated.title}</p>
-                      <p className="text-[11px] text-text/60 whitespace-nowrap">
-                        {aiGenerated.criteria.length} criteria ·{' '}
-                        {aiGenerated.criteria.reduce((sum, c) => sum + (Number(c.maxScore) || 0), 0)} pts
-                      </p>
-                    </div>
-                    <ul className="max-h-52 overflow-auto space-y-1.5 pr-1">
-                      {aiGenerated.criteria.map((c, index) => (
-                        <li key={`${c.key}-${index}`} className="flex items-start justify-between gap-3 text-[11px]">
-                          <span className="text-text/80">
-                            {c.label}
-                            <span className="text-text/40"> · {c.section}</span>
+
+                  <div>
+                    <label htmlFor="ai-rubric-title" className="evl-label">Rubric title</label>
+                    <input
+                      id="ai-rubric-title"
+                      value={aiGenerated.title}
+                      onChange={(e) => setAiGenerated((prev) => (prev ? { ...prev, title: e.target.value } : prev))}
+                      className="evl-input"
+                      disabled={aiSaving}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    {aiGenerated.criteria.map((c, index) => (
+                      <div key={`${c.key}-${index}`} className="rounded-xl border border-muted/25 bg-bg p-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex min-w-0 items-start gap-2">
+                            <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-primary/10 text-[10px] font-bold text-primary">
+                              {index + 1}
+                            </span>
+                            <div className="min-w-0">
+                              <p className="truncate text-xs font-bold text-text">{c.label}</p>
+                              {c.section && <p className="truncate text-[10px] text-text/45">{c.section}</p>}
+                            </div>
+                          </div>
+                          <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">
+                            {c.maxScore} pts
                           </span>
-                          <span className="text-text/60 whitespace-nowrap">{c.maxScore} pts</span>
-                        </li>
-                      ))}
-                    </ul>
+                        </div>
+                        <div className="mt-2 flex flex-wrap gap-1.5 sm:pl-7">
+                          {c.levels.map((level) => (
+                            <span
+                              key={level.label}
+                              className="inline-flex items-center gap-1 rounded-full border border-muted/25 bg-surface px-2 py-0.5 text-[10px]"
+                            >
+                              <span className="font-semibold text-text/75">{level.label}</span>
+                              <span className="text-text/45">{level.minScore}–{level.maxScore}</span>
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setAiMode('paste')}
-                  className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${aiMode === 'paste' ? 'bg-primary text-white' : 'border border-muted/30 text-text/70 bg-surface hover:text-text'}`}
-                >
-                  Paste text
-                </button>
-                <button
-                  onClick={() => setAiMode('file')}
-                  className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${aiMode === 'file' ? 'bg-primary text-white' : 'border border-muted/30 text-text/70 bg-surface hover:text-text'}`}
-                >
-                  Upload file
-                </button>
-              </div>
+              {!aiGenerated && !aiGenerating && (
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setAiMode('paste')}
+                    className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${aiMode === 'paste' ? 'bg-primary text-white' : 'border border-muted/30 text-text/70 bg-surface hover:text-text'}`}
+                  >
+                    Paste text
+                  </button>
+                  <button
+                    onClick={() => setAiMode('file')}
+                    className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${aiMode === 'file' ? 'bg-primary text-white' : 'border border-muted/30 text-text/70 bg-surface hover:text-text'}`}
+                  >
+                    Upload file
+                  </button>
+                </div>
+              )}
               <form onSubmit={handleAiGenerate} className="space-y-4">
                 {aiGenerating && (
                   <div className="rounded-xl border border-primary/20 bg-primary/5 p-5">
@@ -810,16 +879,34 @@ export default function Rubrics() {
                         style={{ width: `${Math.min(92, 12 + aiStage * 20)}%` }}
                       />
                     </div>
-                    <p className="mt-2 text-center text-[11px] text-text/50">
+                    <ul className="mx-auto mt-4 max-w-xs space-y-1.5">
+                      {AI_STAGES.map((stage, index) => {
+                        const done = index < aiStage;
+                        const active = index === aiStage;
+                        return (
+                          <li
+                            key={stage}
+                            className={`flex items-center gap-2 text-[11px] ${done ? 'text-text/45' : active ? 'font-semibold text-text' : 'text-text/30'}`}
+                          >
+                            <span className={`flex h-4 w-4 items-center justify-center rounded-full border text-[8px] ${done ? 'border-success/30 bg-success/10 text-success' : active ? 'border-primary/40 text-primary' : 'border-muted/30 text-text/30'}`}>
+                              {done ? '✓' : index + 1}
+                            </span>
+                            {stage}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                    <p className="mt-3 text-center text-[11px] text-text/50">
                       {aiElapsed}s elapsed — usually 5–20 seconds. Please keep this window open.
                     </p>
                   </div>
                 )}
-                {aiMode === 'paste' && (
+                {!aiGenerated && aiMode === 'paste' && (
                   <div>
-                    <label className="evel-label block text-xs font-bold text-text/70 mb-1 uppercase">Rubric description / criteria text</label>
+                    <label htmlFor="ai-rubric-text" className="evl-label">Rubric description or criteria text</label>
                     <textarea
-                      className="evel-input w-full min-h-[160px] rounded-lg border border-muted/30 p-3 text-text focus:border-primary focus:ring-0 disabled:opacity-50"
+                      id="ai-rubric-text"
+                      className="evl-input min-h-[160px] disabled:opacity-50"
                       rows={8}
                       value={aiText}
                       onChange={(e) => setAiText(e.target.value)}
@@ -828,20 +915,21 @@ export default function Rubrics() {
                     />
                   </div>
                 )}
-                {aiMode === 'file' && (
+                {!aiGenerated && aiMode === 'file' && (
                   <div>
-                    <label className="evel-label block text-xs font-bold text-text/70 mb-1 uppercase">Upload rubric file (PDF, DOCX, TXT)</label>
+                    <label htmlFor="ai-rubric-file" className="evl-label">Rubric file (PDF, DOCX, TXT)</label>
                     <input
+                      id="ai-rubric-file"
                       type="file"
                       accept=".pdf,.doc,.docx,.txt"
-                      className="evel-input w-full rounded-lg border border-muted/30 p-3 text-text focus:border-primary focus:ring-0 disabled:opacity-50"
+                      className="evl-input disabled:opacity-50"
                       disabled={aiGenerating}
                       onChange={(e) => {
                         if (e.target.files?.[0]) setAiFile(e.target.files[0]);
                       }}
                     />
                     {aiFile && <p className="text-[10px] text-text/50 mt-1">{aiFile.name}</p>}
-                    <p className="text-[10px] text-text/50 mt-1">Tip: If text cannot be extracted from the file, paste the rubric text instead.</p>
+                    <p className="text-[10px] text-text/50 mt-1">Tip: if text can't be extracted from the file, paste the rubric text instead.</p>
                   </div>
                 )}
                 {aiError && (
@@ -849,24 +937,38 @@ export default function Rubrics() {
                     {aiError}
                   </div>
                 )}
-                <div className="flex justify-end gap-2 pt-2">
+                <div className="flex flex-wrap items-center justify-end gap-2 border-t border-muted/20 pt-4">
+                  <p className="mr-auto text-[10px] text-text/45">
+                    {aiGenerated ? '1 AI credit was used for this generation.' : 'Each generation uses 1 AI credit.'}
+                  </p>
                   {aiGenerated ? (
                     <>
                       <button
                         type="button"
-                        onClick={loadAiGenerated}
-                        className="evl-btn-secondary !py-2 !text-xs"
-                        disabled={aiGenerating}
+                        onClick={closeAiModal}
+                        className="evl-btn-ghost !py-2 !text-xs"
+                        disabled={aiSaving}
                       >
-                        Apply to Form
+                        Discard
                       </button>
                       <button
                         type="button"
-                        onClick={closeAiModal}
-                        className="evl-btn-ghost !py-2 !text-xs"
-                        disabled={aiGenerating}
+                        onClick={loadAiGenerated}
+                        className="evl-btn-secondary !py-2 !text-xs"
+                        disabled={aiSaving}
                       >
-                        Close
+                        Edit in Form
+                      </button>
+                      <button
+                        type="button"
+                        onClick={saveAiGenerated}
+                        disabled={aiSaving}
+                        className="evl-btn-primary !py-2 !text-xs inline-flex items-center gap-2 disabled:opacity-50"
+                      >
+                        {aiSaving && (
+                          <span className="h-3.5 w-3.5 rounded-full border-2 border-white/40 border-t-white animate-spin" aria-hidden="true" />
+                        )}
+                        {aiSaving ? 'Saving…' : 'Save Rubric'}
                       </button>
                     </>
                   ) : (

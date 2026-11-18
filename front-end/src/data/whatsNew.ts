@@ -13,9 +13,20 @@ export interface ReleaseNote {
 }
 
 /** Bump this whenever you add a release note — users see each version once. */
-export const CURRENT_VERSION = '1.5.0';
+export const CURRENT_VERSION = '1.5.1';
 
 export const RELEASES: ReleaseNote[] = [
+  {
+    version: '1.5.1',
+    date: '2026-11-18',
+    title: 'Cleaner AI rubric review',
+    audience: ['admin', 'superadmin'],
+    items: [
+      'The AI generator now shows a clean review of criteria and score levels before saving.',
+      'Save a generated rubric in one click, or open it in the form to fine-tune it first.',
+      'The rubric form hides the system key as a small label, leaving more room for criteria.',
+    ],
+  },
   {
     version: '1.5.0',
     date: '2026-11-18',

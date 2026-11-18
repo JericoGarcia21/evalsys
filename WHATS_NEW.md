@@ -75,6 +75,7 @@ The "seen" flag is stored per user in `localStorage` under
 
 | Version | Date | Title | Audience | Summary |
 | --- | --- | --- | --- | --- |
+| 1.5.1 | 2026-11-18 | Cleaner AI rubric review | Instructor, Super Admin | Redesigned AI review panel with level chips, one-click save, and a tidier rubric form. |
 | 1.5.0 | 2026-11-18 | AI rubrics and presentation order | Instructor, Super Admin | AI rubric generation from text/file, per-instructor AI credits, Presentation page with per-block shuffle and minutes, live generation progress. |
 | 1.4.0 | 2026-11-14 | Faster grading and clearer results | Everyone | Grading drafts scoped per subject, results/footer layout fixes. |
 

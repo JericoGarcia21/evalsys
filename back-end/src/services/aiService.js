@@ -1,13 +1,26 @@
-const AI_SYSTEM_PROMPT = `You are an expert education rubric designer. Given a rubric description (pasted text or extracted from a document), generate a structured grading rubric.
+const AI_SYSTEM_PROMPT = `You are an expert education rubric designer. Convert the provided rubric source into structured JSON.
 
-Output requirements:
-- Return ONLY valid JSON (no markdown fences, no extra text before or after).
-- The JSON object must have: title, instructions, and criteria array.
-- Each criterion needs: label, section, description, maxScore, scoringMode ("range"), and levels array.
-- Each criterion must have exactly 4 levels: Excellent, Good, Fair, Poor.
-- Each level needs: label, minScore, maxScore, description.
-- Level ranges must not overlap and must stay within 0 to maxScore.
-- All scores must be valid numbers.`;
+Return ONLY valid JSON (no markdown fences, no text before or after) with this shape:
+{"title":"...","instructions":"...","criteria":[{"label":"...","section":"...","description":"...","maxScore":10,"scoringMode":"range"|"percentage","levels":[{"label":"...","description":"..."}]}]}
+
+How to read the source:
+- Keep the source's own criteria, wording, section names, and weights. Do not invent, merge, or drop criteria.
+- If the source lists criterion weights or percentages (for example "10%", "12%", "4%") or a performance rating scale in percentages, then for EVERY criterion:
+  * set "scoringMode":"percentage"
+  * set "maxScore" to that criterion's weight in points (so the criteria add up to the rubric total, usually 100)
+  * give each level a "percentage" from 0 to 100 and DO NOT use minScore/maxScore, for example:
+    {"label":"Excellent","percentage":100,"description":"Complete, accurate and meets all requirements."}
+    {"label":"Very Good","percentage":90,"description":"Meets requirements with minor errors."}
+    {"label":"Good","percentage":80,"description":"Meets most basic requirements with some errors."}
+    {"label":"Needs Improvement","percentage":70,"description":"Partially complete with significant errors."}
+    {"label":"Not Submitted / Not Demonstrated","percentage":0,"description":"Required output is missing."}
+  * copy the source's level names and percentages exactly when the source provides them.
+- If the source gives score ranges instead (for example "23-25", "20-22"), set "scoringMode":"range" and give each level numeric minScore and maxScore within 0 to maxScore.
+- If the source lists no rating levels, create them yourself: use the five percentage levels above when the source gives weights, otherwise use 4 score-range levels (Excellent, Good, Fair, Poor) spread across maxScore without overlaps.
+- Weights may be written as percentages ("10%"), points ("10 pts"), or totals per section. Treat them the same way.
+- Use the source's section headings (for example "Project Requirements", "Project Documentation", "Project Presentation") as the criterion "section".
+- "title" is a short rubric name from the source. "instructions" is 0-2 sentences of evaluation notes, or "".
+- All scores and percentages must be valid numbers.`;
 
 /**
  * Strip markdown fences and extract the outermost JSON object from an AI response string.
@@ -50,6 +63,67 @@ const slugifyKey = (value) => String(value || '')
   .replace(/^-+|-+$/g, '')
   .slice(0, 48);
 
+// Matches the rating math used by the app (front-end ratingScale.ts / backend validation).
+const ratingPoints = (weight, percentage) => Math.round(weight * percentage) / 100;
+
+const toPercent = (value) => {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return null;
+  // Accept 0.9 style fractions as well as 90 style percentages.
+  if (number > 0 && number <= 1) return Math.round(number * 10000) / 100;
+  return number;
+};
+
+// "A. Conceptual Design" / "1) Overview" → "Conceptual Design" / "Overview"
+const cleanLabel = (value) => String(value || '')
+  .replace(/^\(?[A-Za-z0-9]{1,3}[.)]\s+/, '')
+  .replace(/^[IVXLC]+[.)]\s+/i, '')
+  .trim();
+
+const levelPercent = (level) => toPercent(
+  level.percentage ??
+  level.percent ??
+  level.percentageOfWeight ??
+  level.percentOfWeight ??
+  level.weight ??
+  level.rating ??
+  null
+);
+
+const round2 = (value) => Math.round(Number(value) * 100) / 100;
+
+// Fallbacks so any pasted text produces a rubric the app can actually save.
+const DEFAULT_PERCENTAGE_LEVELS = [
+  { label: 'Excellent', percentage: 100, description: 'Complete, accurate, well-executed, and meets all requirements.' },
+  { label: 'Very Good', percentage: 90, description: 'Meets requirements with only minor errors or omissions.' },
+  { label: 'Good', percentage: 80, description: 'Meets most basic requirements but has some errors or omissions.' },
+  { label: 'Needs Improvement', percentage: 70, description: 'Partially complete or contains significant errors.' },
+  { label: 'Not Submitted / Not Demonstrated', percentage: 0, description: 'Required output is missing or cannot be evaluated.' },
+];
+
+const defaultPercentage = (index, count) => {
+  if (count <= 1) return 100;
+  return Math.max(0, Math.round((100 - (100 / (count - 1)) * index) / 5) * 5);
+};
+
+const defaultRangeLevels = (maxScore) => {
+  const safeMax = round2(maxScore);
+  const band = (fraction) => round2(safeMax * fraction);
+  return [
+    { label: 'Excellent', minScore: band(0.9), maxScore: safeMax, description: '' },
+    { label: 'Good', minScore: band(0.75), maxScore: round2(band(0.9) - 0.01), description: '' },
+    { label: 'Fair', minScore: band(0.6), maxScore: round2(band(0.75) - 0.01), description: '' },
+    { label: 'Poor', minScore: 0, maxScore: round2(band(0.6) - 0.01), description: '' },
+  ];
+};
+
+const parseLevelRange = (level) => {
+  const min = Number(level.minScore ?? level.min_score ?? level.min ?? null);
+  const max = Number(level.maxScore ?? level.max_score ?? level.max ?? null);
+  if (!Number.isFinite(min) || !Number.isFinite(max)) return null;
+  return { min, max };
+};
+
 const normalizeResult = (parsed) => {
   // Handle different JSON shapes: { criteria: [...] } or { rubric: { criteria: [...] } }
   let criteriaArray = parsed.criteria;
@@ -60,10 +134,24 @@ const normalizeResult = (parsed) => {
     throw new Error('AI response missing criteria array');
   }
 
+  // Decide each criterion's points before building levels so percentage math stays consistent.
+  const rawWeights = criteriaArray.map((c) => Number(c.maxScore ?? c.points ?? c.weight ?? c.max_points ?? 0) || 0);
+  const positiveWeights = rawWeights.filter((weight) => weight > 0);
+  const evenSplit = round2(100 / criteriaArray.length);
+  const fallbackWeight = positiveWeights.length ? Math.min(...positiveWeights) : evenSplit;
+  const finalWeights = rawWeights.map((weight) => (weight > 0 ? weight : fallbackWeight));
+  if (positiveWeights.length === 0 && finalWeights.length > 0) {
+    // Nothing usable in the source: give the rubric a familiar 100-point total.
+    const total = round2(finalWeights.reduce((sum, weight) => sum + weight, 0));
+    finalWeights[finalWeights.length - 1] = round2(finalWeights[finalWeights.length - 1] + (100 - total));
+  }
+
   const usedKeys = new Set();
   const normalizedCriteria = criteriaArray.map((c, index) => {
     // Criteria keys are required by the rubric form and must be unique.
-    const baseKey = slugifyKey(c.key || c.label || c.name) || `criterion-${index + 1}`;
+    const label = cleanLabel(c.label || c.name || `Criterion ${index + 1}`) || `Criterion ${index + 1}`;
+    const section = String(c.section || c.category || c.group || 'General').trim();
+    const baseKey = slugifyKey(c.key || label) || `criterion-${index + 1}`;
     let key = baseKey;
     let suffix = 2;
     while (usedKeys.has(key)) {
@@ -72,25 +160,81 @@ const normalizeResult = (parsed) => {
     }
     usedKeys.add(key);
 
+    const rawLevels = (Array.isArray(c.levels) ? c.levels : []).filter(Boolean);
+    const percentages = rawLevels.map(levelPercent);
+    const parsedRanges = rawLevels.map(parseLevelRange);
+    const hasAllPercentages = rawLevels.length > 0 && percentages.every((value) => typeof value === 'number');
+    const hasUsableRanges = rawLevels.length > 0
+      && parsedRanges.every(Boolean)
+      && parsedRanges.some((range) => range.max > 0 || range.min > 0);
+    const usePercentage = c.scoringMode === 'percentage'
+      ? true
+      : c.scoringMode === 'range'
+        ? (!hasUsableRanges && hasAllPercentages)
+        : (hasAllPercentages || !hasUsableRanges);
+
+    const maxScore = finalWeights[index];
+
+    let levels;
+    if (usePercentage) {
+      const sourceLevels = rawLevels.length > 0 ? rawLevels : DEFAULT_PERCENTAGE_LEVELS;
+      levels = sourceLevels.map((level, levelIndex) => {
+        const levelLabel = cleanLabel(level.label || level.name)
+          || DEFAULT_PERCENTAGE_LEVELS[levelIndex]?.label
+          || `Level ${levelIndex + 1}`;
+        const percentage = percentages[levelIndex] ?? defaultPercentage(levelIndex, sourceLevels.length);
+        const points = ratingPoints(maxScore, percentage);
+        return {
+          label: levelLabel,
+          percentage,
+          minScore: points,
+          maxScore: points,
+          description: String(level.description || '').trim(),
+        };
+      });
+    } else if (hasUsableRanges) {
+      levels = rawLevels.map((level, levelIndex) => ({
+        label: cleanLabel(level.label || level.name) || `Level ${levelIndex + 1}`,
+        minScore: parsedRanges[levelIndex].min,
+        maxScore: parsedRanges[levelIndex].max,
+        description: String(level.description || '').trim(),
+      }));
+    } else {
+      levels = defaultRangeLevels(maxScore).map((level) => ({
+        ...level,
+        label: cleanLabel(level.label) || level.label,
+      }));
+    }
+
     return {
-      label: String(c.label || c.name || 'Criterion').trim(),
-      section: String(c.section || 'General').trim(),
+      label,
+      section,
       description: String(c.description || '').trim(),
-      maxScore: Number(c.maxScore || c.points || 0) || 0,
-      scoringMode: c.scoringMode === 'percentage' ? 'percentage' : 'range',
+      maxScore,
+      scoringMode: usePercentage ? 'percentage' : 'range',
       key,
-      levels: (c.levels || []).map((l) => ({
-        label: String(l.label || l.name || 'Level').trim(),
-        minScore: Number(l.minScore || l.min_score || 0) || 0,
-        maxScore: Number(l.maxScore || l.max_score || 0) || 0,
-        description: String(l.description || '').trim(),
-      })),
+      levels,
     };
   });
 
+  // Some models return weights as fractions (0.1, 0.12). Scale up when every weight looks fractional.
+  const allFractional = normalizedCriteria.length > 1
+    && normalizedCriteria.every((criterion) => criterion.maxScore > 0 && criterion.maxScore <= 1);
+  if (allFractional) {
+    normalizedCriteria.forEach((criterion) => {
+      criterion.maxScore = Math.round(criterion.maxScore * 10000) / 100;
+      if (criterion.scoringMode === 'percentage') {
+        criterion.levels = criterion.levels.map((level) => {
+          const points = ratingPoints(criterion.maxScore, level.percentage ?? 0);
+          return { ...level, minScore: points, maxScore: points };
+        });
+      }
+    });
+  }
+
   return {
-    title: String(parsed.title || parsed.rubric?.title || 'AI-Generated Rubric').trim(),
-    instructions: String(parsed.instructions || '').trim(),
+    title: String(parsed.title || parsed.rubric?.title || parsed.rubricTitle || 'AI-Generated Rubric').trim(),
+    instructions: String(parsed.instructions || parsed.notes || '').trim(),
     criteria: normalizedCriteria,
   };
 };

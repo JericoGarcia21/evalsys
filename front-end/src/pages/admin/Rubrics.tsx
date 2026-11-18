@@ -317,6 +317,7 @@ export default function Rubrics() {
           scoringMode: c.scoringMode || 'range',
           levels: (c.levels || []).map((l: any) => ({
             label: l.label || 'Level',
+            percentage: Number.isFinite(Number(l.percentage)) ? Number(l.percentage) : undefined,
             minScore: Number(l.minScore) || 0,
             maxScore: Number(l.maxScore) || 0,
             description: l.description || '',
@@ -381,6 +382,10 @@ export default function Rubrics() {
   const aiTotalPoints = aiGenerated
     ? aiGenerated.criteria.reduce((sum, criterion) => sum + (Number(criterion.maxScore) || 0), 0)
     : 0;
+
+  const aiSections = aiGenerated
+    ? Array.from(new Set(aiGenerated.criteria.map((criterion) => (criterion.section || 'General').trim() || 'General')))
+    : [];
 
   const closeAiModal = () => {
     setAiModal(false);
@@ -478,15 +483,15 @@ export default function Rubrics() {
 
   const levelColor = (label: string) => {
     if (label === 'Excellent') return 'evl-badge-success';
-    if (label === 'Good') return 'evl-badge-primary';
-    if (label === 'Fair') return 'evl-badge-warning';
+    if (label === 'Very Good' || label === 'Good') return 'evl-badge-primary';
+    if (label === 'Fair' || label === 'Needs Improvement') return 'evl-badge-warning';
     return 'evl-badge-danger';
   };
 
   const levelBg = (label: string) => {
     if (label === 'Excellent') return 'bg-success/5 border-success/20';
-    if (label === 'Good') return 'bg-primary/5 border-primary/20';
-    if (label === 'Fair') return 'bg-warning/5 border-warning/20';
+    if (label === 'Very Good' || label === 'Good') return 'bg-primary/5 border-primary/20';
+    if (label === 'Fair' || label === 'Needs Improvement') return 'bg-warning/5 border-warning/20';
     return 'bg-danger/5 border-danger/20';
   };
 
@@ -723,12 +728,16 @@ export default function Rubrics() {
                             <p className="font-bold text-text">{c.label}</p>
                             <span className="text-text/70 text-xs font-semibold">{c.maxScore} pts</span>
                           </div>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+                          <div className="flex flex-wrap gap-3">
                             {c.levels.map((l) => (
-                              <div key={l.label} className={`rounded-lg p-4 border ${levelBg(l.label)}`}>
-                                <div className="flex items-center justify-between mb-2">
+                              <div key={l.label} className={`min-w-[150px] flex-1 rounded-lg p-4 border ${levelBg(l.label)}`}>
+                                <div className="flex items-center justify-between gap-2 mb-2">
                                   <span className={levelColor(l.label)}>{l.label}</span>
-                                  <span className="text-text/65 text-[11px] font-semibold">{l.minScore}–{l.maxScore}</span>
+                                  <span className="text-text/65 text-[11px] font-semibold whitespace-nowrap">
+                                    {c.scoringMode === 'percentage' && Number.isFinite(l.percentage)
+                                      ? `${l.percentage}%`
+                                      : `${l.minScore}–${l.maxScore}`}
+                                  </span>
                                 </div>
                                 <p className="text-text/60 text-xs leading-relaxed">{l.description}</p>
                               </div>
@@ -815,34 +824,48 @@ export default function Rubrics() {
                     />
                   </div>
 
-                  <div className="space-y-2">
-                    {aiGenerated.criteria.map((c, index) => (
-                      <div key={`${c.key}-${index}`} className="rounded-xl border border-muted/25 bg-bg p-3">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="flex min-w-0 items-start gap-2">
-                            <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-primary/10 text-[10px] font-bold text-primary">
-                              {index + 1}
-                            </span>
-                            <div className="min-w-0">
-                              <p className="truncate text-xs font-bold text-text">{c.label}</p>
-                              {c.section && <p className="truncate text-[10px] text-text/45">{c.section}</p>}
+                  <div className="space-y-3">
+                    {aiSections.map((section) => (
+                      <div key={section} className="space-y-2">
+                        <p className="px-1 text-[10px] font-black uppercase tracking-widest text-text/45">{section}</p>
+                        {aiGenerated.criteria
+                          .map((criterion, index) => ({ criterion, index }))
+                          .filter(({ criterion }) => ((criterion.section || 'General').trim() || 'General') === section)
+                          .map(({ criterion: c, index }) => (
+                            <div key={`${c.key}-${index}`} className="rounded-xl border border-muted/25 bg-bg p-3">
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="flex min-w-0 items-start gap-2">
+                                  <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-primary/10 text-[10px] font-bold text-primary">
+                                    {index + 1}
+                                  </span>
+                                  <div className="min-w-0">
+                                    <p className="truncate text-xs font-bold text-text">{c.label}</p>
+                                    <p className="text-[10px] text-text/45">
+                                      {c.scoringMode === 'percentage' ? `${c.maxScore} pts · weighted` : `${c.maxScore} pts`}
+                                    </p>
+                                  </div>
+                                </div>
+                                <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">
+                                  {c.maxScore} pts
+                                </span>
+                              </div>
+                              <div className="mt-2 flex flex-wrap gap-1.5 sm:pl-7">
+                                {c.levels.map((level) => (
+                                  <span
+                                    key={level.label}
+                                    className="inline-flex items-center gap-1 rounded-full border border-muted/25 bg-surface px-2 py-0.5 text-[10px]"
+                                  >
+                                    <span className="font-semibold text-text/75">{level.label}</span>
+                                    <span className="text-text/45">
+                                      {c.scoringMode === 'percentage' && Number.isFinite(level.percentage)
+                                        ? `${level.percentage}%`
+                                        : `${level.minScore}–${level.maxScore}`}
+                                    </span>
+                                  </span>
+                                ))}
+                              </div>
                             </div>
-                          </div>
-                          <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">
-                            {c.maxScore} pts
-                          </span>
-                        </div>
-                        <div className="mt-2 flex flex-wrap gap-1.5 sm:pl-7">
-                          {c.levels.map((level) => (
-                            <span
-                              key={level.label}
-                              className="inline-flex items-center gap-1 rounded-full border border-muted/25 bg-surface px-2 py-0.5 text-[10px]"
-                            >
-                              <span className="font-semibold text-text/75">{level.label}</span>
-                              <span className="text-text/45">{level.minScore}–{level.maxScore}</span>
-                            </span>
                           ))}
-                        </div>
                       </div>
                     ))}
                   </div>

@@ -13,9 +13,20 @@ export interface ReleaseNote {
 }
 
 /** Bump this whenever you add a release note — users see each version once. */
-export const CURRENT_VERSION = '1.5.1';
+export const CURRENT_VERSION = '1.5.2';
 
 export const RELEASES: ReleaseNote[] = [
+  {
+    version: '1.5.2',
+    date: '2026-11-18',
+    title: 'Weighted rubrics in AI generation',
+    audience: ['admin', 'superadmin'],
+    items: [
+      'The AI generator now understands weighted rubrics, such as 40% Requirements, 30% Documentation, and 30% Presentation.',
+      'Criteria keep their own weights and section names, so a 100-point project rubric is generated exactly as written.',
+      'Percentage rating scales with five levels (100, 90, 80, 70, 0) are supported end to end.',
+    ],
+  },
   {
     version: '1.5.1',
     date: '2026-11-18',

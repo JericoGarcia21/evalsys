@@ -381,6 +381,14 @@ exports.generateAIRubric = async (req, res) => {
 
     const generated = await generateRubricFromText(inputText);
 
+    // Never charge a credit for a rubric the app would refuse to save.
+    const generatedError = validateRubricPayload({ title: generated.title, criteria: generated.criteria });
+    if (generatedError) {
+      return res.status(502).json({
+        message: `The AI returned an unusable rubric (${generatedError}). No AI credit was used — please try again.`,
+      });
+    }
+
     // Decrement AI credit
     instructor.aiRubricCredits = Math.max(0, (instructor.aiRubricCredits || 5) - 1);
     await instructor.save();

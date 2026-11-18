@@ -8,7 +8,7 @@ import { useAuth } from '../../context/useAuth';
 import { formatMemberList, type Member } from '../../utils/members';
 import { useConfirmDialog } from '../../hooks/useConfirmDialog';
 
-interface Level { label: string; minScore: number; maxScore: number; description: string; }
+interface Level { label: string; minScore: number; maxScore: number; description: string; percentage?: number; }
 interface Criteria { key: string; label: string; maxScore: number; levels: Level[]; section?: string; description?: string; scoringMode?: string; }
 interface Rubric { _id: string; title: string; criteria: Criteria[]; isActive: boolean; subject?: string; instructions?: string; }
 interface Section { _id: string; name: string; block: string; subject?: string | { _id: string; code?: string; title?: string }; }
@@ -935,6 +935,7 @@ export default function Grade() {
                   levels={cat.levels.map((l) => ({
                     label: l.label,
                     range: `${l.minScore}–${l.maxScore}`,
+                    percentage: l.percentage,
                     description: l.description,
                   }))}
                 />

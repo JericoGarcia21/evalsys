@@ -160,6 +160,8 @@ export default function Rubrics() {
   const [aiFile, setAiFile] = useState<File | null>(null);
   const [aiGenerating, setAiGenerating] = useState<boolean>(false);
   const [aiCredits, setAiCredits] = useState<number | null>(null);
+  const [aiCreditsLoaded, setAiCreditsLoaded] = useState(false);
+  const [aiConfigured, setAiConfigured] = useState<boolean | null>(null);
   const [aiGenerated, setAiGenerated] = useState<{ title: string; instructions: string; criteria: Criteria[] } | null>(null);
   const [aiError, setAiError] = useState('');
   const [aiStage, setAiStage] = useState(0);
@@ -261,7 +263,15 @@ export default function Rubrics() {
       const res = await api.get('/auth/me');
       setAiCredits(res.data.aiRubricCredits ?? null);
     } catch {
-      // credits unavailable; backend will enforce
+      setAiCredits(null);
+    } finally {
+      setAiCreditsLoaded(true);
+    }
+    try {
+      const status = await api.get('/rubrics/ai-status');
+      setAiConfigured(Boolean(status.data?.configured));
+    } catch {
+      setAiConfigured(null);
     }
   };
 
@@ -701,10 +711,26 @@ export default function Rubrics() {
               >×</button>
             </div>
             <div className="p-6 space-y-5">
-              <p className="text-text/60 text-xs mb-2">
-                {aiCredits !== null ? `AI credits remaining: <span className="font-bold text-text">{aiCredits}</span>` : 'Checking AI credits…'}
-                {aiCredits === 0 && <span className="ml-2 text-xs font-bold text-danger">(No credits left — contact your Super Admin)</span>}
-              </p>
+              <div className="space-y-2">
+                <p className="text-text/60 text-xs mb-2">
+                  {!aiCreditsLoaded ? (
+                    'Checking AI credits…'
+                  ) : aiCredits !== null ? (
+                    <>AI credits remaining: <span className="font-bold text-text">{aiCredits}</span></>
+                  ) : (
+                    'AI credits unavailable'
+                  )}
+                  {aiCreditsLoaded && aiCredits === 0 && (
+                    <span className="ml-2 text-xs font-bold text-danger">(No credits left — contact your Super Admin)</span>
+                  )}
+                </p>
+                {aiConfigured === false && (
+                  <div className="bg-warning/10 border border-warning/30 text-warning text-xs p-3 rounded-xl font-medium">
+                    AI is not configured on this server. Add a <code className="font-bold">GEMINI_API_KEY</code> (or{' '}
+                    <code className="font-bold">GROQ_API_KEY</code>) to <code className="font-bold">back-end/.env</code>, then restart the backend.
+                  </div>
+                )}
+              </div>
 
               {aiGenerated && (
                 <div className="bg-success/5 border border-success/20 text-success text-xs p-3 rounded-xl font-medium">
@@ -811,7 +837,7 @@ export default function Rubrics() {
                       </button>
                       <button
                         type="submit"
-                        disabled={aiGenerating || aiCredits === 0 || (!aiText.trim() && !aiFile)}
+                        disabled={aiGenerating || aiConfigured === false || aiCredits === 0 || (!aiText.trim() && !aiFile)}
                         className="evl-btn-primary !py-2 !text-xs disabled:opacity-40 inline-flex items-center gap-2"
                       >
                         {aiGenerating && (

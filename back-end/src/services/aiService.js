@@ -76,111 +76,169 @@ const normalizeResult = (parsed) => {
   };
 };
 
+// Model names are provider-side and change often. Try the configured model first,
+// then fall back through known-good alternatives when the provider says "model not found".
+const GEMINI_FALLBACK_MODELS = ['gemini-3.5-flash-lite', 'gemini-2.5-flash-lite', 'gemini-3.5-flash'];
+const GROQ_FALLBACK_MODELS = ['openai/gpt-oss-20b', 'llama-3.3-70b-versatile', 'llama-3.1-8b-instant'];
+
+const buildModelList = (configured, fallbacks) => {
+  const list = [];
+  const push = (value) => {
+    const model = String(value || '').trim();
+    if (model && !list.includes(model)) list.push(model);
+  };
+  push(configured);
+  fallbacks.forEach(push);
+  return list;
+};
+
+const isModelNotFound = (status, body) =>
+  status === 404 || /model_not_found|does not exist|not found|decommissioned|unsupported model/i.test(String(body || ''));
+
 const callGroq = async (inputText) => {
-  const apiKey = process.env.GROQ_API_KEY || '';
+  const apiKey = (process.env.GROQ_API_KEY || '').trim();
   if (!apiKey) throw new Error('GROQ_API_KEY not configured');
 
-  const model = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile';
+  const models = buildModelList(process.env.GROQ_MODEL, GROQ_FALLBACK_MODELS);
+  let lastError = null;
 
-  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model,
-      messages: [
-        { role: 'system', content: AI_SYSTEM_PROMPT },
-        { role: 'user', content: `Rubric source text:\n\n${inputText}` },
-      ],
-      temperature: 0.4,
-      max_tokens: 4096,
-    }),
-  });
+  for (const model of models) {
+    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model,
+        messages: [
+          { role: 'system', content: AI_SYSTEM_PROMPT },
+          { role: 'user', content: `Rubric source text:\n\n${inputText}` },
+        ],
+        temperature: 0.4,
+        max_tokens: 4096,
+      }),
+    });
 
-  if (!res.ok) {
-    const errorText = await res.text().catch(() => '');
-    throw new Error(`Groq API error (${res.status}): ${errorText}`);
+    if (!res.ok) {
+      const errorText = await res.text().catch(() => '');
+      lastError = new Error(`Groq API error (${res.status}): ${errorText}`);
+      if (isModelNotFound(res.status, errorText)) continue;
+      throw lastError;
+    }
+
+    const data = await res.json();
+    const text = data.choices?.[0]?.message?.content || '';
+    if (!text) throw new Error('Groq returned empty response');
+
+    // extractAndParseJson already returns a parsed object — do NOT JSON.parse again
+    return normalizeResult(extractAndParseJson(text));
   }
 
-  const data = await res.json();
-  const text = data.choices?.[0]?.message?.content || '';
-  if (!text) throw new Error('Groq returned empty response');
-
-  // extractAndParseJson already returns a parsed object — do NOT JSON.parse again
-  const parsed = extractAndParseJson(text);
-  return normalizeResult(parsed);
+  throw lastError || new Error('No usable Groq model available');
 };
 
 const callGemini = async (inputText) => {
-  const apiKey = process.env.GEMINI_API_KEY || '';
+  const apiKey = (process.env.GEMINI_API_KEY || '').trim();
   if (!apiKey) throw new Error('GEMINI_API_KEY not configured');
 
-  // gemini-1.5-flash and newer models require the v1beta endpoint
-  const model = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+  const models = buildModelList(process.env.GEMINI_MODEL, GEMINI_FALLBACK_MODELS);
+  // v1 and v1beta expose slightly different model catalogs — try both before giving up.
+  const apiVersions = ['v1', 'v1beta'];
+  let lastError = null;
 
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [
-        {
-          role: 'user',
-          parts: [
-            { text: AI_SYSTEM_PROMPT },
-            { text: `Rubric source text:\n\n${inputText}` },
+  for (const version of apiVersions) {
+    for (const model of models) {
+      const url = `https://generativelanguage.googleapis.com/${version}/models/${model}:generateContent?key=${apiKey}`;
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [
+            {
+              role: 'user',
+              parts: [
+                { text: AI_SYSTEM_PROMPT },
+                { text: `Rubric source text:\n\n${inputText}` },
+              ],
+            },
           ],
-        },
-      ],
-      generationConfig: {
-        temperature: 0.4,
-        maxOutputTokens: 4096,
-      },
-    }),
-  });
+          generationConfig: {
+            temperature: 0.4,
+            maxOutputTokens: 4096,
+          },
+        }),
+      });
 
-  if (!res.ok) {
-    const errorText = await res.text().catch(() => '');
-    throw new Error(`Gemini API error (${res.status}): ${errorText}`);
+      if (!res.ok) {
+        const errorText = await res.text().catch(() => '');
+        lastError = new Error(`Gemini API error (${res.status}): ${errorText}`);
+        if (isModelNotFound(res.status, errorText)) continue;
+        throw lastError;
+      }
+
+      const data = await res.json();
+      const candidates = data.candidates || [];
+      if (!candidates.length) {
+        lastError = new Error('No content generated by AI');
+        continue;
+      }
+
+      const text = candidates[0].content?.parts?.[0]?.text || '';
+      if (!text) {
+        lastError = new Error('Gemini returned empty response');
+        continue;
+      }
+
+      const textString = typeof text === 'string' ? text : JSON.stringify(text);
+      // extractAndParseJson already returns a parsed object — do NOT JSON.parse again
+      return normalizeResult(extractAndParseJson(textString));
+    }
   }
 
-  const data = await res.json();
-  const candidates = data.candidates || [];
-  if (!candidates.length) throw new Error('No content generated by AI');
+  throw lastError || new Error('No usable Gemini model available');
+};
 
-  const text = candidates[0].content?.parts?.[0]?.text || '';
-  if (!text) throw new Error('Gemini returned empty response');
-
-  const textString = typeof text === 'string' ? text : JSON.stringify(text);
-  // extractAndParseJson already returns a parsed object — do NOT JSON.parse again
-  const parsed = extractAndParseJson(textString);
-  return normalizeResult(parsed);
+exports.getProviderStatus = () => {
+  const geminiKey = (process.env.GEMINI_API_KEY || '').trim();
+  const groqKey = (process.env.GROQ_API_KEY || '').trim();
+  return {
+    configured: Boolean(geminiKey || groqKey),
+    providers: {
+      gemini: geminiKey
+        ? { model: buildModelList(process.env.GEMINI_MODEL, GEMINI_FALLBACK_MODELS)[0] }
+        : null,
+      groq: groqKey
+        ? { model: buildModelList(process.env.GROQ_MODEL, GROQ_FALLBACK_MODELS)[0] }
+        : null,
+    },
+  };
 };
 
 exports.generateRubricFromText = async (inputText) => {
-  const groqKey = process.env.GROQ_API_KEY || '';
-  const geminiKey = process.env.GEMINI_API_KEY || '';
+  const groqKey = (process.env.GROQ_API_KEY || '').trim();
+  const geminiKey = (process.env.GEMINI_API_KEY || '').trim();
 
   if (!groqKey && !geminiKey) {
-    throw new Error('No AI provider configured. Set GROQ_API_KEY (free, at console.groq.com) or GEMINI_API_KEY on the backend.');
+    throw new Error(
+      'AI is not configured on the server. Add GEMINI_API_KEY or GROQ_API_KEY to back-end/.env, then restart the backend.'
+    );
   }
 
-  // Try Groq first (free, fast, reliable), fall back to Gemini
+  // Gemini lite first (fast, free tier), Groq as fallback
   const errors = [];
-  if (groqKey) {
-    try {
-      return await callGroq(inputText);
-    } catch (err) {
-      errors.push('Groq: ' + err.message);
-    }
-  }
   if (geminiKey) {
     try {
       return await callGemini(inputText);
     } catch (err) {
       errors.push('Gemini: ' + err.message);
+    }
+  }
+  if (groqKey) {
+    try {
+      return await callGroq(inputText);
+    } catch (err) {
+      errors.push('Groq: ' + err.message);
     }
   }
 

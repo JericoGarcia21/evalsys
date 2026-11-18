@@ -17,41 +17,91 @@ interface Group {
   section?: Section | null;
 }
 
-interface StoredSchedule {
+interface StoredOrder {
   order: string[];
-  minutes: number;
   presented: string[];
   updatedAt: string;
 }
 
 const DEFAULT_MINUTES = 10;
+const ALL_BLOCKS = 'all';
+const UNASSIGNED_BLOCK = 'Unassigned';
 
-// Minutes and order belong to the instructor, per subject.
-const storageKey = (instructorId: string, subjectId: string) =>
+const blockOf = (group: Group) => (group.section?.block || '').trim() || UNASSIGNED_BLOCK;
+
+// Order and presented marks are kept per instructor, per subject, per block.
+const orderKey = (instructorId: string, subjectId: string, block: string) =>
+  `presentation_order_${instructorId || 'me'}_${subjectId || 'all'}_${block || ALL_BLOCKS}`;
+
+// Minutes belong to the instructor for the subject, shared across blocks.
+const minutesKey = (instructorId: string, subjectId: string) =>
+  `presentation_minutes_${instructorId || 'me'}_${subjectId || 'all'}`;
+
+const legacyKey = (instructorId: string, subjectId: string) =>
   `presentation_schedule_${instructorId || 'me'}_${subjectId || 'all'}`;
 
-const readStoredSchedule = (instructorId: string, subjectId: string): StoredSchedule | null => {
+const readStoredOrder = (instructorId: string, subjectId: string, block: string): StoredOrder | null => {
   try {
-    const raw = localStorage.getItem(storageKey(instructorId, subjectId));
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as Partial<StoredSchedule>;
-    return {
-      order: Array.isArray(parsed.order) ? parsed.order.filter((id): id is string => typeof id === 'string') : [],
-      minutes: Number.isFinite(Number(parsed.minutes)) && Number(parsed.minutes) > 0 ? Number(parsed.minutes) : DEFAULT_MINUTES,
-      presented: Array.isArray(parsed.presented) ? parsed.presented.filter((id): id is string => typeof id === 'string') : [],
-      updatedAt: typeof parsed.updatedAt === 'string' ? parsed.updatedAt : '',
-    };
+    const raw = localStorage.getItem(orderKey(instructorId, subjectId, block));
+    if (raw) {
+      const parsed = JSON.parse(raw) as Partial<StoredOrder>;
+      return {
+        order: Array.isArray(parsed.order) ? parsed.order.filter((id): id is string => typeof id === 'string') : [],
+        presented: Array.isArray(parsed.presented) ? parsed.presented.filter((id): id is string => typeof id === 'string') : [],
+        updatedAt: typeof parsed.updatedAt === 'string' ? parsed.updatedAt : '',
+      };
+    }
+    // Migrate the pre-block-filter record into the "all blocks" view.
+    if (block === ALL_BLOCKS) {
+      const legacyRaw = localStorage.getItem(legacyKey(instructorId, subjectId));
+      if (legacyRaw) {
+        const legacy = JSON.parse(legacyRaw) as Partial<StoredOrder & { minutes: number }>;
+        return {
+          order: Array.isArray(legacy.order) ? legacy.order.filter((id): id is string => typeof id === 'string') : [],
+          presented: Array.isArray(legacy.presented) ? legacy.presented.filter((id): id is string => typeof id === 'string') : [],
+          updatedAt: typeof legacy.updatedAt === 'string' ? legacy.updatedAt : '',
+        };
+      }
+    }
+    return null;
   } catch {
     return null;
   }
 };
 
-const writeStoredSchedule = (instructorId: string, subjectId: string, schedule: Omit<StoredSchedule, 'updatedAt'>) => {
+const writeStoredOrder = (instructorId: string, subjectId: string, block: string, data: Omit<StoredOrder, 'updatedAt'>) => {
   try {
     localStorage.setItem(
-      storageKey(instructorId, subjectId),
-      JSON.stringify({ ...schedule, updatedAt: new Date().toISOString() })
+      orderKey(instructorId, subjectId, block),
+      JSON.stringify({ ...data, updatedAt: new Date().toISOString() })
     );
+  } catch {
+    // Storage can be unavailable in restricted browser sessions.
+  }
+};
+
+const readStoredMinutes = (instructorId: string, subjectId: string): number | null => {
+  try {
+    const raw = localStorage.getItem(minutesKey(instructorId, subjectId));
+    if (raw) {
+      const parsed = Number(JSON.parse(raw));
+      if (Number.isFinite(parsed) && parsed > 0) return parsed;
+    }
+    const legacyRaw = localStorage.getItem(legacyKey(instructorId, subjectId));
+    if (legacyRaw) {
+      const legacy = JSON.parse(legacyRaw) as { minutes?: number };
+      const parsed = Number(legacy?.minutes);
+      if (Number.isFinite(parsed) && parsed > 0) return parsed;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+};
+
+const writeStoredMinutes = (instructorId: string, subjectId: string, minutes: number) => {
+  try {
+    localStorage.setItem(minutesKey(instructorId, subjectId), JSON.stringify(minutes));
   } catch {
     // Storage can be unavailable in restricted browser sessions.
   }
@@ -96,6 +146,7 @@ export default function Presentation() {
   const { confirm, ConfirmDialog } = useConfirmDialog();
 
   const [groups, setGroups] = useState<Group[]>([]);
+  const [block, setBlock] = useState<string>(ALL_BLOCKS);
   const [order, setOrder] = useState<string[]>([]);
   const [presented, setPresented] = useState<string[]>([]);
   const [minutes, setMinutes] = useState<number>(DEFAULT_MINUTES);
@@ -110,12 +161,7 @@ export default function Presentation() {
     api.get('/groups')
       .then((res) => {
         if (!active) return;
-        const list: Group[] = Array.isArray(res.data) ? res.data : [];
-        const stored = readStoredSchedule(instructorId, subjectId);
-        setGroups(list);
-        setOrder(reconcileOrder(stored?.order ?? [], list));
-        setPresented(stored?.presented ?? []);
-        setMinutes(stored?.minutes ?? DEFAULT_MINUTES);
+        setGroups(Array.isArray(res.data) ? res.data : []);
       })
       .catch((err: unknown) => {
         if (active) setError(getApiMessage(err, 'Failed to load groups'));
@@ -128,6 +174,30 @@ export default function Presentation() {
       active = false;
     };
   }, [instructorId, subjectId, version]);
+
+  const blocks = useMemo(() => {
+    const seen = new Set<string>();
+    groups.forEach((group) => seen.add(blockOf(group)));
+    return Array.from(seen).sort((a, b) => a.localeCompare(b));
+  }, [groups]);
+
+  // Drop a block selection that no longer exists (e.g. after switching subjects).
+  useEffect(() => {
+    if (block !== ALL_BLOCKS && !blocks.includes(block)) setBlock(ALL_BLOCKS);
+  }, [blocks, block]);
+
+  const blockGroups = useMemo(
+    () => (block === ALL_BLOCKS ? groups : groups.filter((group) => blockOf(group) === block)),
+    [groups, block]
+  );
+
+  // Hydrate order, presented marks, and minutes for the current instructor/subject/block.
+  useEffect(() => {
+    const stored = readStoredOrder(instructorId, subjectId, block);
+    setOrder(reconcileOrder(stored?.order ?? [], blockGroups));
+    setPresented(stored?.presented ?? []);
+    setMinutes(readStoredMinutes(instructorId, subjectId) ?? DEFAULT_MINUTES);
+  }, [instructorId, subjectId, block, blockGroups]);
 
   const groupById = useMemo(() => {
     const map = new Map<string, Group>();
@@ -142,34 +212,30 @@ export default function Presentation() {
 
   const totalMinutes = orderedGroups.length * minutes;
 
-  const save = (nextOrder: string[], nextMinutes: number, nextPresented: string[]) => {
-    writeStoredSchedule(instructorId, subjectId, {
-      order: nextOrder,
-      minutes: nextMinutes,
-      presented: nextPresented,
-    });
+  const saveOrder = (nextOrder: string[], nextPresented: string[]) => {
+    writeStoredOrder(instructorId, subjectId, block, { order: nextOrder, presented: nextPresented });
   };
 
   const handleShuffle = () => {
     if (orderedGroups.length < 2) return;
     const nextOrder = shuffleIds(order);
     setOrder(nextOrder);
-    save(nextOrder, minutes, presented);
-    notify('Presentation order shuffled.');
+    saveOrder(nextOrder, presented);
+    notify(block === ALL_BLOCKS ? 'Presentation order shuffled.' : `Presentation order shuffled for ${block}.`);
   };
 
   const handleReset = async () => {
     const ok = await confirm({
       title: 'Reset presentation order?',
-      message: 'This restores the registration order of groups and clears the "presented" marks. Your minutes setting is kept.',
+      message: `This restores the registration order${block === ALL_BLOCKS ? '' : ` for ${block}`} and clears the "presented" marks. Your minutes setting is kept.`,
       confirmLabel: 'Reset Order',
       danger: true,
     });
     if (!ok) return;
-    const nextOrder = groups.map((group) => group._id);
+    const nextOrder = blockGroups.map((group) => group._id);
     setOrder(nextOrder);
     setPresented([]);
-    save(nextOrder, minutes, []);
+    saveOrder(nextOrder, []);
     notify('Presentation order reset.');
   };
 
@@ -177,7 +243,7 @@ export default function Presentation() {
     const parsed = Math.floor(Number(value));
     const nextMinutes = Number.isFinite(parsed) && parsed > 0 ? Math.min(parsed, 600) : 0;
     setMinutes(nextMinutes);
-    save(order, nextMinutes || DEFAULT_MINUTES, presented);
+    if (nextMinutes > 0) writeStoredMinutes(instructorId, subjectId, nextMinutes);
   };
 
   const togglePresented = (groupId: string) => {
@@ -185,7 +251,7 @@ export default function Presentation() {
       ? presented.filter((id) => id !== groupId)
       : [...presented, groupId];
     setPresented(nextPresented);
-    save(order, minutes, nextPresented);
+    saveOrder(order, nextPresented);
   };
 
   const handleCopy = async () => {
@@ -194,7 +260,7 @@ export default function Presentation() {
       return `${index + 1}. ${group.name}${section} — ${minutes} min`;
     });
     const text = [
-      'Presentation Order',
+      `Presentation Order${block === ALL_BLOCKS ? '' : ` — ${block}`}`,
       ...lines,
       '',
       `Total: ${formatDuration(totalMinutes)} (${orderedGroups.length} groups × ${minutes} min)`,
@@ -215,7 +281,7 @@ export default function Presentation() {
       <div className="mb-6">
         <h2 className="evl-page-title">Presentation Order</h2>
         <p className="evl-page-subtitle">
-          Randomize the presenting sequence for your groups and set the minutes each group gets.
+          Randomize the presenting sequence per block and set the minutes each group gets.
         </p>
       </div>
 
@@ -227,27 +293,41 @@ export default function Presentation() {
 
       <div className="evl-card p-6 mb-6">
         <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
-          <div>
-            <label htmlFor="minutes-per-group" className="evl-label">
-              Minutes per group
-            </label>
-            <div className="flex items-center gap-2">
-              <input
-                id="minutes-per-group"
-                type="number"
-                min={1}
-                max={600}
-                step={1}
-                value={minutes || ''}
-                onChange={(e) => handleMinutesChange(e.target.value)}
-                className="evl-input w-28"
-                disabled={loading}
-              />
-              <span className="text-xs text-text/60">min</span>
+          <div className="flex flex-col sm:flex-row gap-4">
+            <div>
+              <label htmlFor="block-filter" className="evl-label">Block</label>
+              <select
+                id="block-filter"
+                value={block}
+                onChange={(e) => setBlock(e.target.value)}
+                className="evl-input w-52"
+                disabled={loading || !blocks.length}
+              >
+                <option value={ALL_BLOCKS}>All blocks ({groups.length})</option>
+                {blocks.map((item) => {
+                  const count = groups.filter((group) => blockOf(group) === item).length;
+                  return <option key={item} value={item}>{item} ({count})</option>;
+                })}
+              </select>
             </div>
-            <p className="text-[11px] text-text/50 mt-1">
-              Saved for your account on this subject — other instructors keep their own setting.
-            </p>
+
+            <div>
+              <label htmlFor="minutes-per-group" className="evl-label">Minutes per group</label>
+              <div className="flex items-center gap-2">
+                <input
+                  id="minutes-per-group"
+                  type="number"
+                  min={1}
+                  max={600}
+                  step={1}
+                  value={minutes || ''}
+                  onChange={(e) => handleMinutesChange(e.target.value)}
+                  className="evl-input w-28"
+                  disabled={loading}
+                />
+                <span className="text-xs text-text/60">min</span>
+              </div>
+            </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
@@ -268,6 +348,10 @@ export default function Presentation() {
           </div>
         </div>
 
+        <p className="text-[11px] text-text/50 mt-3">
+          Minutes are saved for your account on this subject — other instructors keep their own setting. Orders are saved per block.
+        </p>
+
         <div className="mt-5 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-text/70">
           <span><span className="font-bold text-text">{orderedGroups.length}</span> groups</span>
           <span><span className="font-bold text-text">{minutes || 0}</span> min each</span>
@@ -278,7 +362,9 @@ export default function Presentation() {
 
       <div className="evl-card p-6">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-sm font-bold text-text">Presenting Sequence</h3>
+          <h3 className="text-sm font-bold text-text">
+            Presenting Sequence{block === ALL_BLOCKS ? '' : ` — ${block}`}
+          </h3>
           {orderedGroups.length > 0 && (
             <span className="text-[11px] text-text/50">Saved automatically</span>
           )}
@@ -288,7 +374,7 @@ export default function Presentation() {
           <p className="text-sm text-text/60">Loading groups…</p>
         ) : !orderedGroups.length ? (
           <div className="text-sm text-text/70">
-            <p>No groups registered for this subject yet.</p>
+            <p>No groups registered {block === ALL_BLOCKS ? 'for this subject' : `in ${block}`} yet.</p>
             <a href="/groups" className="text-primary font-semibold text-xs hover:underline">Go to Groups</a>
           </div>
         ) : (

@@ -13,6 +13,7 @@ import Users from './pages/admin/Users';
 import Results from './pages/admin/Results';
 import AIInsights from './pages/admin/AIInsights';
 import Rubrics from './pages/admin/Rubrics';
+import Presentation from './pages/admin/Presentation';
 import AssignPanels from './pages/admin/AssignPanels';
 import RegistrationLinks from './pages/admin/RegistrationLinks';
 import Subjects from './pages/admin/Subjects';
@@ -87,6 +88,7 @@ export default function App() {
           <Route path="/results" element={<ProtectedRoute role="admin"><Results /></ProtectedRoute>} />
           <Route path="/ai-insights" element={<ProtectedRoute role="admin" instructorOnly><AIInsights /></ProtectedRoute>} />
           <Route path="/rubrics" element={<ProtectedRoute role="admin" instructorOnly><Rubrics /></ProtectedRoute>} />
+          <Route path="/presentation" element={<ProtectedRoute role="admin" instructorOnly><Presentation /></ProtectedRoute>} />
 
           <Route path="/chat" element={<ProtectedRoute instructorOrPanelOnly><PanelChat /></ProtectedRoute>} />
 

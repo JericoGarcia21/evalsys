@@ -1,4 +1,6 @@
 import FloatingPanelChat from './FloatingPanelChat';
+import WhatsNew, { openWhatsNewEvent } from './WhatsNew';
+import { CURRENT_VERSION } from '../data/whatsNew';
 import { type ReactNode, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/useAuth';
@@ -32,6 +34,7 @@ const instructorLinks = [
   { to: '/users', label: 'Panel Accounts' },
   { to: '/assign-panels', label: 'Assign Panels' },
   { to: '/rubrics', label: 'Rubrics' },
+  { to: '/presentation', label: 'Presentation' },
   { to: '/registration-links', label: 'Registration Links' },
   { to: '/results', label: 'Results' },
   { to: '/ai-insights', label: 'AI Insights' },
@@ -42,7 +45,7 @@ const panelLinks = [
   { to: '/grade', label: 'Grade Groups' },
 ];
 
-type NavIconName = 'dashboard' | 'sections' | 'groups' | 'users' | 'assign' | 'rubrics' | 'results' | 'ai' | 'link' | 'grade' | 'subjects' | 'subscription' | 'operations' | 'security' | 'system' | 'legacy';
+type NavIconName = 'dashboard' | 'sections' | 'groups' | 'users' | 'assign' | 'rubrics' | 'presentation' | 'results' | 'ai' | 'link' | 'grade' | 'subjects' | 'subscription' | 'operations' | 'security' | 'system' | 'legacy';
 
 const getNavIconName = (to: string): NavIconName => {
   if (to === '/analytics') return 'results';
@@ -52,6 +55,7 @@ const getNavIconName = (to: string): NavIconName => {
   if (to === '/users') return 'users';
   if (to === '/assign-panels') return 'assign';
   if (to === '/rubrics') return 'rubrics';
+  if (to === '/presentation') return 'presentation';
   if (to === '/results') return 'results';
   if (to === '/ai-insights') return 'ai';
   if (to === '/registration-links') return 'link';
@@ -96,6 +100,9 @@ const NavIcon = ({ name }: { name: NavIconName }) => {
   }
   if (name === 'rubrics') {
     return <svg {...common}><path d="M4 20h4l10.5-10.5a2.1 2.1 0 0 0-3-3L5 17v3Z" /><path d="m13.5 8.5 2 2" /></svg>;
+  }
+  if (name === 'presentation') {
+    return <svg {...common}><path d="M16 3h5v5" /><path d="M4 20 21 3" /><path d="M21 16v5h-5" /><path d="m15 15 6 6" /><path d="m4 4 5 5" /></svg>;
   }
   if (name === 'results') {
     return <svg {...common}><path d="M4 19V5" /><path d="M4 19h16" /><rect x="7" y="11" width="3" height="5" rx="1" /><rect x="12" y="8" width="3" height="8" rx="1" /><rect x="17" y="4" width="3" height="12" rx="1" /></svg>;
@@ -518,6 +525,13 @@ export default function Layout({ children }: { children: ReactNode }) {
                   <p className="text-white/55 text-[10px] truncate">{user?.email}</p>
                 </div>
               </div>
+              <button
+                type="button"
+                onClick={() => window.dispatchEvent(new Event(openWhatsNewEvent))}
+                className="mb-2 w-full text-left text-[10px] font-bold text-white/40 hover:text-white/80 transition-colors"
+              >
+                What's new · v{CURRENT_VERSION}
+              </button>
               <div className="flex items-center gap-2">
                 <Link
                   to="/account-security"
@@ -565,6 +579,7 @@ export default function Layout({ children }: { children: ReactNode }) {
         </div>
       </main>
       <FloatingPanelChat key={user?.role + ":" + (user?.id || user?._id || "")} />
+      <WhatsNew />
     </div>
   );
 }

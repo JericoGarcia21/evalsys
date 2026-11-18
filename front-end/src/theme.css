@@ -67,7 +67,7 @@
 .workspace-breadcrumb { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; min-width: 0; font-size: 11px; color: #64748b; }
 .workspace-breadcrumb strong { font-weight: 600; color: #334155; }
 .workspace-topbar-context { color: #64748b; font-size: 10px; letter-spacing: .04em; text-transform: uppercase; white-space: nowrap; }
-.workspace-content { max-width: 1680px; margin-inline: auto; }
+.workspace-content { max-width: 1680px; margin-inline: auto; min-height: calc(100dvh - 74px); }
 .workspace-content > .workspace-tools { min-height: 28px; display: flex; align-items: center; justify-content: space-between; gap: 20px; margin-bottom: 27px; padding-bottom: 18px; border-bottom: 1px solid var(--evl-border); }
 .workspace-tools > span { color: #64748b; font-size: 9px; letter-spacing: .12em; text-transform: uppercase; font-weight: 650; }
 .workspace-content .evl-page-title { overflow-wrap: anywhere; }

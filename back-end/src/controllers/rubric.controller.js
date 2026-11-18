@@ -1,7 +1,7 @@
 const Rubric = require('../models/Rubric');
 const Admin = require('../models/Admin');
 const { getPagination, paginatedPayload } = require('../utils/pagination');
-const { generateRubricFromText } = require('../services/aiService');
+const { generateRubricFromText, getProviderStatus } = require('../services/aiService');
 const { recordAuditLog } = require('../services/audit.service');
 
 const getSubjectId = (req) => req.headers['x-subject-id'] || req.query.subject || req.body.subject;
@@ -343,6 +343,12 @@ exports.deleteRubric = async (req, res) => {
   res.json({ message: 'Rubric deleted' });
 };
 
+// Instructor: Report whether an AI provider is configured. No network call, no credits used.
+exports.getAIStatus = async (req, res) => {
+  const status = getProviderStatus();
+  res.json(status);
+};
+
 // Instructor: Generate a rubric using AI (Gemini). Decrements aiRubricCredits by 1.
 // Body: { subject, title?, text? } or multipart with file
 exports.generateAIRubric = async (req, res) => {
@@ -374,6 +380,14 @@ exports.generateAIRubric = async (req, res) => {
     }
 
     const generated = await generateRubricFromText(inputText);
+
+    // Never charge a credit for a rubric the app would refuse to save.
+    const generatedError = validateRubricPayload({ title: generated.title, criteria: generated.criteria });
+    if (generatedError) {
+      return res.status(502).json({
+        message: `The AI returned an unusable rubric (${generatedError}). No AI credit was used — please try again.`,
+      });
+    }
 
     // Decrement AI credit
     instructor.aiRubricCredits = Math.max(0, (instructor.aiRubricCredits || 5) - 1);

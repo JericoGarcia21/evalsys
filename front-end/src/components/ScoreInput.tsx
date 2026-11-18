@@ -3,6 +3,7 @@ import { useId } from 'react';
 interface Level {
   label: string;
   range: string;
+  percentage?: number;
   description?: string;
 }
 
@@ -70,7 +71,11 @@ export default function ScoreInput({ label, max, value, onChange, levels, disabl
               {level?.label === l.label && <span aria-hidden="true" className="shrink-0 font-bold">✓</span>}
             </span>
             <span aria-hidden="true" className={`block text-[11px] mt-1 ${level?.label === l.label ? 'text-white' : 'text-text/65'}`}>
-              {percentage ? `${l.range.split('–')[0]} pts` : `${l.range} pts`}
+              {percentage ? (
+                typeof l.percentage === 'number'
+                  ? `${l.percentage}% · ${l.range.split('–')[0]} pts`
+                  : `${l.range.split('–')[0]} pts`
+              ) : `${l.range} pts`}
             </span>
           </button>
         ))}

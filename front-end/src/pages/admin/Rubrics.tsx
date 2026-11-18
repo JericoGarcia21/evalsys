@@ -10,6 +10,14 @@ import { useAuth } from '../../context/useAuth';
 import { useConfirmDialog } from '../../hooks/useConfirmDialog';
 import { useOperationalScope } from '../../hooks/useOperationalScope';
 
+const AI_STAGES = [
+  'Reading your rubric…',
+  'Identifying the grading criteria…',
+  'Building the score levels…',
+  'Writing the level descriptions…',
+  'Finalizing your rubric…',
+];
+
 interface Level {
   percentage?: number;
   label: string;
@@ -152,8 +160,32 @@ export default function Rubrics() {
   const [aiFile, setAiFile] = useState<File | null>(null);
   const [aiGenerating, setAiGenerating] = useState<boolean>(false);
   const [aiCredits, setAiCredits] = useState<number | null>(null);
+  const [aiCreditsLoaded, setAiCreditsLoaded] = useState(false);
+  const [aiConfigured, setAiConfigured] = useState<boolean | null>(null);
   const [aiGenerated, setAiGenerated] = useState<{ title: string; instructions: string; criteria: Criteria[] } | null>(null);
   const [aiError, setAiError] = useState('');
+  const [aiSaving, setAiSaving] = useState(false);
+  const [aiStage, setAiStage] = useState(0);
+  const [aiElapsed, setAiElapsed] = useState(0);
+
+  useEffect(() => {
+    if (!aiGenerating) {
+      setAiStage(0);
+      setAiElapsed(0);
+      return;
+    }
+    const startedAt = Date.now();
+    const stageTimer = window.setInterval(() => {
+      setAiStage((stage) => Math.min(stage + 1, AI_STAGES.length - 1));
+    }, 3500);
+    const clockTimer = window.setInterval(() => {
+      setAiElapsed(Math.round((Date.now() - startedAt) / 1000));
+    }, 500);
+    return () => {
+      window.clearInterval(stageTimer);
+      window.clearInterval(clockTimer);
+    };
+  }, [aiGenerating]);
 
   const load = () => {
     setLoading(true);
@@ -232,7 +264,15 @@ export default function Rubrics() {
       const res = await api.get('/auth/me');
       setAiCredits(res.data.aiRubricCredits ?? null);
     } catch {
-      // credits unavailable; backend will enforce
+      setAiCredits(null);
+    } finally {
+      setAiCreditsLoaded(true);
+    }
+    try {
+      const status = await api.get('/rubrics/ai-status');
+      setAiConfigured(Boolean(status.data?.configured));
+    } catch {
+      setAiConfigured(null);
     }
   };
 
@@ -253,11 +293,23 @@ export default function Rubrics() {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
       const data = res.data;
-      setAiGenerated({
-        title: data.title || 'AI-Generated Rubric',
-        instructions: data.instructions || '',
-        criteria: (data.criteria || []).map((c: any) => ({
-          key: c.key || '',
+      const rawCriteria: any[] = data.criteria || [];
+      const usedKeys = new Set<string>();
+      const generatedCriteria: Criteria[] = rawCriteria.map((c, index) => {
+        const baseKey =
+          String(c.key || '').trim() ||
+          String(c.label || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 48) ||
+          `criterion-${index + 1}`;
+        let key = baseKey;
+        let suffix = 2;
+        while (usedKeys.has(key)) {
+          key = `${baseKey}-${suffix}`;
+          suffix += 1;
+        }
+        usedKeys.add(key);
+
+        return {
+          key,
           label: c.label || 'Criterion',
           section: c.section || 'General',
           description: c.description || '',
@@ -265,11 +317,18 @@ export default function Rubrics() {
           scoringMode: c.scoringMode || 'range',
           levels: (c.levels || []).map((l: any) => ({
             label: l.label || 'Level',
+            percentage: Number.isFinite(Number(l.percentage)) ? Number(l.percentage) : undefined,
             minScore: Number(l.minScore) || 0,
             maxScore: Number(l.maxScore) || 0,
             description: l.description || '',
           })),
-        })),
+        };
+      });
+
+      setAiGenerated({
+        title: data.title || 'AI-Generated Rubric',
+        instructions: data.instructions || '',
+        criteria: generatedCriteria,
       });
       setAiCredits(data.creditsRemaining ?? aiCredits);
       notify(`AI rubric generated. ${data.creditsRemaining ?? 0} credit(s) remaining.`);
@@ -285,10 +344,48 @@ export default function Rubrics() {
     setTitle(aiGenerated.title);
     setInstructions(aiGenerated.instructions);
     setCriteria(aiGenerated.criteria);
+    setEditingId(null);
+    setShowForm(true);
     setAiModal(false);
+    setAiGenerated(null);
     setError('');
+    notify('Generated rubric loaded into the form below. Review it, then click Save Rubric.');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
+
+  const saveAiGenerated = async () => {
+    if (!aiGenerated || aiSaving) return;
+    const validationError = validateRubricForm(aiGenerated.title, aiGenerated.criteria);
+    if (validationError) {
+      setAiError(validationError);
+      return;
+    }
+    setAiSaving(true);
+    setAiError('');
+    try {
+      await api.post('/rubrics', {
+        title: aiGenerated.title.trim(),
+        instructions: aiGenerated.instructions,
+        criteria: aiGenerated.criteria,
+      });
+      closeAiModal();
+      resetForm();
+      load();
+      notify('Rubric created. Activate it when you are ready to grade with it.');
+    } catch (err: unknown) {
+      setAiError(getErrorMessage(err, 'Could not save the generated rubric.'));
+    } finally {
+      setAiSaving(false);
+    }
+  };
+
+  const aiTotalPoints = aiGenerated
+    ? aiGenerated.criteria.reduce((sum, criterion) => sum + (Number(criterion.maxScore) || 0), 0)
+    : 0;
+
+  const aiSections = aiGenerated
+    ? Array.from(new Set(aiGenerated.criteria.map((criterion) => (criterion.section || 'General').trim() || 'General')))
+    : [];
 
   const closeAiModal = () => {
     setAiModal(false);
@@ -386,15 +483,15 @@ export default function Rubrics() {
 
   const levelColor = (label: string) => {
     if (label === 'Excellent') return 'evl-badge-success';
-    if (label === 'Good') return 'evl-badge-primary';
-    if (label === 'Fair') return 'evl-badge-warning';
+    if (label === 'Very Good' || label === 'Good') return 'evl-badge-primary';
+    if (label === 'Fair' || label === 'Needs Improvement') return 'evl-badge-warning';
     return 'evl-badge-danger';
   };
 
   const levelBg = (label: string) => {
     if (label === 'Excellent') return 'bg-success/5 border-success/20';
-    if (label === 'Good') return 'bg-primary/5 border-primary/20';
-    if (label === 'Fair') return 'bg-warning/5 border-warning/20';
+    if (label === 'Very Good' || label === 'Good') return 'bg-primary/5 border-primary/20';
+    if (label === 'Fair' || label === 'Needs Improvement') return 'bg-warning/5 border-warning/20';
     return 'bg-danger/5 border-danger/20';
   };
 
@@ -451,11 +548,14 @@ export default function Rubrics() {
             {criteria.map((c, ci) => (
               <div key={ci} className="border border-muted/30 rounded-2xl overflow-hidden bg-surface/30 shadow-sm transition-all duration-200">
                 <div className="bg-muted/10 px-5 py-4 border-b border-muted/30 flex justify-between items-center">
-                  <div className="flex items-center gap-3">
-                    <span className="w-6 h-6 rounded-full bg-primary/10 text-primary flex items-center justify-center text-[11px] font-bold">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <span className="w-6 h-6 rounded-full bg-primary/10 text-primary flex items-center justify-center text-[11px] font-bold shrink-0">
                       {ci + 1}
                     </span>
-                    <h4 className="font-bold text-text text-sm">{c.label || 'New Criteria'}</h4>
+                    <div className="min-w-0">
+                      <h4 className="truncate font-bold text-text text-sm">{c.label || 'New Criteria'}</h4>
+                      {c.key && <p className="truncate font-mono text-[10px] text-text/40">{c.key}</p>}
+                    </div>
                   </div>
                   <button type="button" onClick={() => removeCriteria(ci)}
                     className="text-danger hover:text-danger/70 text-xs font-semibold px-2 py-1 rounded-md hover:bg-danger/5 transition-colors">
@@ -480,20 +580,11 @@ export default function Rubrics() {
                   <label className="evl-label mb-5">Criterion Description
                     <textarea className="evl-input" value={c.description || ''} onChange={e => updateCriteria(ci, 'description', e.target.value)} rows={2} />
                   </label>
-                  <div className="grid grid-cols-1 md:grid-cols-12 gap-6 mb-8">
-                    <div className="md:col-span-5">
+                  <div className="grid grid-cols-1 md:grid-cols-12 gap-6 mb-6">
+                    <div className="md:col-span-9">
                       <label className="evl-label !mb-1.5">Criteria Name</label>
                       <input value={c.label} onChange={(e) => updateCriteria(ci, 'label', e.target.value)} required
                         className="evl-input" placeholder="e.g. System Functionality" />
-                    </div>
-                    <div className="md:col-span-4">
-                      <label className="evl-label !mb-1.5 flex items-center gap-2">
-                        System Key
-                        <span className="text-[9px] bg-muted/40 px-1 rounded text-text/65">Auto</span>
-                      </label>
-                      <input value={c.key} readOnly
-                        className="evl-input bg-muted/20 border-muted/30 text-text/65 cursor-not-allowed font-mono text-[11px]" 
-                        placeholder="Auto-generated..." />
                     </div>
                     <div className="md:col-span-3">
                       <label className="evl-label !mb-1.5">Max Score</label>
@@ -637,12 +728,16 @@ export default function Rubrics() {
                             <p className="font-bold text-text">{c.label}</p>
                             <span className="text-text/70 text-xs font-semibold">{c.maxScore} pts</span>
                           </div>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+                          <div className="flex flex-wrap gap-3">
                             {c.levels.map((l) => (
-                              <div key={l.label} className={`rounded-lg p-4 border ${levelBg(l.label)}`}>
-                                <div className="flex items-center justify-between mb-2">
+                              <div key={l.label} className={`min-w-[150px] flex-1 rounded-lg p-4 border ${levelBg(l.label)}`}>
+                                <div className="flex items-center justify-between gap-2 mb-2">
                                   <span className={levelColor(l.label)}>{l.label}</span>
-                                  <span className="text-text/65 text-[11px] font-semibold">{l.minScore}–{l.maxScore}</span>
+                                  <span className="text-text/65 text-[11px] font-semibold whitespace-nowrap">
+                                    {c.scoringMode === 'percentage' && Number.isFinite(l.percentage)
+                                      ? `${l.percentage}%`
+                                      : `${l.minScore}–${l.maxScore}`}
+                                  </span>
                                 </div>
                                 <p className="text-text/60 text-xs leading-relaxed">{l.description}</p>
                               </div>
@@ -664,64 +759,200 @@ export default function Rubrics() {
       {aiModal && (
         <div className="fixed inset-0 bg-dark/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-surface w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
-            <div className="px-6 py-4 border-b border-muted/30 flex justify-between items-center bg-bg">
-              <h3 className="font-bold text-text">Generate Rubric with AI</h3>
+            <div className="flex items-start justify-between gap-4 border-b border-muted/30 bg-bg px-6 py-4">
+              <div className="flex items-center gap-3">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M12 3v3" /><path d="M12 18v3" /><path d="M3 12h3" /><path d="M18 12h3" />
+                    <path d="m5.6 5.6 2.1 2.1" /><path d="m16.3 16.3 2.1 2.1" /><path d="m18.4 5.6-2.1 2.1" /><path d="m7.7 16.3-2.1 2.1" />
+                    <circle cx="12" cy="12" r="3" />
+                  </svg>
+                </span>
+                <div>
+                  <h3 className="font-bold text-text leading-tight">Generate Rubric with AI</h3>
+                  <p className="text-[11px] text-text/50">
+                    {!aiCreditsLoaded
+                      ? 'Checking AI credits…'
+                      : aiCredits !== null
+                        ? `${aiCredits} AI credit${aiCredits === 1 ? '' : 's'} remaining`
+                        : 'AI credits unavailable'}
+                    {aiCreditsLoaded && aiCredits === 0 && (
+                      <span className="ml-1 font-bold text-danger">— contact your Super Admin</span>
+                    )}
+                  </p>
+                </div>
+              </div>
               <button
                 onClick={closeAiModal}
-                className="text-text/70 hover:text-text text-xl"
+                aria-label="Close AI rubric generator"
+                disabled={aiGenerating || aiSaving}
+                className="text-text/50 hover:text-text text-xl leading-none disabled:opacity-30"
               >×</button>
             </div>
-            <div className="p-6 space-y-5">
-              <p className="text-text/60 text-xs mb-2">
-                {aiCredits !== null ? `AI credits remaining: <span className="font-bold text-text">{aiCredits}</span>` : 'Checking AI credits…'}
-                {aiCredits === 0 && <span className="ml-2 text-xs font-bold text-danger">(No credits left — contact your Super Admin)</span>}
-              </p>
-
-              {aiGenerated && (
-                <div className="bg-success/5 border border-success/20 text-success text-xs p-3 rounded-xl font-medium">
-                  Rubric generated — review the form below, then save.
+            <div className="max-h-[70vh] overflow-y-auto p-6 space-y-4">
+              {aiConfigured === false && (
+                <div className="rounded-xl border border-warning/30 bg-warning/10 p-3 text-xs font-medium text-warning">
+                  AI is not configured on this server. Add a <code className="font-bold">GEMINI_API_KEY</code> (or{' '}
+                  <code className="font-bold">GROQ_API_KEY</code>) to <code className="font-bold">back-end/.env</code>, then restart the backend.
                 </div>
               )}
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setAiMode('paste')}
-                  className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${aiMode === 'paste' ? 'bg-primary text-white' : 'border border-muted/30 text-text/70 bg-surface hover:text-text'}`}
-                >
-                  Paste text
-                </button>
-                <button
-                  onClick={() => setAiMode('file')}
-                  className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${aiMode === 'file' ? 'bg-primary text-white' : 'border border-muted/30 text-text/70 bg-surface hover:text-text'}`}
-                >
-                  Upload file
-                </button>
-              </div>
-              <form onSubmit={handleAiGenerate} className="space-y-4">
-                {aiMode === 'paste' && (
+
+              {aiGenerated && (
+                <div className="space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-success/20 bg-success/5 px-4 py-3">
+                    <p className="inline-flex items-center gap-2 text-xs font-bold text-success">
+                      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-success/15">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                          <path d="m5 13 4 4L19 7" />
+                        </svg>
+                      </span>
+                      Rubric ready
+                    </p>
+                    <p className="text-[11px] font-semibold text-text/60">
+                      {aiGenerated.criteria.length} criteria · {aiTotalPoints} pts
+                    </p>
+                  </div>
+
                   <div>
-                    <label className="evel-label block text-xs font-bold text-text/70 mb-1 uppercase">Rubric description / criteria text</label>
+                    <label htmlFor="ai-rubric-title" className="evl-label">Rubric title</label>
+                    <input
+                      id="ai-rubric-title"
+                      value={aiGenerated.title}
+                      onChange={(e) => setAiGenerated((prev) => (prev ? { ...prev, title: e.target.value } : prev))}
+                      className="evl-input"
+                      disabled={aiSaving}
+                    />
+                  </div>
+
+                  <div className="space-y-3">
+                    {aiSections.map((section) => (
+                      <div key={section} className="space-y-2">
+                        <p className="px-1 text-[10px] font-black uppercase tracking-widest text-text/45">{section}</p>
+                        {aiGenerated.criteria
+                          .map((criterion, index) => ({ criterion, index }))
+                          .filter(({ criterion }) => ((criterion.section || 'General').trim() || 'General') === section)
+                          .map(({ criterion: c, index }) => (
+                            <div key={`${c.key}-${index}`} className="rounded-xl border border-muted/25 bg-bg p-3">
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="flex min-w-0 items-start gap-2">
+                                  <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-primary/10 text-[10px] font-bold text-primary">
+                                    {index + 1}
+                                  </span>
+                                  <div className="min-w-0">
+                                    <p className="truncate text-xs font-bold text-text">{c.label}</p>
+                                    <p className="text-[10px] text-text/45">
+                                      {c.scoringMode === 'percentage' ? `${c.maxScore} pts · weighted` : `${c.maxScore} pts`}
+                                    </p>
+                                  </div>
+                                </div>
+                                <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">
+                                  {c.maxScore} pts
+                                </span>
+                              </div>
+                              <div className="mt-2 flex flex-wrap gap-1.5 sm:pl-7">
+                                {c.levels.map((level) => (
+                                  <span
+                                    key={level.label}
+                                    className="inline-flex items-center gap-1 rounded-full border border-muted/25 bg-surface px-2 py-0.5 text-[10px]"
+                                  >
+                                    <span className="font-semibold text-text/75">{level.label}</span>
+                                    <span className="text-text/45">
+                                      {c.scoringMode === 'percentage' && Number.isFinite(level.percentage)
+                                        ? `${level.percentage}%`
+                                        : `${level.minScore}–${level.maxScore}`}
+                                    </span>
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {!aiGenerated && !aiGenerating && (
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setAiMode('paste')}
+                    className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${aiMode === 'paste' ? 'bg-primary text-white' : 'border border-muted/30 text-text/70 bg-surface hover:text-text'}`}
+                  >
+                    Paste text
+                  </button>
+                  <button
+                    onClick={() => setAiMode('file')}
+                    className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${aiMode === 'file' ? 'bg-primary text-white' : 'border border-muted/30 text-text/70 bg-surface hover:text-text'}`}
+                  >
+                    Upload file
+                  </button>
+                </div>
+              )}
+              <form onSubmit={handleAiGenerate} className="space-y-4">
+                {aiGenerating && (
+                  <div className="rounded-xl border border-primary/20 bg-primary/5 p-5">
+                    <div className="flex items-center justify-center gap-3">
+                      <span className="h-5 w-5 rounded-full border-2 border-primary/25 border-t-primary animate-spin" aria-hidden="true" />
+                      <p className="text-sm font-semibold text-text" role="status" aria-live="polite">
+                        {AI_STAGES[aiStage]}
+                      </p>
+                    </div>
+                    <div className="mt-4 h-1.5 w-full overflow-hidden rounded-full bg-muted/20">
+                      <div
+                        className="h-full rounded-full bg-primary transition-all duration-700 ease-out"
+                        style={{ width: `${Math.min(92, 12 + aiStage * 20)}%` }}
+                      />
+                    </div>
+                    <ul className="mx-auto mt-4 max-w-xs space-y-1.5">
+                      {AI_STAGES.map((stage, index) => {
+                        const done = index < aiStage;
+                        const active = index === aiStage;
+                        return (
+                          <li
+                            key={stage}
+                            className={`flex items-center gap-2 text-[11px] ${done ? 'text-text/45' : active ? 'font-semibold text-text' : 'text-text/30'}`}
+                          >
+                            <span className={`flex h-4 w-4 items-center justify-center rounded-full border text-[8px] ${done ? 'border-success/30 bg-success/10 text-success' : active ? 'border-primary/40 text-primary' : 'border-muted/30 text-text/30'}`}>
+                              {done ? '✓' : index + 1}
+                            </span>
+                            {stage}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                    <p className="mt-3 text-center text-[11px] text-text/50">
+                      {aiElapsed}s elapsed — usually 5–20 seconds. Please keep this window open.
+                    </p>
+                  </div>
+                )}
+                {!aiGenerated && aiMode === 'paste' && (
+                  <div>
+                    <label htmlFor="ai-rubric-text" className="evl-label">Rubric description or criteria text</label>
                     <textarea
-                      className="evel-input w-full min-h-[160px] rounded-lg border border-muted/30 p-3 text-text focus:border-primary focus:ring-0"
+                      id="ai-rubric-text"
+                      className="evl-input min-h-[160px] disabled:opacity-50"
                       rows={8}
                       value={aiText}
                       onChange={(e) => setAiText(e.target.value)}
+                      disabled={aiGenerating}
                       placeholder="Paste the rubric description, criteria, and scoring levels here…"
                     />
                   </div>
                 )}
-                {aiMode === 'file' && (
+                {!aiGenerated && aiMode === 'file' && (
                   <div>
-                    <label className="evel-label block text-xs font-bold text-text/70 mb-1 uppercase">Upload rubric file (PDF, DOCX, TXT)</label>
+                    <label htmlFor="ai-rubric-file" className="evl-label">Rubric file (PDF, DOCX, TXT)</label>
                     <input
+                      id="ai-rubric-file"
                       type="file"
                       accept=".pdf,.doc,.docx,.txt"
-                      className="evel-input w-full rounded-lg border border-muted/30 p-3 text-text focus:border-primary focus:ring-0"
+                      className="evl-input disabled:opacity-50"
+                      disabled={aiGenerating}
                       onChange={(e) => {
                         if (e.target.files?.[0]) setAiFile(e.target.files[0]);
                       }}
                     />
                     {aiFile && <p className="text-[10px] text-text/50 mt-1">{aiFile.name}</p>}
-                    <p className="text-[10px] text-text/50 mt-1">Tip: If text cannot be extracted from the file, paste the rubric text instead.</p>
+                    <p className="text-[10px] text-text/50 mt-1">Tip: if text can't be extracted from the file, paste the rubric text instead.</p>
                   </div>
                 )}
                 {aiError && (
@@ -729,24 +960,38 @@ export default function Rubrics() {
                     {aiError}
                   </div>
                 )}
-                <div className="flex justify-end gap-2 pt-2">
+                <div className="flex flex-wrap items-center justify-end gap-2 border-t border-muted/20 pt-4">
+                  <p className="mr-auto text-[10px] text-text/45">
+                    {aiGenerated ? '1 AI credit was used for this generation.' : 'Each generation uses 1 AI credit.'}
+                  </p>
                   {aiGenerated ? (
                     <>
                       <button
                         type="button"
-                        onClick={loadAiGenerated}
-                        className="evl-btn-secondary !py-2 !text-xs"
-                        disabled={aiGenerating}
+                        onClick={closeAiModal}
+                        className="evl-btn-ghost !py-2 !text-xs"
+                        disabled={aiSaving}
                       >
-                        Apply to Form
+                        Discard
                       </button>
                       <button
                         type="button"
-                        onClick={closeAiModal}
-                        className="evl-btn-ghost !py-2 !text-xs"
-                        disabled={aiGenerating}
+                        onClick={loadAiGenerated}
+                        className="evl-btn-secondary !py-2 !text-xs"
+                        disabled={aiSaving}
                       >
-                        Close
+                        Edit in Form
+                      </button>
+                      <button
+                        type="button"
+                        onClick={saveAiGenerated}
+                        disabled={aiSaving}
+                        className="evl-btn-primary !py-2 !text-xs inline-flex items-center gap-2 disabled:opacity-50"
+                      >
+                        {aiSaving && (
+                          <span className="h-3.5 w-3.5 rounded-full border-2 border-white/40 border-t-white animate-spin" aria-hidden="true" />
+                        )}
+                        {aiSaving ? 'Saving…' : 'Save Rubric'}
                       </button>
                     </>
                   ) : (
@@ -761,9 +1006,12 @@ export default function Rubrics() {
                       </button>
                       <button
                         type="submit"
-                        disabled={aiGenerating || aiCredits === 0 || (!aiText.trim() && !aiFile)}
-                        className="evl-btn-primary !py-2 !text-xs disabled:opacity-40"
+                        disabled={aiGenerating || aiConfigured === false || aiCredits === 0 || (!aiText.trim() && !aiFile)}
+                        className="evl-btn-primary !py-2 !text-xs disabled:opacity-40 inline-flex items-center gap-2"
                       >
+                        {aiGenerating && (
+                          <span className="h-3.5 w-3.5 rounded-full border-2 border-white/40 border-t-white animate-spin" aria-hidden="true" />
+                        )}
                         {aiGenerating ? 'Generating…' : 'Generate Criteria'}
                       </button>
                     </>

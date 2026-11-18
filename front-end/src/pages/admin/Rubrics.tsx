@@ -10,6 +10,14 @@ import { useAuth } from '../../context/useAuth';
 import { useConfirmDialog } from '../../hooks/useConfirmDialog';
 import { useOperationalScope } from '../../hooks/useOperationalScope';
 
+const AI_STAGES = [
+  'Reading your rubric…',
+  'Identifying the grading criteria…',
+  'Building the score levels…',
+  'Writing the level descriptions…',
+  'Finalizing your rubric…',
+];
+
 interface Level {
   percentage?: number;
   label: string;
@@ -154,6 +162,27 @@ export default function Rubrics() {
   const [aiCredits, setAiCredits] = useState<number | null>(null);
   const [aiGenerated, setAiGenerated] = useState<{ title: string; instructions: string; criteria: Criteria[] } | null>(null);
   const [aiError, setAiError] = useState('');
+  const [aiStage, setAiStage] = useState(0);
+  const [aiElapsed, setAiElapsed] = useState(0);
+
+  useEffect(() => {
+    if (!aiGenerating) {
+      setAiStage(0);
+      setAiElapsed(0);
+      return;
+    }
+    const startedAt = Date.now();
+    const stageTimer = window.setInterval(() => {
+      setAiStage((stage) => Math.min(stage + 1, AI_STAGES.length - 1));
+    }, 3500);
+    const clockTimer = window.setInterval(() => {
+      setAiElapsed(Math.round((Date.now() - startedAt) / 1000));
+    }, 500);
+    return () => {
+      window.clearInterval(stageTimer);
+      window.clearInterval(clockTimer);
+    };
+  }, [aiGenerating]);
 
   const load = () => {
     setLoading(true);
@@ -697,14 +726,34 @@ export default function Rubrics() {
                 </button>
               </div>
               <form onSubmit={handleAiGenerate} className="space-y-4">
+                {aiGenerating && (
+                  <div className="rounded-xl border border-primary/20 bg-primary/5 p-5">
+                    <div className="flex items-center justify-center gap-3">
+                      <span className="h-5 w-5 rounded-full border-2 border-primary/25 border-t-primary animate-spin" aria-hidden="true" />
+                      <p className="text-sm font-semibold text-text" role="status" aria-live="polite">
+                        {AI_STAGES[aiStage]}
+                      </p>
+                    </div>
+                    <div className="mt-4 h-1.5 w-full overflow-hidden rounded-full bg-muted/20">
+                      <div
+                        className="h-full rounded-full bg-primary transition-all duration-700 ease-out"
+                        style={{ width: `${Math.min(92, 12 + aiStage * 20)}%` }}
+                      />
+                    </div>
+                    <p className="mt-2 text-center text-[11px] text-text/50">
+                      {aiElapsed}s elapsed — usually 5–20 seconds. Please keep this window open.
+                    </p>
+                  </div>
+                )}
                 {aiMode === 'paste' && (
                   <div>
                     <label className="evel-label block text-xs font-bold text-text/70 mb-1 uppercase">Rubric description / criteria text</label>
                     <textarea
-                      className="evel-input w-full min-h-[160px] rounded-lg border border-muted/30 p-3 text-text focus:border-primary focus:ring-0"
+                      className="evel-input w-full min-h-[160px] rounded-lg border border-muted/30 p-3 text-text focus:border-primary focus:ring-0 disabled:opacity-50"
                       rows={8}
                       value={aiText}
                       onChange={(e) => setAiText(e.target.value)}
+                      disabled={aiGenerating}
                       placeholder="Paste the rubric description, criteria, and scoring levels here…"
                     />
                   </div>
@@ -715,7 +764,8 @@ export default function Rubrics() {
                     <input
                       type="file"
                       accept=".pdf,.doc,.docx,.txt"
-                      className="evel-input w-full rounded-lg border border-muted/30 p-3 text-text focus:border-primary focus:ring-0"
+                      className="evel-input w-full rounded-lg border border-muted/30 p-3 text-text focus:border-primary focus:ring-0 disabled:opacity-50"
+                      disabled={aiGenerating}
                       onChange={(e) => {
                         if (e.target.files?.[0]) setAiFile(e.target.files[0]);
                       }}
@@ -762,8 +812,11 @@ export default function Rubrics() {
                       <button
                         type="submit"
                         disabled={aiGenerating || aiCredits === 0 || (!aiText.trim() && !aiFile)}
-                        className="evl-btn-primary !py-2 !text-xs disabled:opacity-40"
+                        className="evl-btn-primary !py-2 !text-xs disabled:opacity-40 inline-flex items-center gap-2"
                       >
+                        {aiGenerating && (
+                          <span className="h-3.5 w-3.5 rounded-full border-2 border-white/40 border-t-white animate-spin" aria-hidden="true" />
+                        )}
                         {aiGenerating ? 'Generating…' : 'Generate Criteria'}
                       </button>
                     </>

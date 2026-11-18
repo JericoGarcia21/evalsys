@@ -44,6 +44,12 @@ const extractAndParseJson = (text) => {
   }
 };
 
+const slugifyKey = (value) => String(value || '')
+  .toLowerCase()
+  .replace(/[^a-z0-9]+/g, '-')
+  .replace(/^-+|-+$/g, '')
+  .slice(0, 48);
+
 const normalizeResult = (parsed) => {
   // Handle different JSON shapes: { criteria: [...] } or { rubric: { criteria: [...] } }
   let criteriaArray = parsed.criteria;
@@ -54,20 +60,33 @@ const normalizeResult = (parsed) => {
     throw new Error('AI response missing criteria array');
   }
 
-  const normalizedCriteria = criteriaArray.map((c) => ({
-    label: String(c.label || c.name || 'Criterion').trim(),
-    section: String(c.section || 'General').trim(),
-    description: String(c.description || '').trim(),
-    maxScore: Number(c.maxScore || c.points || 0) || 0,
-    scoringMode: c.scoringMode === 'percentage' ? 'percentage' : 'range',
-    key: String(c.key || '').trim() || '',
-    levels: (c.levels || []).map((l) => ({
-      label: String(l.label || l.name || 'Level').trim(),
-      minScore: Number(l.minScore || l.min_score || 0) || 0,
-      maxScore: Number(l.maxScore || l.max_score || 0) || 0,
-      description: String(l.description || '').trim(),
-    })),
-  }));
+  const usedKeys = new Set();
+  const normalizedCriteria = criteriaArray.map((c, index) => {
+    // Criteria keys are required by the rubric form and must be unique.
+    const baseKey = slugifyKey(c.key || c.label || c.name) || `criterion-${index + 1}`;
+    let key = baseKey;
+    let suffix = 2;
+    while (usedKeys.has(key)) {
+      key = `${baseKey}-${suffix}`;
+      suffix += 1;
+    }
+    usedKeys.add(key);
+
+    return {
+      label: String(c.label || c.name || 'Criterion').trim(),
+      section: String(c.section || 'General').trim(),
+      description: String(c.description || '').trim(),
+      maxScore: Number(c.maxScore || c.points || 0) || 0,
+      scoringMode: c.scoringMode === 'percentage' ? 'percentage' : 'range',
+      key,
+      levels: (c.levels || []).map((l) => ({
+        label: String(l.label || l.name || 'Level').trim(),
+        minScore: Number(l.minScore || l.min_score || 0) || 0,
+        maxScore: Number(l.maxScore || l.max_score || 0) || 0,
+        description: String(l.description || '').trim(),
+      })),
+    };
+  });
 
   return {
     title: String(parsed.title || parsed.rubric?.title || 'AI-Generated Rubric').trim(),

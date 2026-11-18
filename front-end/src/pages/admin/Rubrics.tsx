@@ -292,11 +292,23 @@ export default function Rubrics() {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
       const data = res.data;
-      setAiGenerated({
-        title: data.title || 'AI-Generated Rubric',
-        instructions: data.instructions || '',
-        criteria: (data.criteria || []).map((c: any) => ({
-          key: c.key || '',
+      const rawCriteria: any[] = data.criteria || [];
+      const usedKeys = new Set<string>();
+      const generatedCriteria: Criteria[] = rawCriteria.map((c, index) => {
+        const baseKey =
+          String(c.key || '').trim() ||
+          String(c.label || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 48) ||
+          `criterion-${index + 1}`;
+        let key = baseKey;
+        let suffix = 2;
+        while (usedKeys.has(key)) {
+          key = `${baseKey}-${suffix}`;
+          suffix += 1;
+        }
+        usedKeys.add(key);
+
+        return {
+          key,
           label: c.label || 'Criterion',
           section: c.section || 'General',
           description: c.description || '',
@@ -308,7 +320,13 @@ export default function Rubrics() {
             maxScore: Number(l.maxScore) || 0,
             description: l.description || '',
           })),
-        })),
+        };
+      });
+
+      setAiGenerated({
+        title: data.title || 'AI-Generated Rubric',
+        instructions: data.instructions || '',
+        criteria: generatedCriteria,
       });
       setAiCredits(data.creditsRemaining ?? aiCredits);
       notify(`AI rubric generated. ${data.creditsRemaining ?? 0} credit(s) remaining.`);
@@ -324,8 +342,12 @@ export default function Rubrics() {
     setTitle(aiGenerated.title);
     setInstructions(aiGenerated.instructions);
     setCriteria(aiGenerated.criteria);
+    setEditingId(null);
+    setShowForm(true);
     setAiModal(false);
+    setAiGenerated(null);
     setError('');
+    notify('Generated rubric loaded into the form below. Review it, then click Save Rubric.');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -733,8 +755,30 @@ export default function Rubrics() {
               </div>
 
               {aiGenerated && (
-                <div className="bg-success/5 border border-success/20 text-success text-xs p-3 rounded-xl font-medium">
-                  Rubric generated — review the form below, then save.
+                <div className="space-y-2">
+                  <div className="bg-success/5 border border-success/20 text-success text-xs p-3 rounded-xl font-medium">
+                    Rubric generated — review the criteria below, then apply to the form to save it.
+                  </div>
+                  <div className="rounded-xl border border-muted/30 bg-bg p-4">
+                    <div className="flex items-center justify-between gap-3 mb-2">
+                      <p className="text-xs font-bold text-text truncate">{aiGenerated.title}</p>
+                      <p className="text-[11px] text-text/60 whitespace-nowrap">
+                        {aiGenerated.criteria.length} criteria ·{' '}
+                        {aiGenerated.criteria.reduce((sum, c) => sum + (Number(c.maxScore) || 0), 0)} pts
+                      </p>
+                    </div>
+                    <ul className="max-h-52 overflow-auto space-y-1.5 pr-1">
+                      {aiGenerated.criteria.map((c, index) => (
+                        <li key={`${c.key}-${index}`} className="flex items-start justify-between gap-3 text-[11px]">
+                          <span className="text-text/80">
+                            {c.label}
+                            <span className="text-text/40"> · {c.section}</span>
+                          </span>
+                          <span className="text-text/60 whitespace-nowrap">{c.maxScore} pts</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
                 </div>
               )}
               <div className="flex gap-2">

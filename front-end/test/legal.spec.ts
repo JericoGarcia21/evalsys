@@ -58,3 +58,44 @@ test('landing and login expose copyright and policy links', async ({ page }) => 
     await expect(page.getByRole('contentinfo')).toContainText('All rights reserved.');
   }
 });
+
+test('workspace legal footer stays pinned to the bottom for a panel on short pages', async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('token', 'footer-visibility-test'));
+  await page.route('**/api/**', route => {
+    const url = new URL(route.request().url());
+    if (url.pathname.endsWith('/auth/me')) return route.fulfill({ json: {
+      _id: 'footer-panel', id: 'footer-panel', name: 'Footer Panel', role: 'panel', mustChangePassword: false,
+    } });
+    if (url.pathname.endsWith('/chat/rooms')) return route.fulfill({ json: { rooms: [] } });
+    return route.fulfill({ json: [] });
+  });
+
+  for (const width of [1280, 390]) {
+    // Tall viewport: content is shorter than the screen, so the footer must sit at the bottom.
+    await page.setViewportSize({ width, height: 2400 });
+    await page.goto('/dashboard');
+    const footer = page.locator('.workspace-legal-footer');
+    await expect(footer).toBeVisible();
+    await expect(footer).toContainText('All rights reserved.');
+    await expect(footer.getByRole('link')).toHaveCount(3);
+    expect(await footer.evaluate(element => getComputedStyle(element).position)).toBe('sticky');
+
+    const tall = await footer.evaluate(element => {
+      const box = element.getBoundingClientRect();
+      return { bottom: box.bottom, top: box.top, viewport: innerHeight };
+    });
+    expect(tall.bottom).toBeLessThanOrEqual(tall.viewport + 1, 'footer never falls below the viewport');
+    expect(tall.viewport - tall.bottom).toBeLessThanOrEqual(48, 'footer sits at the bottom edge');
+    expect(tall.top).toBeGreaterThan(tall.viewport / 2, 'footer is not floating mid-page');
+
+    // Shorter viewport: the footer stays reachable and pinned while scrolling.
+    await page.setViewportSize({ width, height: 860 });
+    await page.goto('/dashboard');
+    await footer.scrollIntoViewIfNeeded();
+    const scrolled = await footer.evaluate(element => ({
+      bottom: element.getBoundingClientRect().bottom,
+      viewport: innerHeight,
+    }));
+    expect(Math.round(scrolled.bottom)).toBeLessThanOrEqual(scrolled.viewport + 1);
+  }
+});

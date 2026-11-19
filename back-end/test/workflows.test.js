@@ -564,6 +564,67 @@ test('unassigning a panel who never submitted removes them from the required ros
   assert.deepEqual(exported.body[0].MissingPanels, '');
 });
 
+test('removed panel loses grading access but keeps their submitted evaluation', async () => {
+  await submit(panel, { quality: 8 }).expect(200);
+  const own = await submit(secondPanel, { quality: 10 }).expect(200);
+  const evaluationId = own.body._id;
+
+  // Instructor unassigns the panel from the block through the Assign Panels screen.
+  await api('post', '/api/sections/assign-blocks')
+    .send({ panelId: secondPanel._id.toString(), sectionIds: [] })
+    .expect(200);
+
+  // They can no longer grade or see the workspace for that block.
+  await submit(secondPanel, { quality: 5 }).expect(403);
+  const panelGroups = await api('get', '/api/groups', secondPanel).expect(200);
+  assert.deepEqual(panelGroups.body.filter(g => g._id === group._id.toString()), []);
+
+  // Their existing evaluation is still readable by them and unchanged.
+  const mine = await api('get', '/api/evaluations/group/' + group._id + '/mine', secondPanel).expect(200);
+  assert.equal(mine.body._id, evaluationId);
+  assert.equal(mine.body.total, 10);
+  assert.equal(mine.body.scores.quality, 10);
+  assert.equal(mine.body.isSubmitted, true);
+
+  // Instructor results and exports still count the submitted score.
+  const results = await api('get', '/api/evaluations/section/' + section._id + '/results').expect(200);
+  assert.equal(results.body[0].isIncomplete, false);
+  assert.deepEqual(results.body[0].missingPanels, []);
+  assert.equal(results.body[0].finalTotal, 9);
+  assert.equal(results.body[0].evaluatedBy.length, 2);
+
+  const single = await api('get', '/api/evaluations/group/' + group._id + '/result').expect(200);
+  assert.equal(single.body.finalTotal, 9);
+
+  const exported = await api('get', '/api/evaluations/export-all').expect(200);
+  assert.equal(exported.body[0].Status, 'Complete');
+  assert.equal(exported.body[0].AverageScore, 9);
+});
+
+test('panel dashboard stays usable after another panel is added to the block', async () => {
+  await submit(panel, { quality: 8 }).expect(200);
+
+  const latePanel = await Panel.create({ name: 'Panel D', email: 'qa-dash-d@evalsys.com', password, createdBy: instructor._id, mustChangePassword: false });
+  await api('post', '/api/sections/assign-blocks')
+    .send({ panelId: latePanel._id.toString(), sectionIds: [section._id.toString()] })
+    .expect(200);
+
+  // The original panel still sees the block and their own draft/submission.
+  const groups = await api('get', '/api/groups', panel).expect(200);
+  const row = groups.body.find(g => g._id === group._id.toString());
+  assert.ok(row, 'assigned panel still lists the group');
+  assert.equal(row.isGraded, true);
+
+  const mine = await api('get', '/api/evaluations/group/' + group._id + '/mine', panel).expect(200);
+  assert.equal(mine.body.total, 8);
+
+  // The new panel sees the same block without inheriting the other panel's score.
+  const lateGroups = await api('get', '/api/groups', latePanel).expect(200);
+  assert.ok(lateGroups.body.some(g => g._id === group._id.toString()));
+  const lateMine = await api('get', '/api/evaluations/group/' + group._id + '/mine', latePanel).expect(200);
+  assert.equal(lateMine.body, null);
+});
+
 test('revoked subject access blocks result reads and member-only group edits', async () => {
   await Admin.updateOne({ _id: instructor._id }, { assignedSubjects: [] });
   await api('get', '/api/evaluations/group/' + group._id + '/result').expect(403);

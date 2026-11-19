@@ -26,8 +26,10 @@ exports.getAnalytics = async (req, res) => {
         _students: { $size: { $ifNull: ['$members', []] } },
         _hasProposal: { $ne: [{ $ifNull: ['$proposalFile.path', ''] }, ''] },
       } },
-      { $set: { _expectedIds: { $setUnion: [{ $ifNull: ['$assignedPanels', []] }, { $ifNull: ['$_section.assignedPanels', []] }] } } },
-      { $lookup: { from: Panel.collection.name, localField: '_expectedIds', foreignField: '_id', pipeline: [{ $project: { _id: 1 } }], as: '_panels' } },
+      { $set: {
+        _snapshotIds: { $ifNull: ['$gradingPanelIds', []] },
+        _assignedIds: { $setUnion: [{ $ifNull: ['$assignedPanels', []] }, { $ifNull: ['$_section.assignedPanels', []] }] },
+      } },
       { $lookup: {
         from: Evaluation.collection.name,
         let: { groupId: '$_id' },
@@ -37,6 +39,12 @@ exports.getAnalytics = async (req, res) => {
         ],
         as: '_evaluations',
       } },
+      { $set: { _expectedIds: { $cond: [
+        { $gt: [{ $size: '$_snapshotIds' }, 0] },
+        '$_snapshotIds',
+        { $cond: [{ $gt: [{ $size: '$_evaluations' }, 0] }, '$_evaluations.panel', '$_assignedIds'] },
+      ] } } },
+      { $lookup: { from: Panel.collection.name, localField: '_expectedIds', foreignField: '_id', pipeline: [{ $project: { _id: 1 } }], as: '_panels' } },
       { $set: {
         _missing: { $size: { $setDifference: ['$_panels._id', '$_evaluations.panel'] } },
         _submitted: { $size: { $setIntersection: ['$_panels._id', '$_evaluations.panel'] } },

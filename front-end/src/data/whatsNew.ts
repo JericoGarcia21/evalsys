@@ -13,9 +13,21 @@ export interface ReleaseNote {
 }
 
 /** Bump this whenever you add a release note — users see each version once. */
-export const CURRENT_VERSION = '1.5.2';
+export const CURRENT_VERSION = '1.5.3';
 
 export const RELEASES: ReleaseNote[] = [
+  {
+    version: '1.5.3',
+    date: '2026-11-19',
+    title: 'Pinned legal footer and stable panel results',
+    items: [
+      'The legal footer (Terms of Use, Privacy Policy, Copyright) now stays pinned to the bottom on every page.',
+      'Adding a panel after groups were graded no longer reopens completed results or lowers their computed score.',
+      'A panel added later can still submit an evaluation; that score only joins the average once it is submitted.',
+      'If a panel leaves and is unassigned from a block, their submitted evaluation is kept and still counts in the result.',
+      'A panel unassigned before grading is no longer counted as missing, so the group is not stuck waiting for them.',
+    ],
+  },
   {
     version: '1.5.2',
     date: '2026-11-18',

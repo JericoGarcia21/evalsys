@@ -13,9 +13,17 @@ export interface ReleaseNote {
 }
 
 /** Bump this whenever you add a release note — users see each version once. */
-export const CURRENT_VERSION = '1.5.3';
+export const CURRENT_VERSION = '1.5.4';
 
 export const RELEASES: ReleaseNote[] = [
+  {
+    version: '1.5.4',
+    date: '2026-11-19',
+    title: 'Footer alignment on smaller screens',
+    items: [
+      'The legal footer now sits at the very bottom of the page on phones and tablets instead of just below the visible area.',
+    ],
+  },
   {
     version: '1.5.3',
     date: '2026-11-19',

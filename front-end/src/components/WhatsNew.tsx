@@ -6,6 +6,9 @@ export const openWhatsNewEvent = 'evalsys:whats-new-open';
 
 const storageKey = (userId: string) => `evalsys_whats_new_seen_${userId}`;
 
+// Automated UI tests opt out so the one-time modal cannot block their interactions.
+const autoOpenDisabled = import.meta.env.VITE_DISABLE_WHATS_NEW === 'true';
+
 const readSeenVersion = (userId: string) => {
   try {
     return localStorage.getItem(storageKey(userId)) || '';
@@ -33,6 +36,7 @@ export default function WhatsNew() {
 
   // Show once per user per release version.
   useEffect(() => {
+    if (autoOpenDisabled) return;
     if (!userId || !release) return;
     if (readSeenVersion(userId) === release.version) return;
     const timer = window.setTimeout(() => {

@@ -440,31 +440,73 @@ test('mixed block and group assignments use a unique combined expected-panel set
   await submit(third).expect(200);
   const complete = await api('get', '/api/evaluations/export-all').expect(200); assert.equal(complete.body[0].AverageScore, 8);
 });
-test('adding a panel after grading completes does not change or reopen submitted results', async () => {
+test('adding a fourth panel through block assignment after three panels finished does not reopen results', async () => {
+  const thirdPanel = await Panel.create({ name: 'Panel C', email: 'qa-late-c@evalsys.com', password, createdBy: instructor._id, mustChangePassword: false });
+  await Section.updateOne({ _id: section._id }, { assignedPanels: [panel._id, secondPanel._id, thirdPanel._id] });
+  clearResponseCache();
+
   await submit(panel, { quality: 8 }).expect(200);
-  await submit(secondPanel, { quality: 10 }).expect(200);
+  await submit(secondPanel, { quality: 6 }).expect(200);
+  await submit(thirdPanel, { quality: 7 }).expect(200);
 
   let results = await api('get', '/api/evaluations/section/' + section._id + '/results').expect(200);
   assert.equal(results.body[0].isIncomplete, false);
-  assert.equal(results.body[0].finalTotal, 9);
+  assert.equal(results.body[0].finalTotal, 7);
+  assert.equal((await Group.findById(group._id)).gradingPanelIds.length, 3, 'the original three graders are frozen');
 
+  // Exactly the reported case: a fourth panel is suddenly assigned to the block.
   const latePanel = await Panel.create({ name: 'Panel D', email: 'qa-late-d@evalsys.com', password, createdBy: instructor._id, mustChangePassword: false });
-  await Section.updateOne({ _id: section._id }, { $addToSet: { assignedPanels: latePanel._id } });
+  await api('post', '/api/sections/assign-blocks').send({ panelId: latePanel._id.toString(), sectionIds: [section._id.toString()] }).expect(200);
 
   results = await api('get', '/api/evaluations/section/' + section._id + '/results').expect(200);
-  assert.equal(results.body[0].isIncomplete, false);
-  assert.deepEqual(results.body[0].missingPanels, []);
-  assert.equal(results.body[0].finalTotal, 9);
+  assert.equal(results.body[0].isIncomplete, false, 'completed grading must not reopen');
+  assert.deepEqual(results.body[0].missingPanels, [], 'the new panel is not required');
+  assert.equal(results.body[0].finalTotal, 7, 'the score stays computed over the original three panels');
+  assert.equal(results.body[0].evaluatedBy.length, 3);
 
   const exported = await api('get', '/api/evaluations/export-all').expect(200);
   assert.equal(exported.body[0].Status, 'Complete');
-  assert.equal(exported.body[0].AverageScore, 9);
+  assert.equal(exported.body[0].AverageScore, 7);
 
-  // A late panel may still grade; their score then joins the average.
+  // Direct group-level assignment must not reopen the result either.
+  await Group.updateOne({ _id: group._id }, { $addToSet: { assignedPanels: latePanel._id } });
+  clearResponseCache();
+  results = await api('get', '/api/evaluations/section/' + section._id + '/results').expect(200);
+  assert.equal(results.body[0].isIncomplete, false);
+  assert.equal(results.body[0].finalTotal, 7);
+
+  // The late panel may still grade; only then does their score join the average.
   await submit(latePanel, { quality: 10 }).expect(200);
   results = await api('get', '/api/evaluations/section/' + section._id + '/results').expect(200);
-  assert.equal(results.body[0].evaluatedBy.length, 3);
-  assert.equal(results.body[0].finalTotal, Math.round((8 + 10 + 10) / 3 * 100) / 100);
+  assert.equal(results.body[0].isIncomplete, false);
+  assert.equal(results.body[0].evaluatedBy.length, 4);
+  assert.equal(results.body[0].finalTotal, 7.75);
+});
+
+test('adding a panel while a group is still being graded does not make the new panel required', async () => {
+  const thirdPanel = await Panel.create({ name: 'Panel C', email: 'qa-mid-c@evalsys.com', password, createdBy: instructor._id, mustChangePassword: false });
+  await Section.updateOne({ _id: section._id }, { assignedPanels: [panel._id, secondPanel._id, thirdPanel._id] });
+  clearResponseCache();
+
+  await submit(panel, { quality: 9 }).expect(200);
+  let results = await api('get', '/api/evaluations/section/' + section._id + '/results').expect(200);
+  assert.deepEqual(results.body[0].missingPanels, ['Panel B', 'Panel C']);
+  assert.equal(results.body[0].finalTotal, 3);
+
+  const latePanel = await Panel.create({ name: 'Panel D', email: 'qa-mid-d@evalsys.com', password, createdBy: instructor._id, mustChangePassword: false });
+  await api('post', '/api/sections/assign-blocks').send({ panelId: latePanel._id.toString(), sectionIds: [section._id.toString()] }).expect(200);
+
+  results = await api('get', '/api/evaluations/section/' + section._id + '/results').expect(200);
+  assert.deepEqual(results.body[0].missingPanels, ['Panel B', 'Panel C'], 'the added panel is not awaited');
+  assert.equal(results.body[0].finalTotal, 3, 'the divisor stays at the three original panels');
+
+  // When the original two finish, the group is complete without the added panel.
+  await submit(secondPanel, { quality: 6 }).expect(200);
+  await submit(thirdPanel, { quality: 3 }).expect(200);
+  results = await api('get', '/api/evaluations/section/' + section._id + '/results').expect(200);
+  assert.equal(results.body[0].isIncomplete, false);
+  assert.deepEqual(results.body[0].missingPanels, []);
+  assert.equal(results.body[0].finalTotal, 6);
 });
 
 test('unassigning a panel after they submitted keeps their evaluation and the computed result', async () => {

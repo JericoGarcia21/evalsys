@@ -75,6 +75,7 @@ The "seen" flag is stored per user in `localStorage` under
 
 | Version | Date | Title | Audience | Summary |
 | --- | --- | --- | --- | --- |
+| 1.5.3 | 2026-11-19 | Pinned legal footer and stable panel results | Everyone | Legal footer pinned to the bottom on every page; adding a panel after grading no longer reopens or changes completed results; unassigning a panel keeps their submitted score and stops counting them as missing. |
 | 1.5.2 | 2026-11-18 | Weighted rubrics in AI generation | Instructor, Super Admin | AI now reads criterion weights and percentage scales, preserving sections and 100-point totals for rubrics like the Database Final Project. |
 | 1.5.1 | 2026-11-18 | Cleaner AI rubric review | Instructor, Super Admin | Redesigned AI review panel with level chips, one-click save, and a tidier rubric form. |
 | 1.5.0 | 2026-11-18 | AI rubrics and presentation order | Instructor, Super Admin | AI rubric generation from text/file, per-instructor AI credits, Presentation page with per-block shuffle and minutes, live generation progress. |

@@ -1,6 +1,7 @@
 const { getAssignedPanels } = require('../utils/panelAssignments');
 const Evaluation = require('../models/Evaluation');
 const Group = require('../models/Group');
+const Panel = require('../models/Panel');
 const Section = require('../models/Section');
 const Rubric = require('../models/Rubric');
 const Admin = require('../models/Admin');
@@ -40,6 +41,46 @@ const getPanelName = (evaluation) => (
   evaluation.legacySnapshot?.panelName ||
   'Deleted panel'
 );
+
+const toIdString = (value) => (value?._id || value)?.toString?.() || '';
+
+// A group's expected graders are frozen when its first evaluation is submitted.
+// Panels added later may still submit, but they are not required for a group that
+// was already graded, and adding one must not change an already computed result.
+const resolveExpectedPanelIds = ({ group, sectionPanels = [], groupPanels = [], evaluations = [], panelCreatedAt = new Map() }) => {
+  const snapshotIds = (group?.gradingPanelIds || []).map(toIdString).filter(Boolean);
+  const assignedIds = getAssignedPanels(sectionPanels, groupPanels).map(toIdString).filter(Boolean);
+  const submittedIds = evaluations.map((evaluation) => toIdString(evaluation.panel)).filter(Boolean);
+
+  if (snapshotIds.length) {
+    const assignedSet = new Set(assignedIds);
+    // Panels removed from the block are no longer required.
+    const expected = snapshotIds.filter((id) => assignedSet.has(id) || submittedIds.includes(id));
+    return { ids: expected.length ? expected : submittedIds, legacy: false };
+  }
+
+  if (!evaluations.length) return { ids: assignedIds, legacy: false };
+
+  // Groups graded before snapshots existed: keep the graders that existed then.
+  const submittedAt = evaluations
+    .map((evaluation) => new Date(evaluation.createdAt || evaluation.updatedAt || 0).getTime())
+    .filter(Number.isFinite);
+  const firstSubmittedAt = submittedAt.length ? Math.min(...submittedAt) : NaN;
+  const existingIds = assignedIds.filter((id) => {
+    const createdAt = panelCreatedAt.get(id);
+    if (!createdAt || !Number.isFinite(firstSubmittedAt)) return true;
+    return new Date(createdAt).getTime() <= firstSubmittedAt;
+  });
+  return { ids: Array.from(new Set([...existingIds, ...submittedIds])), legacy: true };
+};
+
+const persistGradingSnapshot = (groupId, ids) => {
+  if (!groupId || !ids.length) return;
+  Group.updateOne(
+    { _id: groupId, $or: [{ gradingPanelIds: { $exists: false } }, { gradingPanelIds: { $size: 0 } }] },
+    { $set: { gradingPanelIds: ids } }
+  ).catch(() => {});
+};
 
 const serializeEvaluation = (evaluation) => {
   if (!evaluation) return null;
@@ -237,6 +278,14 @@ exports.submitEvaluation = async (req, res) => {
     { new: true, upsert: true, runValidators: true }
   );
 
+  // Freeze the roster the first time this group is graded.
+  if (!(group.gradingPanelIds || []).length) {
+    persistGradingSnapshot(
+      group._id,
+      getAssignedPanels(section.assignedPanels || [], group.assignedPanels || []).map(toIdString).filter(Boolean)
+    );
+  }
+
   await recordAuditLog(req, {
     action: evaluation.createdAt?.getTime?.() === evaluation.updatedAt?.getTime?.()
       ? 'evaluation.submit'
@@ -282,9 +331,36 @@ exports.getGroupResult = async (req, res) => {
   if (!evaluations.length)
     return res.json({ evaluations: [], averaged: null, finalTotal: null });
 
-  // Count unique section and direct group assignments, preserving historical evaluations.
+  // Count the graders expected when this group started, preserving historical evaluations.
   const groupDoc = await Group.findById(req.params.groupId).populate('section');
-  const divisor = Math.max(getAssignedPanels(groupDoc?.section?.assignedPanels || [], groupDoc?.assignedPanels || []).length, evaluations.length, 1);
+  const sectionPanelIds = (groupDoc?.section?.assignedPanels || []).map(toIdString).filter(Boolean);
+  const groupPanelIds = (groupDoc?.assignedPanels || []).map(toIdString).filter(Boolean);
+  const submittedPanelIds = evaluations.map((evaluation) => toIdString(evaluation.panel)).filter(Boolean);
+  const referencedPanelIds = [...new Set([
+    ...sectionPanelIds,
+    ...groupPanelIds,
+    ...(groupDoc?.gradingPanelIds || []).map(toIdString).filter(Boolean),
+    ...submittedPanelIds,
+  ])];
+  const referencedPanels = referencedPanelIds.length
+    ? await Panel.find({ _id: { $in: referencedPanelIds } }).select('name createdAt isActive')
+    : [];
+  const panelById = new Map(referencedPanels.map((panel) => [panel._id.toString(), panel]));
+  const panelCreatedAt = new Map(referencedPanels.map((panel) => [panel._id.toString(), panel.createdAt]));
+
+  const expected = resolveExpectedPanelIds({
+    group: groupDoc,
+    sectionPanels: sectionPanelIds,
+    groupPanels: groupPanelIds,
+    evaluations,
+    panelCreatedAt,
+  });
+  if (expected.legacy) persistGradingSnapshot(groupDoc._id, expected.ids);
+
+  const expectedPanelDocs = expected.ids
+    .map((id) => panelById.get(id))
+    .filter((panel) => panel && panel.isActive !== false);
+  const divisor = Math.max(expectedPanelDocs.length, evaluations.length, 1);
 
   // Dynamically collect all categories used in these evaluations
   const averaged = {};
@@ -323,7 +399,7 @@ exports.getGroupResult = async (req, res) => {
 exports.getSectionResults = async (req, res) => {
   const section = await Section.findById(req.params.sectionId)
     .select('subject createdBy assignedPanels')
-    .populate('assignedPanels', 'name email');
+    .populate('assignedPanels', 'name email createdAt');
   if (!section) return res.status(404).json({ message: 'Section not found' });
   if (!section.createdBy || section.createdBy.toString() !== getOwnerId(req)?.toString()) {
     return res.status(403).json({ message: 'This block does not belong to the current instructor' });
@@ -342,7 +418,7 @@ exports.getSectionResults = async (req, res) => {
   const activeRubric = await Rubric.findOne(activeRubricFilter);
   const activeCriteria = serializeCriteria(activeRubric?.criteria || []);
   const groups = await Group.find({ section: req.params.sectionId, createdBy: getOwnerId(req) })
-    .populate('assignedPanels', 'name email');
+    .populate('assignedPanels', 'name email createdAt');
   const groupIds = groups.map((group) => group._id);
   const sectionEvaluations = groupIds.length ? await Evaluation.aggregate([
     {
@@ -379,19 +455,51 @@ exports.getSectionResults = async (req, res) => {
     if (!evaluationsByGroup.has(key)) evaluationsByGroup.set(key, []);
     evaluationsByGroup.get(key).push(evaluation);
   });
+
+  const panelCreatedAt = new Map();
+  [...(section.assignedPanels || []), ...groups.flatMap((group) => group.assignedPanels || [])]
+    .forEach((panel) => {
+      const id = toIdString(panel);
+      if (id && panel?.createdAt) panelCreatedAt.set(id, panel.createdAt);
+    });
+
+  const expectedByGroup = new Map();
+  const expectedIds = new Set();
+  groups.forEach((group) => {
+    const key = group._id.toString();
+    const evaluations = evaluationsByGroup.get(key) || [];
+    const resolved = resolveExpectedPanelIds({
+      group,
+      sectionPanels: section.assignedPanels || [],
+      groupPanels: group.assignedPanels || [],
+      evaluations,
+      panelCreatedAt,
+    });
+    if (resolved.legacy) persistGradingSnapshot(group._id, resolved.ids);
+    expectedByGroup.set(key, resolved.ids);
+    resolved.ids.forEach((id) => expectedIds.add(id));
+  });
+
+  const expectedPanelDocs = expectedIds.size
+    ? await Panel.find({ _id: { $in: [...expectedIds] }, isActive: true }).select('name')
+    : [];
+  const expectedPanelById = new Map(expectedPanelDocs.map((panel) => [panel._id.toString(), panel]));
+
   const results = await Promise.all(
     groups.map((group) => {
       const evaluations = evaluationsByGroup.get(group._id.toString()) || [];
 
       // if (!evaluations.length) return { group, averaged: null, finalTotal: null };
 
-      const assignedPanelDocs = getAssignedPanels(section.assignedPanels || [], group.assignedPanels || []);
-      const divisor = Math.max(assignedPanelDocs.length, evaluations.length, 1);
+      const gradedPanelDocs = (expectedByGroup.get(group._id.toString()) || [])
+        .map((id) => expectedPanelById.get(id))
+        .filter(Boolean);
+      const divisor = Math.max(gradedPanelDocs.length, evaluations.length, 1);
 
       // Determine who has NOT evaluated yet
-      const evaluatedPanelIds = evaluations.map(ev => ev.panel?._id?.toString() || '');
-      const missingPanels = assignedPanelDocs
-        .filter(p => p && !evaluatedPanelIds.includes(p._id.toString()))
+      const evaluatedPanelIds = new Set(evaluations.map(ev => toIdString(ev.panel)).filter(Boolean));
+      const missingPanels = gradedPanelDocs
+        .filter(p => !evaluatedPanelIds.has(p._id.toString()))
         .map(p => p.name || 'Unknown');
 
       const isIncomplete = missingPanels.length > 0;
@@ -506,7 +614,7 @@ exports.exportAllResults = async (req, res) => {
               localField: 'assignedPanels',
               foreignField: '_id',
               as: 'assignedPanelDocs',
-              pipeline: [{ $project: { name: 1 } }],
+              pipeline: [{ $project: { name: 1, createdAt: 1 } }],
             },
           },
         ],
@@ -521,20 +629,49 @@ exports.exportAllResults = async (req, res) => {
         localField: 'assignedPanels',
         foreignField: '_id',
         as: 'assignedPanelDocs',
-        pipeline: [{ $project: { name: 1 } }],
+        pipeline: [{ $project: { name: 1, createdAt: 1 } }],
       },
     },
   ]);
 
-  const allResults = rows.map((row) => {
+  const panelCreatedAt = new Map();
+  rows.forEach((row) => {
+    [...(row.assignedPanelDocs || []), ...(row.groups?.assignedPanelDocs || [])].forEach((panel) => {
+      const id = toIdString(panel);
+      if (id && panel?.createdAt) panelCreatedAt.set(id, panel.createdAt);
+    });
+  });
+
+  const expectedByRow = rows.map((row) => {
+    const group = row.groups;
+    const resolved = resolveExpectedPanelIds({
+      group,
+      sectionPanels: row.assignedPanelDocs || [],
+      groupPanels: group.assignedPanelDocs || [],
+      evaluations: group.evaluations || [],
+      panelCreatedAt,
+    });
+    if (resolved.legacy) persistGradingSnapshot(group._id, resolved.ids);
+    return resolved.ids;
+  });
+
+  const expectedIds = [...new Set(expectedByRow.flat())];
+  const expectedPanelDocs = expectedIds.length
+    ? await Panel.find({ _id: { $in: expectedIds }, isActive: true }).select('name')
+    : [];
+  const expectedPanelById = new Map(expectedPanelDocs.map((panel) => [panel._id.toString(), panel]));
+
+  const allResults = rows.map((row, rowIndex) => {
     const group = row.groups;
     const evaluations = group.evaluations || [];
-    const assignedPanelDocs = getAssignedPanels(row.assignedPanelDocs || [], group.assignedPanelDocs || []);
-    const divisor = Math.max(assignedPanelDocs.length, evaluations.length, 1);
+    const gradedPanelDocs = (expectedByRow[rowIndex] || [])
+      .map((id) => expectedPanelById.get(id))
+      .filter(Boolean);
+    const divisor = Math.max(gradedPanelDocs.length, evaluations.length, 1);
 
-    const evaluatedPanelIds = evaluations.map((ev) => (ev.panelDoc?._id || ev.panel)?.toString() || '');
-    const missingPanels = assignedPanelDocs
-      .filter((p) => p && !evaluatedPanelIds.includes(p._id.toString()))
+    const evaluatedPanelIds = new Set(evaluations.map((ev) => toIdString(ev.panelDoc || ev.panel)).filter(Boolean));
+    const missingPanels = gradedPanelDocs
+      .filter((p) => !evaluatedPanelIds.has(p._id.toString()))
       .map((p) => p.name || 'Unknown');
     const isIncomplete = missingPanels.length > 0 || evaluations.length === 0;
 

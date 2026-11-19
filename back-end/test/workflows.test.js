@@ -440,6 +440,88 @@ test('mixed block and group assignments use a unique combined expected-panel set
   await submit(third).expect(200);
   const complete = await api('get', '/api/evaluations/export-all').expect(200); assert.equal(complete.body[0].AverageScore, 8);
 });
+test('adding a panel after grading completes does not change or reopen submitted results', async () => {
+  await submit(panel, { quality: 8 }).expect(200);
+  await submit(secondPanel, { quality: 10 }).expect(200);
+
+  let results = await api('get', '/api/evaluations/section/' + section._id + '/results').expect(200);
+  assert.equal(results.body[0].isIncomplete, false);
+  assert.equal(results.body[0].finalTotal, 9);
+
+  const latePanel = await Panel.create({ name: 'Panel D', email: 'qa-late-d@evalsys.com', password, createdBy: instructor._id, mustChangePassword: false });
+  await Section.updateOne({ _id: section._id }, { $addToSet: { assignedPanels: latePanel._id } });
+
+  results = await api('get', '/api/evaluations/section/' + section._id + '/results').expect(200);
+  assert.equal(results.body[0].isIncomplete, false);
+  assert.deepEqual(results.body[0].missingPanels, []);
+  assert.equal(results.body[0].finalTotal, 9);
+
+  const exported = await api('get', '/api/evaluations/export-all').expect(200);
+  assert.equal(exported.body[0].Status, 'Complete');
+  assert.equal(exported.body[0].AverageScore, 9);
+
+  // A late panel may still grade; their score then joins the average.
+  await submit(latePanel, { quality: 10 }).expect(200);
+  results = await api('get', '/api/evaluations/section/' + section._id + '/results').expect(200);
+  assert.equal(results.body[0].evaluatedBy.length, 3);
+  assert.equal(results.body[0].finalTotal, Math.round((8 + 10 + 10) / 3 * 100) / 100);
+});
+
+test('unassigning a panel after they submitted keeps their evaluation and the computed result', async () => {
+  await submit(panel, { quality: 8 }).expect(200);
+  await submit(secondPanel, { quality: 10 }).expect(200);
+
+  let results = await api('get', '/api/evaluations/section/' + section._id + '/results').expect(200);
+  assert.equal(results.body[0].finalTotal, 9);
+  assert.deepEqual(results.body[0].missingPanels, []);
+
+  // The panel leaves: the instructor removes them from the block only.
+  await Section.updateOne({ _id: section._id }, { assignedPanels: [panel._id] });
+  clearResponseCache();
+
+  results = await api('get', '/api/evaluations/section/' + section._id + '/results').expect(200);
+  assert.equal(results.body[0].isIncomplete, false);
+  assert.deepEqual(results.body[0].missingPanels, []);
+  assert.equal(results.body[0].finalTotal, 9, 'a departed panel keeps their submitted score');
+  assert.equal(results.body[0].evaluatedBy.length, 2);
+
+  // Their evaluation record is never deleted or archived.
+  const keptEvaluation = await Evaluation.findOne({ group: group._id, panel: secondPanel._id });
+  assert.ok(keptEvaluation);
+  assert.equal(keptEvaluation.isSubmitted, true);
+  assert.equal(keptEvaluation.isLegacyArchived, false);
+
+  const exported = await api('get', '/api/evaluations/export-all').expect(200);
+  assert.equal(exported.body[0].Status, 'Complete');
+  assert.equal(exported.body[0].AverageScore, 9);
+
+  // Reassigning the same panel does not double count their single evaluation.
+  await Section.updateOne({ _id: section._id }, { assignedPanels: [panel._id, secondPanel._id] });
+  clearResponseCache();
+  results = await api('get', '/api/evaluations/section/' + section._id + '/results').expect(200);
+  assert.equal(results.body[0].finalTotal, 9);
+});
+
+test('unassigning a panel who never submitted removes them from the required roster', async () => {
+  await submit(panel, { quality: 8 }).expect(200);
+
+  let results = await api('get', '/api/evaluations/section/' + section._id + '/results').expect(200);
+  assert.equal(results.body[0].isIncomplete, true);
+  assert.deepEqual(results.body[0].missingPanels, ['Panel B']);
+  assert.equal(results.body[0].finalTotal, 4, 'the pending panel still divides the average while assigned');
+
+  // The panel leaves before grading, so the group is no longer waiting on them.
+  await Section.updateOne({ _id: section._id }, { assignedPanels: [panel._id] });
+  clearResponseCache();
+  results = await api('get', '/api/evaluations/section/' + section._id + '/results').expect(200);
+  assert.equal(results.body[0].isIncomplete, false);
+  assert.deepEqual(results.body[0].missingPanels, []);
+  assert.equal(results.body[0].finalTotal, 8);
+
+  const exported = await api('get', '/api/evaluations/export-all').expect(200);
+  assert.deepEqual(exported.body[0].MissingPanels, '');
+});
+
 test('revoked subject access blocks result reads and member-only group edits', async () => {
   await Admin.updateOne({ _id: instructor._id }, { assignedSubjects: [] });
   await api('get', '/api/evaluations/group/' + group._id + '/result').expect(403);

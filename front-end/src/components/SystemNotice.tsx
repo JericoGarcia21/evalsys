@@ -6,6 +6,7 @@ import { useLocation } from 'react-router-dom';
 import LegalLinks from './LegalLinks';
 
 interface PublicSettings {
+  noticeOwner?: string;
   isMaintenanceMode: boolean;
   maintenanceStartsAt?: string | null;
   maintenanceEndsAt?: string | null;
@@ -14,6 +15,9 @@ interface PublicSettings {
     isActive?: boolean;
     title?: string;
     message?: string;
+    startsAt?: string | null;
+    endsAt?: string | null;
+    updatedAt?: string;
   };
 }
 
@@ -22,22 +26,40 @@ export default function SystemNotice() {
   const { user, logout } = useAuth();
   const [settings, setSettings] = useState<PublicSettings | null>(null);
   const [now, setNow] = useState(0);
+  const [dismissedAnnouncement, setDismissedAnnouncement] = useState('');
+  const [dismissedWarning, setDismissedWarning] = useState('');
+  const userId = user?.id || user?._id || '';
+  const userRole = user?.role || '';
+  const noticeOwner = `${userId}:${userRole}`;
 
   useEffect(() => {
     let active = true;
+    const controller = new AbortController();
+    let requestId = 0;
     const load = async () => {
-      try {
-        const res = await api.get('/settings/public', {
+      const currentRequest = ++requestId;
+      const isCurrent = () => active && currentRequest === requestId;
+      const statusRequest = api.get('/settings/public', {
           params: { t: Date.now() },
           headers: { 'Cache-Control': 'no-cache' },
-        });
-        if (active) {
+          signal: controller.signal,
+        }).then(response => {
+          if (!isCurrent()) return;
           setNow(Date.now());
-          setSettings(res.data);
-        }
-      } catch {
-        // The notice should never block app usage if the status check fails.
-      }
+          setSettings(current => ({
+            ...response.data,
+            // Public status never supplies notice content, even if an older server does.
+            announcement: current?.announcement, noticeOwner: current?.noticeOwner,
+          }));
+        });
+      const noticeRequest = ['admin', 'panel'].includes(userRole) ? api.get('/settings/notices', { signal: controller.signal, timeout: 8000, headers: { 'Cache-Control': 'no-cache' } }) : Promise.resolve(null);
+      const updateNotice = (announcement: PublicSettings['announcement']) => {
+        if (!isCurrent()) return;
+        setNow(Date.now());
+        setSettings(current => ({ ...(current || { isMaintenanceMode: false }), announcement, noticeOwner }));
+      };
+      // A stalled private notice must not delay public maintenance status.
+      await Promise.allSettled([statusRequest, noticeRequest.then(response => updateNotice(response?.data?.announcement)).catch(() => updateNotice({ isActive: false }))]);
     };
     const handleMaintenanceMode = (event: Event) => {
       const detail = (event as CustomEvent<{ message?: string }>).detail;
@@ -54,10 +76,11 @@ export default function SystemNotice() {
     const timer = window.setInterval(load, 10000);
     return () => {
       active = false;
+      controller.abort();
       window.removeEventListener('evalsys:maintenance-mode', handleMaintenanceMode);
       window.clearInterval(timer);
     };
-  }, []);
+  }, [userRole, noticeOwner]);
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
@@ -67,8 +90,11 @@ export default function SystemNotice() {
   const isUserAudience = user?.role === 'admin' || user?.role === 'panel';
   const status = maintenanceStatus(settings, now);
   const showMaintenance = status.active && user?.role !== 'superadmin';
-  const showMaintenanceWarning = status.scheduled && user?.role !== 'superadmin';
-  const showAnnouncement = isUserAudience && settings?.announcement?.isActive && settings.announcement.message;
+  const announcementKey = `${noticeOwner}::${settings?.announcement?.updatedAt || ''}::${settings?.announcement?.startsAt || ''}::${settings?.announcement?.endsAt || ''}::${settings?.announcement?.title || ''}::${settings?.announcement?.message || ''}`;
+  const warningKey = `${status.start || ''}::${status.end || ''}`;
+  const showMaintenanceWarning = status.scheduled && user?.role !== 'superadmin' && dismissedWarning !== warningKey;
+  const announcementLive = (!settings?.announcement?.startsAt || new Date(settings.announcement.startsAt).getTime() <= now) && (!settings?.announcement?.endsAt || new Date(settings.announcement.endsAt).getTime() > now);
+  const showAnnouncement = isUserAudience && settings?.noticeOwner === noticeOwner && settings?.announcement?.isActive && announcementLive && settings.announcement.message && dismissedAnnouncement !== announcementKey;
   const remainingTime = formatMaintenanceCountdown((status.start || now) - now);
 
   if (['/terms', '/privacy', '/copyright'].includes(pathname)) return null;
@@ -105,20 +131,46 @@ export default function SystemNotice() {
         <div className="fixed top-3 left-1/2 z-[60] w-[min(720px,calc(100vw-24px))] -translate-x-1/2 space-y-3 pointer-events-none">
           {showMaintenanceWarning && (
             <div className="pointer-events-auto rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 shadow-lg">
-              <p className="text-xs font-black uppercase tracking-widest text-amber-700">Scheduled Maintenance</p>
-              <p className="text-sm font-bold text-text mt-1">
-                Maintenance begins in {remainingTime}. {status.start && formatMaintenanceDate(status.start)}.
-              </p>
-              <p className="text-xs text-text/70 mt-1">
-                {status.start && status.start - now <= 30 * 60000 ? 'Please save and finish your current work.' : 'Plan your work around this maintenance window.'}
-                {status.end ? ' Access resumes on ' + formatMaintenanceDate(status.end) + '.' : ''}
-              </p>
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-xs font-black uppercase tracking-widest text-amber-700">Scheduled Maintenance</p>
+                  <p className="text-sm font-bold text-text mt-1">
+                    Maintenance begins in {remainingTime}. {status.start && formatMaintenanceDate(status.start)}.
+                  </p>
+                  <p className="text-xs text-text/70 mt-1">
+                    {status.start && status.start - now <= 30 * 60000 ? 'Please save and finish your current work.' : 'Plan your work around this maintenance window.'}
+                    {status.end ? ' Access resumes on ' + formatMaintenanceDate(status.end) + '.' : ''}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setDismissedWarning(warningKey)}
+                  aria-label="Dismiss maintenance warning"
+                  title="Dismiss"
+                  className="shrink-0 text-amber-700 hover:text-amber-900 text-lg leading-none"
+                >
+                  &times;
+                </button>
+              </div>
             </div>
           )}
           {showAnnouncement && (
             <div className="pointer-events-auto rounded-lg border border-primary/20 bg-white px-4 py-3 shadow-lg">
-              <p className="text-xs font-black uppercase tracking-widest text-primary">{settings?.announcement?.title || 'System Announcement'}</p>
-              <p className="text-sm font-semibold text-text mt-1">{settings?.announcement?.message}</p>
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-xs font-black uppercase tracking-widest text-primary break-words">{settings?.announcement?.title || 'System Announcement'}</p>
+                  <p className="text-sm font-semibold text-text mt-1 break-words whitespace-pre-line">{settings?.announcement?.message}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setDismissedAnnouncement(announcementKey)}
+                  aria-label="Dismiss announcement"
+                  title="Dismiss"
+                  className="shrink-0 text-text/50 hover:text-text text-lg leading-none"
+                >
+                  &times;
+                </button>
+              </div>
             </div>
           )}
         </div>

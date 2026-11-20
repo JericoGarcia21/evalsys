@@ -50,6 +50,7 @@ export default function AccountSecurity() {
     setSaving(true);
     try {
       const res = await api.patch('/auth/my-password', { currentPassword, newPassword });
+      if (res.data.token) localStorage.setItem('token', res.data.token);
       notify(res.data.message || 'Password updated successfully', { type: 'success' });
       setCurrentPassword('');
       setNewPassword('');

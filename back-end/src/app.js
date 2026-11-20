@@ -93,7 +93,8 @@ app.use(invalidateCacheOnMutation);
 
 app.use('/api/auth/login', loginIpLimiter, loginAccountLimiter);
 
-app.use('/api/auth', require('./routes/auth.routes'));
+app.use('/api/auth', (_req, res, next) => { res.set('Cache-Control', 'no-store'); next(); }, require('./routes/auth.routes'));
+app.use('/api/account-control', require('./routes/accountControl.routes'));
 app.use('/api/users', require('./routes/user.routes'));
 app.use('/api/sections', require('./routes/section.routes'));
 app.use('/api/groups', require('./routes/group.routes'));
@@ -117,7 +118,7 @@ app.use((error, _req, res, _next) => {
     return res.status(400).json({ message: 'Invalid request data' });
   }
   if (error.code === 11000) return res.status(409).json({ message: 'Record already exists' });
-  if (error.statusCode === 503) return res.status(503).json({ message: error.message });
+  if ([400, 404, 409, 503].includes(error.statusCode)) return res.status(error.statusCode).json({ message: error.message });
   console.error('API request failed:', error.name || 'Error');
   return res.status(500).json({ message: 'Unable to complete request. Please try again.' });
 });

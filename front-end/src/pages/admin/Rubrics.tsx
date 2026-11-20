@@ -170,8 +170,11 @@ export default function Rubrics() {
 
   useEffect(() => {
     if (!aiGenerating) {
-      setAiStage(0);
-      setAiElapsed(0);
+      const reset = () => {
+        setAiStage(0);
+        setAiElapsed(0);
+      };
+      reset();
       return;
     }
     const startedAt = Date.now();
@@ -293,12 +296,13 @@ export default function Rubrics() {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
       const data = res.data;
-      const rawCriteria: any[] = data.criteria || [];
+      const rawCriteria: Array<Record<string, unknown>> = Array.isArray(data.criteria) ? data.criteria : [];
       const usedKeys = new Set<string>();
       const generatedCriteria: Criteria[] = rawCriteria.map((c, index) => {
+        const source = (typeof c === 'object' && c ? c : {}) as Record<string, unknown>;
         const baseKey =
-          String(c.key || '').trim() ||
-          String(c.label || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 48) ||
+          String(source.key || '').trim() ||
+          String(source.label || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 48) ||
           `criterion-${index + 1}`;
         let key = baseKey;
         let suffix = 2;
@@ -310,18 +314,21 @@ export default function Rubrics() {
 
         return {
           key,
-          label: c.label || 'Criterion',
-          section: c.section || 'General',
-          description: c.description || '',
-          maxScore: Number(c.maxScore) || 0,
-          scoringMode: c.scoringMode || 'range',
-          levels: (c.levels || []).map((l: any) => ({
-            label: l.label || 'Level',
-            percentage: Number.isFinite(Number(l.percentage)) ? Number(l.percentage) : undefined,
-            minScore: Number(l.minScore) || 0,
-            maxScore: Number(l.maxScore) || 0,
-            description: l.description || '',
-          })),
+          label: String(source.label || 'Criterion'),
+          section: String(source.section || 'General'),
+          description: String(source.description || ''),
+          maxScore: Number(source.maxScore) || 0,
+          scoringMode: String(source.scoringMode || 'range'),
+          levels: Array.isArray(source.levels) ? source.levels.map((l) => {
+            const level = (typeof l === 'object' && l ? l : {}) as Record<string, unknown>;
+            return {
+              label: String(level.label || 'Level'),
+              percentage: Number.isFinite(Number(level.percentage)) ? Number(level.percentage) : undefined,
+              minScore: Number(level.minScore) || 0,
+              maxScore: Number(level.maxScore) || 0,
+              description: String(level.description || ''),
+            };
+          }) : [],
         };
       });
 

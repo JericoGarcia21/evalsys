@@ -2,7 +2,7 @@ const path = require('node:path');
 process.env.JWT_SECRET = 'qa-browser-isolated-secret';
 process.env.MONGOMS_DOWNLOAD_DIR = path.join(__dirname, '..', 'node_modules', '.cache', 'mongodb-binaries');
 process.env.DB_CACHE_TTL_MS = '0';
-const { MongoMemoryServer } = require('mongodb-memory-server');
+const { MongoMemoryReplSet } = require('mongodb-memory-server');
 const mongoose = require('mongoose');
 const app = require('../src/app');
 const Admin = require('../src/models/Admin');
@@ -15,7 +15,7 @@ const RegistrationLink = require('../src/models/RegistrationLink');
 const Settings = require('../src/models/Settings');
 let mongo, server;
 async function start() {
-  mongo = await MongoMemoryServer.create({ instance: { dbName: 'evalsys_browser_qa_temporary' } });
+  mongo = await MongoMemoryReplSet.create({ replSet: { count: 1, storageEngine: 'wiredTiger', dbName: 'evalsys_browser_qa_temporary' } });
   await mongoose.connect(mongo.getUri());
   const subjects = await Subject.create([{ code: 'QA101', title: 'Browser QA' }, { code: 'QA202', title: 'Second Browser Subject' }]);
   const superadmin = await Admin.create({ name: 'QA Super', email: 'qa-super@evalsys.com', password: 'QaPassword!2026', role: 'superadmin' });

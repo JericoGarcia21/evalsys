@@ -19,13 +19,17 @@ const Rubric = require('../src/models/Rubric');
 const Evaluation = require('../src/models/Evaluation');
 const RegistrationLink = require('../src/models/RegistrationLink');
 const Settings = require('../src/models/Settings');
+const AuditLog = require('../src/models/AuditLog');
+const AuthSession = require('../src/models/AuthSession');
 const ChatMessage = require('../src/models/ChatMessage');
 const ChatRead = require('../src/models/ChatRead');
 const ChatRoom = require('../src/models/ChatRoom');
 const { clearResponseCache } = require('../src/middleware/cache.middleware');
 let mongo, passwordHash, superadmin, instructor, otherInstructor, panel, secondPanel, outsider, subject, otherSubject, section, group, rubric;
 const password = 'QaPassword!2026';
-const token = user => jwt.sign({ id: user._id.toString(), role: user.role }, process.env.JWT_SECRET);
+const token = user => user._qaToken || jwt.sign({ id: user._id.toString(), role: user.role, sid: user._id.toString(), sv: user.sessionVersion || 0 }, process.env.JWT_SECRET, { expiresIn: '1h' });
+const seedSession = user => AuthSession.create({ _id: user._id, user: user._id, role: user.role, version: 0, expiresAt: new Date(Date.now() + 3600000) });
+const createPanel = async payload => { const user = await Panel.create(payload); await seedSession(user); return user; };
 const api = (method, url, user = instructor, scope = true) => {
   let req = request(app)[method](url);
   if (user) req = req.set('Authorization', 'Bearer ' + token(user));
@@ -75,7 +79,7 @@ test('complete document template survives create, read, update, grading, results
 for (const panelCount of [1, 2, 3]) {
   test(`document rubric averages by ${panelCount} assigned panels consistently in results and exports`, async () => {
     const judges = [panel, secondPanel];
-    if (panelCount === 3) judges.push(await Panel.create({ name: 'Panel C', email: 'qa-average-c@evalsys.com', password,
+    if (panelCount === 3) judges.push(await createPanel({ name: 'Panel C', email: 'qa-average-c@evalsys.com', password,
       createdBy: instructor._id, mustChangePassword: false }));
     judges.length = panelCount;
     const sectionPanels = panelCount === 2 ? [] : judges.slice(0, 2).map(judge => judge._id);
@@ -192,6 +196,7 @@ beforeEach(async () => {
     { name: 'Panel B', email: 'qa-panel-b@evalsys.com', password: passwordHash, createdBy: instructor._id, mustChangePassword: false },
     { name: 'Other Panel', email: 'qa-outsider@evalsys.com', password: passwordHash, createdBy: otherInstructor._id, mustChangePassword: false },
   ]);
+  await Promise.all([superadmin, instructor, otherInstructor, panel, secondPanel, outsider].map(seedSession));
   section = await Section.create({ name: 'QA Block', block: 'QA-A', subject: subject._id, createdBy: instructor._id, assignedPanels: [panel._id, secondPanel._id] });
   group = await Group.create({ name: 'QA Group', section: section._id, createdBy: instructor._id, members: [{ firstName: 'Test', lastName: 'Student' }] });
   rubric = await Rubric.create({ title: 'QA Rubric', subject: subject._id, createdBy: instructor._id, criteria: [{ key: 'quality', label: 'Quality', maxScore: 10, levels: [{ label: 'Score', minScore: 0, maxScore: 10 }] }] });
@@ -216,7 +221,8 @@ test('invalid credentials and missing/invalid tokens are denied', async () => {
 test('temporary password flow blocks operations until password changes', async () => {
   await Panel.updateOne({ _id: panel._id }, { mustChangePassword: true });
   await api('get', '/api/groups', panel).expect(403);
-  await api('patch', '/api/auth/change-password', panel).send({ newPassword: 'NewQaPassword!2026' }).expect(200);
+  const changed = await api('patch', '/api/auth/change-password', panel).send({ newPassword: 'NewQaPassword!2026' }).expect(200);
+  panel._qaToken = changed.body.token;
   await api('get', '/api/groups', panel).expect(200);
 });
 test('instructors cannot create administrators or access platform operations', async () => {
@@ -303,9 +309,112 @@ test('exports honor group assignments and include groups with no submissions', a
 });
 test('subject grading lock blocks submission while preserving submitted results', async () => {
   await submit().expect(200);
-  await api('patch', '/api/users/' + instructor._id + '/grading-lock', superadmin).send({ subject: subject._id.toString(), gradingLocked: true }).expect(200);
+  await api('patch', '/api/users/' + instructor._id + '/grading-lock').send({ subject: subject._id.toString(), gradingLocked: true }).expect(200);
   await submit().expect(403);
   assert.equal(await Evaluation.countDocuments({}), 1);
+});
+test('transactional account actions refuse standalone databases without partial changes', async () => {
+  await api('post', '/api/account-control/password-resets', superadmin).send({ instructorIds: [String(instructor._id)], confirmText: 'RESET PASSWORDS' }).expect(503);
+  assert.equal((await Admin.findById(instructor._id)).password, passwordHash);
+  await api('post', '/api/account-control/transfers', superadmin).send({ sourceId: String(instructor._id), targetId: String(otherInstructor._id), subjectIds: [String(subject._id)], confirmText: 'TRANSFER' }).expect(503);
+  assert.equal(String((await Group.findById(group._id)).createdBy), String(instructor._id));
+});
+test('grading-lock changes stay instructor-only and restricted to own assigned subjects', async () => {
+  const body = { subject: subject._id.toString(), gradingLocked: true };
+  await api('patch', '/api/users/' + instructor._id + '/grading-lock', superadmin).send(body).expect(403);
+  await api('patch', '/api/users/' + instructor._id + '/grading-lock', panel).send(body).expect(403);
+  await api('patch', '/api/users/' + instructor._id + '/grading-lock', otherInstructor).send(body).expect(403);
+  await api('patch', '/api/users/' + instructor._id + '/grading-lock').send({ ...body, subject: otherSubject._id.toString() }).expect(400);
+  assert.equal((await Admin.findById(instructor._id)).gradingLockedSubjects.length, 0);
+  await api('patch', '/api/users/' + instructor._id + '/grading-lock').send(body).expect(200);
+  await api('patch', '/api/users/' + instructor._id + '/grading-lock').send({ ...body, gradingLocked: false }).expect(200);
+});
+
+test('audit listing and CSV export reject anonymous, instructor and panel access', async () => {
+  for (const url of ['/api/operations/audit-logs', '/api/operations/audit-logs/export']) {
+    await api('get', url, null).expect(401);
+    await api('get', url).expect(403);
+    await api('get', url, panel).expect(403);
+    await api('get', url, otherInstructor).expect(403);
+  }
+});
+
+const seedAuditRecords = async () => AuditLog.insertMany([
+  { action: 'qa.audit', actor: { name: 'Audit [One]', email: 'audit-one@example.test', role: 'admin' }, createdAt: new Date('2026-11-19T23:59:59.999Z') },
+  { action: 'qa.audit', actor: { name: 'Audit [One]', email: 'audit-one@example.test', role: 'admin' }, createdAt: new Date('2026-11-20T00:00:00.000Z'), instructor: instructor._id, subject: subject._id },
+  { action: 'qa.audit', actor: { name: 'Audit [One]', email: 'audit-one@example.test', role: 'admin' }, createdAt: new Date('2026-11-20T23:59:59.999Z'), entity: { name: '=SUM(1,2)' } },
+  { action: 'qa.audit', actor: { name: 'Audit [One]' }, createdAt: new Date('2026-11-21T00:00:00.000Z') },
+  { action: 'qa.audit', status: 'failed', actor: { name: 'Audit [One]' }, createdAt: new Date('2026-11-20T12:00:00.000Z') },
+  { action: 'qa.other', actor: { name: 'Audit [One]' }, createdAt: new Date('2026-11-20T12:00:00.000Z') },
+  { action: 'qa.audit', actor: { name: 'Other' }, createdAt: new Date('2026-11-20T12:00:00.000Z') },
+]);
+
+test('audit filters combine actor/action/status/UTC dates with matching paginated totals and legacy arrays', async () => {
+  const records = await seedAuditRecords();
+  const filters = { actor: '[one]', action: 'qa.audit', status: 'success', from: '2026-11-20', to: '2026-11-20' };
+  const first = await api('get', '/api/operations/audit-logs', superadmin).query({ ...filters, page: 1, limit: 1 }).expect(200);
+  assert.equal(first.body.pagination.total, 2);
+  assert.equal(first.body.pagination.totalPages, 2);
+  assert.equal(first.body.items[0]._id, records[2]._id.toString());
+  const second = await api('get', '/api/operations/audit-logs', superadmin).query({ ...filters, page: 2, limit: 1 }).expect(200);
+  assert.equal(second.body.items[0]._id, records[1]._id.toString());
+  assert.equal(second.body.items[0].instructor.name, instructor.name);
+  assert.equal(second.body.items[0].subject.code, subject.code);
+  const legacy = await api('get', '/api/operations/audit-logs', superadmin).query(filters).expect(200);
+  assert.equal(legacy.body.length, 2);
+  const byEmail = await api('get', '/api/operations/audit-logs', superadmin).query({ ...filters, actor: 'AUDIT-ONE@' }).expect(200);
+  assert.equal(byEmail.body.length, 2);
+  const literal = await api('get', '/api/operations/audit-logs', superadmin).query({ actor: '.*' }).expect(200);
+  assert.deepEqual(literal.body, []);
+  const failed = await api('get', '/api/operations/audit-logs', superadmin).query({ status: 'failed', page: 1 }).expect(200);
+  assert.equal(failed.body.pagination.total, 1);
+  const empty = await api('get', '/api/operations/audit-logs', superadmin).query({ action: 'missing', page: 1 }).expect(200);
+  assert.equal(empty.body.pagination.total, 0);
+  const capped = await api('get', '/api/operations/audit-logs', superadmin).query({ page: 1, limit: 999 }).expect(200);
+  assert.equal(capped.body.pagination.limit, 200);
+});
+
+test('audit list and export validate malformed filters and list pagination', async () => {
+  for (const query of [
+    'from=2026-02-30', 'to=not-a-date', 'from=2026-11-21&to=2026-11-20',
+    'actor[$ne]=x', 'action[]=one&action[]=two', 'status=unknown', 'to[]=2026-11-20', `actor=${'a'.repeat(121)}`,
+  ]) {
+    for (const endpoint of ['audit-logs', 'audit-logs/export']) {
+      await api('get', '/api/operations/' + endpoint + '?' + query, superadmin).expect(400);
+    }
+  }
+  for (const query of ['page=-1', 'limit=0', 'page=1.5', 'page[]=1', 'limit[$gt]=2']) {
+    await api('get', '/api/operations/audit-logs?' + query, superadmin).expect(400);
+  }
+});
+
+test('audit CSV exports all filtered pages safely and records export metadata', async () => {
+  await seedAuditRecords();
+  const filters = { actor: '[One]', action: 'qa.audit', status: 'success', from: '2026-11-20', to: '2026-11-20', page: 2, limit: 1 };
+  const response = await api('get', '/api/operations/audit-logs/export', superadmin).query(filters).expect(200).expect('Content-Type', /text\/csv/);
+  assert.equal(response.headers['cache-control'], 'no-store');
+  assert.match(response.headers['content-disposition'], /attachment; filename="evalsys_audit_.*\.csv"/);
+  assert.equal(response.text.trim().split('\r\n').length, 3);
+  assert.ok(response.text.includes('"\'=SUM(1,2)"'));
+  assert.ok(response.text.includes('QA Instructor'));
+  assert.ok(!response.text.includes('audit.export'));
+  const event = await AuditLog.findOne({ action: 'audit.export' });
+  assert.equal(event.actor.id.toString(), superadmin._id.toString());
+  assert.equal(event.metadata.rows, 2);
+  assert.equal(event.metadata.filters.action, 'qa.audit');
+  const empty = await api('get', '/api/operations/audit-logs/export', superadmin).query({ action: 'no.matches' }).expect(200);
+  assert.equal(empty.text.trim().split('\r\n').length, 1);
+});
+
+test('audit export accepts exactly 10000 rows and refuses overflow without truncation', async () => {
+  const { AUDIT_EXPORT_LIMIT } = require('../src/utils/auditQuery');
+  await AuditLog.insertMany(Array.from({ length: AUDIT_EXPORT_LIMIT }, () => ({ action: 'qa.volume' })));
+  const exact = await api('get', '/api/operations/audit-logs/export', superadmin).query({ action: 'qa.volume' }).expect(200);
+  assert.equal(exact.text.trim().split('\r\n').length, AUDIT_EXPORT_LIMIT + 1);
+  await AuditLog.create({ action: 'qa.volume' });
+  const response = await api('get', '/api/operations/audit-logs/export', superadmin).query({ action: 'qa.volume' }).expect(413);
+  assert.match(response.body.message, /Narrow the filters/);
+  assert.equal(await AuditLog.countDocuments({ action: 'audit.export' }), 1);
 });
 test('immediate maintenance blocks login, operations, and public registration but allows superadmin', async () => {
   const link = await RegistrationLink.create({ subject: subject._id, createdBy: instructor._id, expiresAt: new Date(Date.now() + 3600000) });
@@ -430,7 +539,7 @@ test('global reset requires superadmin and exact confirmation and is explicitly 
 });
 
 test('mixed block and group assignments use a unique combined expected-panel set', async () => {
-  const third = await Panel.create({ name: 'Panel C', email: 'qa-panel-c@evalsys.com', password, createdBy: instructor._id, mustChangePassword: false });
+  const third = await createPanel({ name: 'Panel C', email: 'qa-panel-c@evalsys.com', password, createdBy: instructor._id, mustChangePassword: false });
   await Group.updateOne({ _id: group._id }, { assignedPanels: [panel._id, third._id] });
   await submit(panel).expect(200); await submit(secondPanel).expect(200);
   const results = await api('get', '/api/evaluations/section/' + section._id + '/results').expect(200);
@@ -441,7 +550,7 @@ test('mixed block and group assignments use a unique combined expected-panel set
   const complete = await api('get', '/api/evaluations/export-all').expect(200); assert.equal(complete.body[0].AverageScore, 8);
 });
 test('adding a fourth panel through block assignment after three panels finished does not reopen results', async () => {
-  const thirdPanel = await Panel.create({ name: 'Panel C', email: 'qa-late-c@evalsys.com', password, createdBy: instructor._id, mustChangePassword: false });
+  const thirdPanel = await createPanel({ name: 'Panel C', email: 'qa-late-c@evalsys.com', password, createdBy: instructor._id, mustChangePassword: false });
   await Section.updateOne({ _id: section._id }, { assignedPanels: [panel._id, secondPanel._id, thirdPanel._id] });
   clearResponseCache();
 
@@ -455,7 +564,7 @@ test('adding a fourth panel through block assignment after three panels finished
   assert.equal((await Group.findById(group._id)).gradingPanelIds.length, 3, 'the original three graders are frozen');
 
   // Exactly the reported case: a fourth panel is suddenly assigned to the block.
-  const latePanel = await Panel.create({ name: 'Panel D', email: 'qa-late-d@evalsys.com', password, createdBy: instructor._id, mustChangePassword: false });
+  const latePanel = await createPanel({ name: 'Panel D', email: 'qa-late-d@evalsys.com', password, createdBy: instructor._id, mustChangePassword: false });
   await api('post', '/api/sections/assign-blocks').send({ panelId: latePanel._id.toString(), sectionIds: [section._id.toString()] }).expect(200);
 
   results = await api('get', '/api/evaluations/section/' + section._id + '/results').expect(200);
@@ -484,7 +593,7 @@ test('adding a fourth panel through block assignment after three panels finished
 });
 
 test('adding a panel while a group is still being graded does not make the new panel required', async () => {
-  const thirdPanel = await Panel.create({ name: 'Panel C', email: 'qa-mid-c@evalsys.com', password, createdBy: instructor._id, mustChangePassword: false });
+  const thirdPanel = await createPanel({ name: 'Panel C', email: 'qa-mid-c@evalsys.com', password, createdBy: instructor._id, mustChangePassword: false });
   await Section.updateOne({ _id: section._id }, { assignedPanels: [panel._id, secondPanel._id, thirdPanel._id] });
   clearResponseCache();
 
@@ -493,7 +602,7 @@ test('adding a panel while a group is still being graded does not make the new p
   assert.deepEqual(results.body[0].missingPanels, ['Panel B', 'Panel C']);
   assert.equal(results.body[0].finalTotal, 3);
 
-  const latePanel = await Panel.create({ name: 'Panel D', email: 'qa-mid-d@evalsys.com', password, createdBy: instructor._id, mustChangePassword: false });
+  const latePanel = await createPanel({ name: 'Panel D', email: 'qa-mid-d@evalsys.com', password, createdBy: instructor._id, mustChangePassword: false });
   await api('post', '/api/sections/assign-blocks').send({ panelId: latePanel._id.toString(), sectionIds: [section._id.toString()] }).expect(200);
 
   results = await api('get', '/api/evaluations/section/' + section._id + '/results').expect(200);
@@ -604,7 +713,7 @@ test('removed panel loses grading access but keeps their submitted evaluation', 
 test('panel dashboard stays usable after another panel is added to the block', async () => {
   await submit(panel, { quality: 8 }).expect(200);
 
-  const latePanel = await Panel.create({ name: 'Panel D', email: 'qa-dash-d@evalsys.com', password, createdBy: instructor._id, mustChangePassword: false });
+  const latePanel = await createPanel({ name: 'Panel D', email: 'qa-dash-d@evalsys.com', password, createdBy: instructor._id, mustChangePassword: false });
   await api('post', '/api/sections/assign-blocks')
     .send({ panelId: latePanel._id.toString(), sectionIds: [section._id.toString()] })
     .expect(200);

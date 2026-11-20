@@ -17,6 +17,9 @@ const adminSchema = new mongoose.Schema({
   lockUntil: { type: Date },
   lastLoginAt: { type: Date },
   isActive: { type: Boolean, default: true },
+  sessionVersion: { type: Number, default: 0, select: false },
+  offboardingReviewedAt: { type: Date },
+  offboardingReviewedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Admin' },
 }, { timestamps: true, collection: 'admin_acc' });
 
 adminSchema.pre('save', async function (next) {

@@ -10,6 +10,7 @@ const RegistrationLink = require('../models/RegistrationLink');
 const { listProposalFiles, removeProposalFiles } = require('../services/proposalStorage.service');
 const { recordAuditLog } = require('../services/audit.service');
 const { getPagination, paginatedPayload } = require('../utils/pagination');
+const { AUDIT_EXPORT_LIMIT, buildAuditFilter, validateAuditPagination, auditCsv } = require('../utils/auditQuery');
 
 const serialize = (doc) => {
   const obj = doc?.toObject ? doc.toObject() : doc;
@@ -52,12 +53,19 @@ const backupMap = {
 };
 
 exports.getAuditLogs = async (req, res) => {
+  let filter;
+  try {
+    filter = buildAuditFilter(req.query);
+    validateAuditPagination(req.query);
+  } catch (error) {
+    return res.status(400).json({ message: error.message });
+  }
   const pagination = getPagination(req, { defaultLimit: 80, maxLimit: 200 });
   const legacyLimit = Math.min(Number(req.query.limit || 80), 200);
-  const query = AuditLog.find()
+  const query = AuditLog.find(filter)
     .populate('instructor', 'name email')
     .populate('subject', 'code title')
-    .sort({ createdAt: -1 });
+    .sort({ createdAt: -1, _id: -1 });
 
   if (!pagination) {
     return res.json(await query.limit(legacyLimit).lean());
@@ -65,9 +73,39 @@ exports.getAuditLogs = async (req, res) => {
 
   const [logs, total] = await Promise.all([
     query.skip(pagination.skip).limit(pagination.limit).lean(),
-    AuditLog.countDocuments(),
+    AuditLog.countDocuments(filter),
   ]);
   return res.json(paginatedPayload(logs, total, pagination));
+};
+
+exports.exportAuditLogs = async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  let filter;
+  try {
+    filter = buildAuditFilter(req.query);
+  } catch (error) {
+    return res.status(400).json({ message: error.message });
+  }
+  // Read at most one over the limit to detect overflow without silently truncating.
+  const logs = await AuditLog.find(filter)
+    .select('createdAt action status actor entity instructor subject')
+    .populate('instructor', 'name')
+    .populate('subject', 'code title')
+    .sort({ createdAt: -1, _id: -1 })
+    .limit(AUDIT_EXPORT_LIMIT + 1)
+    .lean();
+  if (logs.length > AUDIT_EXPORT_LIMIT) {
+    return res.status(413).json({ message: `Export exceeds ${AUDIT_EXPORT_LIMIT.toLocaleString('en-US')} records. Narrow the filters and try again.` });
+  }
+  const csv = auditCsv(logs);
+  await recordAuditLog(req, {
+    action: 'audit.export',
+    entity: { type: 'audit', name: 'Audit log CSV' },
+    metadata: { rows: logs.length, filters: filter },
+  });
+  res.type('text/csv');
+  res.attachment(`evalsys_audit_${new Date().toISOString().slice(0, 10)}.csv`);
+  return res.send(csv);
 };
 
 exports.getActivity = async (_req, res) => {

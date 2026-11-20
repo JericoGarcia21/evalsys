@@ -77,7 +77,10 @@ export default function RegistrationLinks() {
   useEffect(() => {
     if (selectedSubject) {
       api.get('/sections', { params: { subject: selectedSubject } })
-        .then((res) => { setSelectedSections([]); setSections(res.data); })
+        .then((res) => {
+          setSections(res.data);
+          setSelectedSections(res.data.map((section: Section) => section._id));
+        })
         .catch((err) => setError(getApiMessage(err, 'Failed to load blocks for this subject')));
     }
     loadLinks();
@@ -93,7 +96,7 @@ export default function RegistrationLinks() {
         sections: selectedSections,
         expiresAt,
       });
-      setSelectedSections([]);
+      setSelectedSections(visibleSections.map((section) => section._id));
       loadLinks();
     } catch (err: unknown) {
       setError(getApiMessage(err, 'Failed to create registration link'));
@@ -188,7 +191,8 @@ export default function RegistrationLinks() {
                 <label className="evl-label mb-0">Allowed Blocks</label>
                 <button
                   type="button"
-                  onClick={() => setSelectedSections([])}
+                  onClick={() => setSelectedSections(visibleSections.map((section) => section._id))}
+                  title="Check every block for this subject"
                   className="text-[10px] font-black uppercase tracking-widest text-primary hover:underline"
                 >
                   Allow all
@@ -212,14 +216,14 @@ export default function RegistrationLinks() {
               </div>
               <div className="mt-3 rounded-xl border border-primary/20 bg-primary/5 px-4 py-3">
                 <p className="text-xs font-bold text-primary">
-                  No block selected = all blocks in {subject?.code || 'this subject'} can use this link.
+                  Checked blocks can use this link. Uncheck a block to exclude it; all checked means all blocks in {subject?.code || 'this subject'}.
                 </p>
               </div>
             </div>
 
             <button
               type="submit"
-              disabled={saving || !selectedSubject || !visibleSections.length}
+              disabled={saving || !selectedSubject || !visibleSections.length || selectedSections.length === 0}
               className="evl-btn-primary w-full"
             >
               {saving ? 'Creating...' : 'Generate Registration Link'}

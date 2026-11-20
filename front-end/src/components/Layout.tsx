@@ -223,7 +223,6 @@ export default function Layout({ children }: { children: ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [subjects, setSubjects] = useState<Subject[]>([]);
-  const [instructors, setInstructors] = useState<Instructor[]>([]);
   const [currentInstructorId, setCurrentInstructorId] = useState(() => localStorage.getItem(currentInstructorKey) || '');
   const [currentSubjectId, setCurrentSubjectId] = useState(() => localStorage.getItem(currentSubjectKey) || '');
   const [subjectMenuOpen, setSubjectMenuOpen] = useState(false);
@@ -241,7 +240,6 @@ export default function Layout({ children }: { children: ReactNode }) {
         const activeInstructors = (res.data as Instructor[]).filter(
           (account) => account.role === 'admin' && account.isActive
         );
-        setInstructors(activeInstructors);
         const saved = localStorage.getItem(currentInstructorKey);
         const savedExists = activeInstructors.some((instructor) => instructor._id === saved);
         if (!savedExists) {
@@ -279,16 +277,6 @@ export default function Layout({ children }: { children: ReactNode }) {
       })
       .catch(() => undefined);
   }, [user?.role, currentInstructorId]);
-
-  const handleInstructorChange = (instructorId: string) => {
-    if (!instructorId || instructorId === currentInstructorId) return;
-    localStorage.setItem(currentInstructorKey, instructorId);
-    localStorage.removeItem(currentSubjectKey);
-    setSubjects([]);
-    setCurrentInstructorId(instructorId);
-    setCurrentSubjectId('');
-    notifyOperationalScopeChanged();
-  };
 
   const handleSubjectChange = (subjectId: string) => {
     if (!subjectId || subjectId === currentSubjectId) {
@@ -400,29 +388,8 @@ export default function Layout({ children }: { children: ReactNode }) {
 
         {/* Navigation */}
         <nav data-tutorial="navigation" className="flex flex-col gap-1 flex-1 min-h-0 px-3 py-4 overflow-y-auto overflow-x-hidden overscroll-contain [&>*]:shrink-0">
-          {(user?.role === 'admin' || user?.role === 'superadmin') && (!collapsed || mobileOpen) && (
+          {user?.role === 'admin' && (!collapsed || mobileOpen) && (
             <div className="min-w-0 mb-4 px-1 pb-4 border-b border-white/10">
-              {user?.role === 'superadmin' && (
-                <div className="mb-3">
-                  <label className="text-[9px] font-black uppercase tracking-widest text-white/45 block mb-1.5">
-                    Instructor
-                  </label>
-                  <select
-                    id="sidebar-instructor"
-                    aria-label="Instructor"
-                    value={currentInstructorId}
-                    onChange={(event) => handleInstructorChange(event.target.value)}
-                    className="w-full min-w-0 min-h-11 rounded-lg bg-white/[0.07] border border-white/10 text-white text-xs font-bold px-3 py-2 outline-none hover:bg-white/10 focus:ring-2 focus:ring-primary/40 transition-colors"
-                  >
-                    {!instructors.length && <option value="">No instructors</option>}
-                    {instructors.map((instructor) => (
-                      <option key={instructor._id} value={instructor._id} className="text-text bg-surface">
-                        {instructor.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
               <label className="text-[9px] font-black uppercase tracking-widest text-white/45 block mb-1.5">
                 Subject
               </label>
@@ -555,7 +522,7 @@ export default function Layout({ children }: { children: ReactNode }) {
               onClick={handleLogout}
               className="w-full text-white/65 hover:text-danger py-2 flex items-center justify-center text-sm transition-colors"
             >
-              â»
+              ⟳
             </button>
           )}
         </div>

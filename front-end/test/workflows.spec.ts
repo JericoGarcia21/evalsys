@@ -110,7 +110,7 @@ test('public registration rejects a missing link and submits a valid registratio
   await expect(page.getByText(/Registration is closed/).first()).toBeVisible();
   await page.goto('/register/qa-browser-registration');
   await expect(page.getByRole('heading', { name: /Register|Registration/i }).first()).toBeVisible();
-  await page.getByPlaceholder('e.g. Group Omega or Juan Dela Cruz').fill('QA Browser Registered');
+  await page.getByPlaceholder('e.g. Group Omega').fill('QA Browser Registered');
   await page.getByRole('combobox').nth(1).selectOption({ label: 'QA-A' });
   await page.getByPlaceholder('Garcia', { exact: true }).fill('Student');
   await page.getByPlaceholder('Jerico', { exact: true }).fill('Browser');

@@ -6,6 +6,8 @@ const Section = require('../models/Section');
 const { recordAuditLog } = require('../services/audit.service');
 const { getPagination, paginatedPayload } = require('../utils/pagination');
 const { validateBody, userCreateSchema, subjectLimitSchema, gradingLockSchema } = require('../utils/validate');
+const { replacePassword } = require('../services/session.service');
+const { setActive } = require('../services/accountControl.service');
 
 const canManageUser = (req, user) => {
   if (req.user.role === 'superadmin') return true;
@@ -320,8 +322,10 @@ exports.toggleActive = async (req, res) => {
   let user = await Admin.findById(req.params.id) || await Panel.findById(req.params.id);
   if (!user) return res.status(404).json({ message: 'User not found' });
   if (!canManageUser(req, user)) return res.status(403).json({ message: 'You can only manage panel accounts created by you' });
-  user.isActive = !user.isActive;
-  await user.save();
+  if (user._id.toString() === req.user._id.toString()) return res.status(409).json({ message: 'You cannot deactivate your own account' });
+  const isActive = !user.isActive;
+  await setActive(user, isActive);
+  user.isActive = isActive;
   await recordAuditLog(req, {
     action: 'account.status.update',
     entity: { type: user.role, id: user._id, name: user.name },
@@ -336,13 +340,11 @@ exports.resetPassword = async (req, res) => {
   if (!newPassword) return res.status(400).json({ message: 'New password required' });
   if (!isStrongPassword(newPassword)) return res.status(400).json({ message: passwordRuleMessage });
 
-  let user = await Admin.findById(req.params.id) || await Panel.findById(req.params.id);
+  let user = await Admin.findById(req.params.id).select('+sessionVersion') || await Panel.findById(req.params.id).select('+sessionVersion');
   if (!user) return res.status(404).json({ message: 'User not found' });
   if (!canManageUser(req, user)) return res.status(403).json({ message: 'You can only manage panel accounts created by you' });
 
-  user.password = newPassword;
-  user.mustChangePassword = user.role !== 'superadmin';
-  await user.save();
+  await replacePassword(user.role === 'panel' ? Panel : Admin, user, newPassword, user.role !== 'superadmin');
   await recordAuditLog(req, {
     action: 'account.password.reset',
     entity: { type: user.role, id: user._id, name: user.name },
@@ -427,14 +429,14 @@ exports.updateAiRubricCredits = async (req, res) => {
 };
 
 exports.updateGradingLock = async (req, res) => {
-  if (!['superadmin', 'admin'].includes(req.user.role)) {
-    return res.status(403).json({ message: 'Admin access required' });
+  if (req.user.role !== 'admin') {
+    return res.status(403).json({ message: 'Instructor access required' });
   }
 
   const schemaError = validateBody(req.body, gradingLockSchema);
   if (schemaError) return res.status(400).json({ message: schemaError });
 
-  if (req.user.role !== 'superadmin' && req.params.id !== req.user._id.toString()) {
+  if (req.params.id !== req.user._id.toString()) {
     return res.status(403).json({ message: 'You can only update grading access for your own subjects' });
   }
 

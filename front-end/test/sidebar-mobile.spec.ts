@@ -27,10 +27,11 @@ for (const [username, role] of [['qa-super', 'Super Admin'], ['qa-instructor', '
       expect(bounds!.width).toBeLessThanOrEqual(size.width);
       expect(bounds!.height).toBeLessThanOrEqual(size.height);
       if (role === 'Super Admin') {
-        await drawer.getByLabel('Instructor', { exact: true }).scrollIntoViewIfNeeded();
-        await expect(drawer.getByLabel('Instructor', { exact: true })).toBeInViewport();
+        await expect(drawer.getByLabel('Instructor', { exact: true })).toHaveCount(0);
+        await expect(drawer.locator('[data-tutorial="subject-switcher"]')).toHaveCount(0);
+        await expect(drawer.getByRole('link', { name: 'Manage Subjects', exact: true })).toHaveCount(0);
       }
-      if (role !== 'Panel') {
+      if (role === 'Instructor') {
         const subject = drawer.locator('[data-tutorial="subject-switcher"]');
         await subject.scrollIntoViewIfNeeded();
         await subject.click();
@@ -51,7 +52,7 @@ for (const [username, role] of [['qa-super', 'Super Admin'], ['qa-instructor', '
 }
 
 
-test('mobile Resources and Subjects expose update, unlock and edit actions', async ({ page }) => {
+test('mobile Resources and Subjects expose platform actions without instructor-only grading controls', async ({ page }) => {
   const instructor = { _id: 'teacher', name: 'Mobile Instructor', email: 'teacher@example.test', role: 'admin', isActive: true, assignedSubjects: ['subject'], subjectLimit: 1, csvExportLocked: true, gradingLockedSubjects: ['subject'] };
   const subject = { _id: 'subject', code: 'TEST', title: 'Mobile subject', isActive: true, createdAt: '2026-01-01' };
   const writes: { path: string; body: unknown }[] = [];
@@ -75,7 +76,8 @@ test('mobile Resources and Subjects expose update, unlock and edit actions', asy
     expect((await selector.boundingBox())!.x + (await selector.boundingBox())!.width).toBeLessThanOrEqual(width);
     const limit = page.getByRole('spinbutton', { name: 'Paid limit for Mobile Instructor' });
     await limit.fill('2');
-    for (const name of ['Update Limit', 'Unlock CSV', 'Unlock Grading']) {
+    await expect(page.getByRole('button', { name: /^(Unlock|Lock) Grading$/ })).toHaveCount(0);
+    for (const name of ['Update Limit', 'Unlock CSV']) {
       const button = page.getByRole('button', { name, exact: true });
       await button.scrollIntoViewIfNeeded();
       await expect(button).toBeInViewport();
@@ -95,8 +97,8 @@ test('mobile Resources and Subjects expose update, unlock and edit actions', asy
     await page.getByRole('button', { name: 'Edit', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Save Changes', exact: true })).toBeInViewport();
   }
-  expect(writes).toHaveLength(12);
+  expect(writes).toHaveLength(8);
   expect(writes[0].body).toEqual({ subjectLimit: 2 });
   expect(writes[1].body).toEqual({ csvExportLocked: false });
-  expect(writes[2].body).toEqual({ subject: 'subject', gradingLocked: false });
+  expect(writes.some(write => write.path.endsWith('/grading-lock'))).toBe(false);
 });

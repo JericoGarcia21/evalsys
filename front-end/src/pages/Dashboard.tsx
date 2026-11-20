@@ -61,6 +61,16 @@ const CardIcon = ({ name }: { name: string }) => {
     return <svg {...common}><path d="M4 19V5" /><path d="M4 19h16" /><rect x="7" y="11" width="3" height="5" rx="1" /><rect x="12" y="8" width="3" height="8" rx="1" /><rect x="17" y="4" width="3" height="12" rx="1" /></svg>;
   if (name === 'link')
     return <svg {...common}><path d="M10 13a5 5 0 0 0 7.1 0l2-2a5 5 0 0 0-7.1-7.1l-1.1 1.1" /><path d="M14 11a5 5 0 0 0-7.1 0l-2 2A5 5 0 0 0 12 20.1l1.1-1.1" /></svg>;
+  if (name === 'subscription')
+    return <svg {...common}><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Z" /><path d="M12 8v4l3 3" /></svg>;
+  if (name === 'operations')
+    return <svg {...common}><path d="M4 5h16" /><path d="M4 12h16" /><path d="M4 19h16" /><circle cx="8" cy="5" r="1.5" /><circle cx="14" cy="12" r="1.5" /><circle cx="10" cy="19" r="1.5" /></svg>;
+  if (name === 'security')
+    return <svg {...common}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z" /><path d="M9.5 12.5 11 14l3.5-4" /></svg>;
+  if (name === 'system')
+    return <svg {...common}><path d="M12 15.5A3.5 3.5 0 1 0 12 8a3.5 3.5 0 0 0 0 7.5Z" /><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1A2 2 0 1 1 4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1A2 2 0 1 1 7 4.2l.1.1a1.7 1.7 0 0 0 1.9.3 1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1A2 2 0 1 1 19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.5 1h.1a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z" /></svg>;
+  if (name === 'legacy')
+    return <svg {...common}><path d="M4 7h16" /><path d="M6 7V4h12v3" /><path d="M6 7v13h12V7" /><path d="M9 11h6" /></svg>;
   return null;
 };
 
@@ -78,8 +88,11 @@ const adminCards = [
 export default function Dashboard() {
   const { user } = useAuth();
 
-  if (user?.role === 'admin' || user?.role === 'superadmin') {
-    return <AdminDashboard name={user.name} role={user.role} userId={user.id || user._id || ''} />;
+  if (user?.role === 'superadmin') {
+    return <SuperAdminDashboard name={user.name} />;
+  }
+  if (user?.role === 'admin') {
+    return <AdminDashboard name={user.name} role="admin" userId={user.id || user._id || ''} />;
   }
   return <PanelDashboard name={user?.name ?? ''} panelId={user?.id || user?._id || ''} />;
 }
@@ -193,6 +206,54 @@ function AdminDashboard({ name, role, userId }: { name: string; role: 'admin' | 
             </p>
             <div className="workspace-shortcut-action text-primary text-xs font-semibold flex items-center gap-1">
               Open →
+            </div>
+          </Link>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* Super Admin workspace */
+function SuperAdminDashboard({ name }: { name: string }) {
+  const superAdminCards = [
+    { to: '/analytics', label: 'Analytics', desc: 'Platform totals, trends, and grading progress', icon: 'results' },
+    { to: '/users', label: 'Instructors', desc: 'Create and manage instructor accounts', icon: 'users' },
+    { to: '/subjects', label: 'Subjects', desc: 'Review subjects and instructor assignments', icon: 'subjects' },
+    { to: '/subscription', label: 'Resources', desc: 'Limits, credits, and storage usage', icon: 'subscription' },
+    { to: '/operations', label: 'Operations', desc: 'Audit logs, activity, and backups', icon: 'operations' },
+    { to: '/security', label: 'Security', desc: 'Security monitor and alerts', icon: 'security' },
+    { to: '/system-control', label: 'System Control', desc: 'Maintenance mode and notices', icon: 'system' },
+    { to: '/legacy-data', label: 'Archive', desc: 'Archived results and legacy records', icon: 'legacy' },
+  ];
+
+  return (
+    <div>
+      <div className="mb-8">
+        <h2 data-tutorial="dashboard-welcome" className="evl-page-title">Welcome back, {name}</h2>
+        <p className="evl-page-subtitle">
+          Manage platform accounts, subjects, resources, operations, and system settings from here.
+        </p>
+      </div>
+
+      <div className="workspace-shortcuts grid grid-cols-1 sm:grid-cols-2">
+        {superAdminCards.map((card) => (
+          <Link
+            key={card.to}
+            to={card.to}
+            className="workspace-shortcut evl-card group transition-colors duration-150"
+          >
+            <div className="flex items-start justify-between mb-4">
+              <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
+                <CardIcon name={card.icon} />
+              </div>
+            </div>
+            <h3 className="text-text font-bold text-base mb-1 group-hover:text-primary transition-colors">
+              {card.label}
+            </h3>
+            <p className="text-text/70 text-sm leading-relaxed">{card.desc}</p>
+            <div className="workspace-shortcut-action text-primary text-xs font-semibold flex items-center gap-1">
+              Open +
             </div>
           </Link>
         ))}

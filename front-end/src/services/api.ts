@@ -6,7 +6,7 @@ const api = axios.create({
 
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
-  if (token) config.headers.Authorization = `Bearer ${token}`;
+  if (token && config.headers.Authorization === undefined) config.headers.Authorization = `Bearer ${token}`;
   const subjectId = localStorage.getItem('evalsys_current_subject_id');
   if (subjectId && config.headers['x-subject-id'] === undefined) {
     config.headers['x-subject-id'] = subjectId;
@@ -46,7 +46,8 @@ api.interceptors.response.use(
         },
       }));
     }
-    if (err.response?.status === 401 && !err.config.url?.includes('/auth/login')) {
+    const currentToken = localStorage.getItem('token');
+    if (err.response?.status === 401 && !err.config.url?.includes('/auth/login') && currentToken && err.config.headers?.Authorization === `Bearer ${currentToken}`) {
       localStorage.removeItem('token');
       // Dispatch an event so the app can handle navigation via React Router
       // instead of a hard browser redirect that bypasses router state.

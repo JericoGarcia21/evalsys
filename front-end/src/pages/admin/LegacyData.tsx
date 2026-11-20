@@ -2,8 +2,8 @@ import { useConfirmDialog } from '../../hooks/useConfirmDialog';
 import { useEffect, useState } from 'react';
 import api from '../../services/api';
 import { notify } from '../../utils/notify';
-import { compareNames } from '../../utils/alphabetical';
-import { compareMembers, formatMemberList, type Member } from '../../utils/members';
+import { formatMemberList, type Member } from '../../utils/members';
+import ArchiveResultsPanel from '../../components/admin/ArchiveResultsPanel';
 
 interface SubjectRef { code?: string; title?: string; }
 interface OwnerRef { name?: string; email?: string; }
@@ -57,6 +57,7 @@ interface LegacyDataResponse {
   panels: Panel[];
   results: Result[];
   legacyBefore?: string | null;
+  resultCount?: number;
 }
 type DeleteTarget = {
   type: 'section' | 'group' | 'panel' | 'result' | 'all-results';
@@ -81,8 +82,8 @@ const normalizeLegacyData = (value: Partial<LegacyDataResponse>): LegacyDataResp
   panels: value.panels || [],
   results: value.results || [],
   legacyBefore: value.legacyBefore || null,
+  resultCount: value.resultCount ?? value.results?.length ?? 0,
 });
-const csvEscape = (value: unknown) => `"${String(value ?? '').replace(/"/g, '""')}"`;
 
 export default function LegacyData() {
   const { confirm, ConfirmDialog } = useConfirmDialog();
@@ -92,12 +93,14 @@ export default function LegacyData() {
   const [loading, setLoading] = useState(true);
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget>(null);
   const [deleting, setDeleting] = useState(false);
+  const [archiveRevision, setArchiveRevision] = useState(0);
 
   const load = async () => {
     setLoading(true);
     try {
-      const res = await api.get('/legacy-data');
+      const res = await api.get('/legacy-data', { params: { includeResults: 'false' } });
       setData(normalizeLegacyData(res.data));
+      setArchiveRevision(value => value + 1);
     } catch (err: unknown) {
       notify(getErrorMessage(err, 'Failed to load archive'), { type: 'error' });
     } finally {
@@ -106,7 +109,7 @@ export default function LegacyData() {
   };
 
   useEffect(() => {
-    api.get('/legacy-data')
+    api.get('/legacy-data', { params: { includeResults: 'false' } })
       .then((res) => setData(normalizeLegacyData(res.data)))
       .catch((err: unknown) => notify(getErrorMessage(err, 'Failed to load archive'), { type: 'error' }))
       .finally(() => setLoading(false));
@@ -158,36 +161,6 @@ export default function LegacyData() {
     }
   };
 
-  const downloadOldResults = () => {
-    const headers = ['Subject', 'Instructor', 'Block', 'Group', 'Members', 'Panel', 'Panel Email', 'Scores', 'Total', 'Comments', 'Archived'];
-    const rows = [...data.results].sort((a, b) => (
-      compareNames(a.legacySnapshot?.groupName, b.legacySnapshot?.groupName) ||
-      compareNames(a.legacySnapshot?.subject, b.legacySnapshot?.subject) ||
-      compareNames(a.legacySnapshot?.block, b.legacySnapshot?.block) ||
-      compareNames(a.legacySnapshot?.panelName, b.legacySnapshot?.panelName) ||
-      compareNames(a._id, b._id)
-    )).map((result) => [
-      result.legacySnapshot?.subject || '',
-      result.legacySnapshot?.instructorName || '',
-      result.legacySnapshot?.block || '',
-      result.legacySnapshot?.groupName || '',
-      formatMemberList([...(result.legacySnapshot?.members || [])].sort(compareMembers), '; '),
-      result.legacySnapshot?.panelName || '',
-      result.legacySnapshot?.panelEmail || '',
-      JSON.stringify(result.scores || {}),
-      result.total ?? '',
-      result.comments || '',
-      result.legacyArchivedAt || result.updatedAt,
-    ]);
-    const csv = [headers, ...rows].map((row) => row.map(csvEscape).join(',')).join('\n');
-    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `evalsys_archived_results_${new Date().toISOString().slice(0, 10)}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
-  };
-
   return (
     <div>
       <ConfirmDialog />
@@ -234,36 +207,21 @@ export default function LegacyData() {
             activeTab === 'results' ? 'border-primary text-primary' : 'border-transparent text-text/70'
           }`}
         >
-          Archived Results ({data.results.length})
+          Archived Results ({data.resultCount || 0})
         </button>
       </div>
 
-      {activeTab === 'results' && data.results.length > 0 && (
-        <div className="grid grid-cols-1 sm:flex sm:justify-end gap-2 mb-3">
-          <button type="button" onClick={downloadOldResults} className="evl-btn-secondary">
-            Download Archived Results CSV
-          </button>
-          <button
-            type="button"
-            onClick={() => setDeleteTarget({ type: 'all-results', id: '', name: 'all archived results' })}
-            className="evl-btn-danger"
-          >
-            Delete Archived Results
-          </button>
-        </div>
-      )}
-
-      <div className="overflow-x-auto border border-muted/40 rounded-lg bg-surface">
+      {activeTab === 'results' ? <ArchiveResultsPanel revision={archiveRevision} totalArchived={data.resultCount || 0}
+        onDelete={(id, name) => setDeleteTarget({ type: 'result', id, name })}
+        onDeleteAll={() => setDeleteTarget({ type: 'all-results', id: '', name: 'all archived results (not just the filtered results)' })} /> : <div className="overflow-x-auto border border-muted/40 rounded-lg bg-surface">
         <table className="evl-table min-w-[760px]">
           <thead>
             {activeTab === 'sections' ? (
               <tr><th>Block</th><th>Subject</th><th>Previous Owner</th><th>Created</th><th className="text-right">Actions</th></tr>
             ) : activeTab === 'groups' ? (
               <tr><th>Group</th><th>Block</th><th>Subject</th><th>Previous Owner</th><th>Members</th><th>Created</th><th className="text-right">Actions</th></tr>
-            ) : activeTab === 'panels' ? (
-              <tr><th>Panel</th><th>Email</th><th>Status</th><th>Owner</th><th>Created</th><th className="text-right">Actions</th></tr>
             ) : (
-              <tr><th>Group</th><th>Block</th><th>Panel</th><th>Members</th><th>Score</th><th>Archived</th><th className="text-right">Actions</th></tr>
+              <tr><th>Panel</th><th>Email</th><th>Status</th><th>Owner</th><th>Created</th><th className="text-right">Actions</th></tr>
             )}
           </thead>
           <tbody>
@@ -324,42 +282,7 @@ export default function LegacyData() {
                   </button>
                 </td>
               </tr>
-            )) : data.results.map((result) => (
-              <tr key={result._id}>
-                <td>
-                  <p className="font-bold text-text">{result.legacySnapshot?.groupName || 'Deleted old group'}</p>
-                  <p className="text-[11px] text-text/65 mt-0.5">{result.legacySnapshot?.subject || 'Unknown subject'}</p>
-                </td>
-                <td>{result.legacySnapshot?.block || 'Deleted old block'}</td>
-                <td>
-                  <p>{result.legacySnapshot?.panelName || 'Deleted old panel'}</p>
-                  <p className="text-[11px] text-text/65 mt-0.5">{result.legacySnapshot?.panelEmail}</p>
-                  {result.legacySnapshot?.instructorName && (
-                    <p className="text-[11px] text-primary/70 mt-1">
-                      Instructor: {result.legacySnapshot.instructorName}
-                    </p>
-                  )}
-                </td>
-                <td className="max-w-[280px] truncate">
-                  {formatMemberList(result.legacySnapshot?.members || []) || 'No member snapshot'}
-                </td>
-                <td className="font-black text-primary">{typeof result.total === 'number' ? result.total : 'Pending'}</td>
-                <td>{formatDate(result.legacyArchivedAt || result.updatedAt)}</td>
-                <td className="text-right">
-                  <button
-                    type="button"
-                    onClick={() => setDeleteTarget({
-                      type: 'result',
-                      id: result._id,
-                      name: `${result.legacySnapshot?.groupName || 'old group'} result`,
-                    })}
-                    className="evl-btn-danger"
-                  >
-                    Delete
-                  </button>
-                </td>
-              </tr>
-            ))}
+            )) : null}
             {!loading && activeTab === 'sections' && !data.sections.length && (
               <tr><td colSpan={5} className="text-center py-12 text-text/65">No old blocks found.</td></tr>
             )}
@@ -369,12 +292,9 @@ export default function LegacyData() {
             {!loading && activeTab === 'panels' && !data.panels.length && (
               <tr><td colSpan={6} className="text-center py-12 text-text/65">No old panel accounts found.</td></tr>
             )}
-            {!loading && activeTab === 'results' && !data.results.length && (
-              <tr><td colSpan={7} className="text-center py-12 text-text/65">No archived results found.</td></tr>
-            )}
           </tbody>
         </table>
-      </div>
+      </div>}
 
       {deleteTarget && (
         <div className="fixed inset-0 z-[100] bg-dark/60 flex items-center justify-center p-4">

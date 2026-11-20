@@ -15,6 +15,10 @@ const settingsSchema = new mongoose.Schema({
     isActive: { type: Boolean, default: false },
     title: { type: String, default: '', trim: true },
     message: { type: String, default: '', trim: true },
+    roles: { type: [String], enum: ['admin', 'panel'], default: ['admin', 'panel'] },
+    subjectIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Subject' }],
+    startsAt: { type: Date, default: null },
+    endsAt: { type: Date, default: null },
     updatedAt: { type: Date },
   },
 }, { timestamps: true });

@@ -372,7 +372,7 @@ exports.getGroupProposalUrl = async (req, res) => {
   const groupSubjectId = group.section?.subject?._id || group.section?.subject;
   if (!isProposalPathForGroup({
     storagePath: group.proposalFile.path,
-    instructorId: group.createdBy,
+    instructorId: group.proposalFile.storageOwner || group.createdBy,
     subjectId: groupSubjectId,
     groupId: group._id,
   })) {

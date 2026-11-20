@@ -46,11 +46,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const changePassword = async (newPassword: string) => {
-    await api.patch('/auth/change-password', { newPassword });
+    const response = await api.patch('/auth/change-password', { newPassword });
+    if (response.data.token) localStorage.setItem('token', response.data.token);
     setUser((current) => current ? { ...current, mustChangePassword: false } : current);
   };
 
   const logout = () => {
+    // Start the server revocation with the current token before clearing it locally.
+    const token = localStorage.getItem('token');
+    if (token) void api.post('/auth/logout', {}, { headers: { Authorization: `Bearer ${token}` } }).catch(() => {
+      notify('Signed out on this device, but server sign-out could not be confirmed. Other copies of this session may remain valid until expiry or administrator revocation.', { type: 'info' });
+    });
     localStorage.removeItem('token');
     setUser(null);
   };

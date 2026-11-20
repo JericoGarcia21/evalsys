@@ -4,16 +4,8 @@ const { recordAuditLog } = require('../services/audit.service');
 const ALLOWED_MAINTENANCE_DELAYS = [0, 5, 15, 30];
 
 const { isMaintenanceActive } = require('../services/maintenance.service');
-
-
-const parseScheduleDate = (value) => {
-  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?(?:Z|[+-]\d{2}:\d{2})$/.test(value)) return null;
-  if (Number(value.slice(11, 13)) > 23 || Number(value.slice(14, 16)) > 59) return null;
-  const date = new Date(value);
-  const calendarDay = new Date(value.slice(0, 10) + 'T00:00:00.000Z');
-  if (!Number.isFinite(date.getTime()) || !Number.isFinite(calendarDay.getTime()) || calendarDay.toISOString().slice(0, 10) !== value.slice(0, 10)) return null;
-  return date;
-};
+const { parseScheduleDate } = require('../utils/scheduleDate');
+const { validateAnnouncement, currentAnnouncement } = require('../services/announcement.service');
 
 const maintenanceResponse = (settings) => ({
   ...settings.toObject(),
@@ -34,7 +26,10 @@ const getOrCreateSettings = async () => {
 
 exports.getSettings = async (req, res) => {
   const settings = await getOrCreateSettings();
-  res.json(maintenanceResponse(settings));
+  res.set('Cache-Control', 'no-store');
+  const response = maintenanceResponse(settings);
+  if (req.user.role !== 'superadmin') response.announcement = await currentAnnouncement(settings.announcement, req.user);
+  res.json(response);
 };
 
 exports.getPublicSettings = async (_req, res) => {
@@ -45,15 +40,24 @@ exports.getPublicSettings = async (_req, res) => {
     maintenanceStartsAt: settings.maintenanceStartsAt,
     maintenanceEndsAt: settings.maintenanceEndsAt,
     maintenanceMessage: settings.maintenanceMessage,
-    announcement: settings.announcement,
+    announcement: { isActive: false },
   });
+};
+
+exports.getNotices = async (req, res) => {
+  const settings = await getOrCreateSettings();
+  res.set('Cache-Control', 'no-store');
+  res.json({ announcement: await currentAnnouncement(settings.announcement, req.user) });
 };
 
 exports.toggleGradingLock = async (req, res) => {
   const settings = await getOrCreateSettings();
   settings.isGradingLocked = !settings.isGradingLocked;
   await settings.save();
-  res.json(settings);
+  const response = settings.toObject();
+  if (req.user.role !== 'superadmin') response.announcement = await currentAnnouncement(settings.announcement, req.user);
+  res.set('Cache-Control', 'no-store');
+  res.json(response);
 };
 
 exports.toggleCsvExportLock = async (req, res) => {
@@ -70,9 +74,16 @@ exports.updateSystemControls = async (req, res) => {
     maintenanceDelayMinutes,
     maintenanceStartsAt,
     maintenanceEndsAt,
+    maintenanceDurationMinutes,
     maintenanceMessage,
     announcement,
   } = req.body;
+  // Validate the whole announcement before modifying any maintenance fields.
+  const nextAnnouncement = announcement === undefined ? undefined : await validateAnnouncement(announcement);
+  if (maintenanceDurationMinutes !== undefined && (isMaintenanceMode !== true || !Number.isInteger(maintenanceDurationMinutes) || maintenanceDurationMinutes < 1 || maintenanceDurationMinutes > 10080)) {
+    return res.status(400).json({ message: 'Maintenance duration must be 1–10,080 minutes when enabling maintenance.' });
+  }
+  if (maintenanceDurationMinutes !== undefined && maintenanceEndsAt !== undefined && maintenanceEndsAt !== null) return res.status(400).json({ message: 'Choose a maintenance duration or a fixed end, not both.' });
 
   if (isMaintenanceMode !== undefined && typeof isMaintenanceMode !== 'boolean') {
     return res.status(400).json({ message: 'Maintenance mode must be true or false.' });
@@ -110,7 +121,9 @@ exports.updateSystemControls = async (req, res) => {
         startsAt = new Date(Date.now() + requestedDelay * 60 * 1000);
       }
       let endsAt = null;
-      if (maintenanceEndsAt !== undefined && maintenanceEndsAt !== null) {
+      if (maintenanceDurationMinutes !== undefined) {
+        endsAt = new Date(startsAt.getTime() + maintenanceDurationMinutes * 60000);
+      } else if (maintenanceEndsAt !== undefined && maintenanceEndsAt !== null) {
         endsAt = parseScheduleDate(maintenanceEndsAt);
         if (!endsAt || endsAt.getTime() <= startsAt.getTime()) {
           return res.status(400).json({ message: 'Maintenance end must be a valid date and time after its start.' });
@@ -126,14 +139,7 @@ exports.updateSystemControls = async (req, res) => {
     settings.maintenanceMessage = maintenanceMessage.trim() || 'EvalSys is temporarily unavailable while maintenance is in progress.';
   }
 
-  if (announcement && typeof announcement === 'object') {
-    settings.announcement = {
-      isActive: Boolean(announcement.isActive),
-      title: String(announcement.title || '').trim(),
-      message: String(announcement.message || '').trim(),
-      updatedAt: new Date(),
-    };
-  }
+  if (nextAnnouncement !== undefined) settings.announcement = nextAnnouncement;
 
   await settings.save();
   await recordAuditLog(req, {
@@ -145,6 +151,10 @@ exports.updateSystemControls = async (req, res) => {
       maintenanceEndsAt: settings.maintenanceEndsAt,
       maintenanceDelayMinutes: typeof maintenanceDelayMinutes === 'number' ? maintenanceDelayMinutes : undefined,
       announcementActive: settings.announcement?.isActive,
+      announcementRoles: settings.announcement?.roles,
+      announcementSubjects: settings.announcement?.subjectIds,
+      announcementStartsAt: settings.announcement?.startsAt,
+      announcementEndsAt: settings.announcement?.endsAt,
     },
   });
 

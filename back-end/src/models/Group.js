@@ -11,6 +11,7 @@ const groupSchema = new mongoose.Schema({
   // Adding a panel later must not force already-submitted groups to be re-graded.
   gradingPanelIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Panel' }],
   proposalFile: {
+    storageOwner: { type: mongoose.Schema.Types.ObjectId, ref: 'Admin' },
     path: { type: String },
     originalName: { type: String },
     mimeType: { type: String },

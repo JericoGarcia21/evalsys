@@ -4,6 +4,7 @@ const Admin = require('../models/Admin');
 const Panel = require('../models/Panel');
 const Settings = require('../models/Settings');
 const { recordAuditLog } = require('../services/audit.service');
+const AuthSession = require('../models/AuthSession');
 
 const protect = async (req, res, next) => {
   const header = req.headers.authorization;
@@ -19,26 +20,42 @@ const protect = async (req, res, next) => {
 
   try {
     const token = header.split(' ')[1];
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ['HS256'] });
+    const validId = value => typeof value === 'string' && /^[a-f0-9]{24}$/i.test(value);
+    if (!validId(decoded.id) || !validId(decoded.sid) || !['admin', 'superadmin', 'panel'].includes(decoded.role) || !Number.isSafeInteger(decoded.sv) || decoded.sv < 0) {
+      return res.status(401).json({ message: 'Session expired. Please sign in again.' });
+    }
 
     // Look up in correct collection based on role in token
     let user;
     if (decoded.role === 'admin' || decoded.role === 'superadmin') {
-      user = await Admin.findById(decoded.id).select('-password');
+      user = await Admin.findById(decoded.id).select('-password +sessionVersion');
     } else {
-      user = await Panel.findById(decoded.id).select('-password');
+      user = await Panel.findById(decoded.id).select('-password +sessionVersion');
     }
 
     if (!user || !user.isActive)
       return res.status(401).json({ message: 'Account inactive or not found' });
 
+    if (decoded.role !== user.role || decoded.sv !== (user.sessionVersion || 0)) {
+      return res.status(401).json({ message: 'Session revoked. Please sign in again.' });
+    }
+    const session = await AuthSession.findOne({ _id: decoded.sid, user: user._id, role: user.role, version: decoded.sv, revokedAt: null, expiresAt: { $gt: new Date() } });
+    if (!session) return res.status(401).json({ message: 'Session revoked or expired. Please sign in again.' });
+    req.authSession = session;
+    if (Date.now() - session.lastSeenAt.getTime() > 5 * 60000) {
+      await AuthSession.updateOne({ _id: session._id, revokedAt: null }, { $set: { lastSeenAt: new Date() } });
+    }
+
     req.user = user;
     const passwordChangeAllowed = [
       '/api/auth/me',
       '/api/auth/change-password',
+      '/api/auth/logout',
     ].includes(req.originalUrl.split('?')[0]);
 
-    if (user.role !== 'superadmin' && !passwordChangeAllowed) {
+    const noticeRead = req.originalUrl.split('?')[0] === '/api/settings/notices';
+    if (user.role !== 'superadmin' && !passwordChangeAllowed && !noticeRead) {
       const settings = await Settings.findOne().select('isMaintenanceMode maintenanceStartsAt maintenanceEndsAt maintenanceMessage');
       if (isMaintenanceActive(settings)) {
         await recordAuditLog(req, {

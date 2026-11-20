@@ -75,6 +75,11 @@ The "seen" flag is stored per user in `localStorage` under
 
 | Version | Date | Title | Audience | Summary |
 | --- | --- | --- | --- | --- |
+| 1.6.3 | 2026-11-20 | Super Admin interface polish | Internal only — no popup | Added five dashboard icons, removed sidebar scope selectors, and refined System Control with separate views and previews; empty audience prevents a popup. |
+| 1.6.2 | 2026-11-20 | Relevant, scheduled notices | Instructor, Panel | User-facing announcement delivery now respects role, actual subject assignments, and schedule windows. No Super Admin tools announced. |
+| 1.6.1 | 2026-11-20 | Safer sign-in sessions | Instructor, Panel | Shared authentication update: tracked sessions, server-side sign-out, and session rotation after password changes. No Super Admin feature announcement. |
+| 1.6.0 | 2026-11-20 | Super Admin audit tools and permissions | Super Admin | Operations gains filtered, paginated audit logs, safe CSV export, and a read-only role permission matrix. |
+| 1.5.5 | 2026-11-20 | Clearer registration form | Everyone | Registration asks for the group name only; student names go in the member rows. |
 | 1.5.4 | 2026-11-19 | Footer alignment on smaller screens | Everyone | Legal footer sits at the very bottom of the page on phones and tablets. |
 | 1.5.3 | 2026-11-19 | Pinned legal footer and stable panel results | Everyone | Legal footer pinned to the bottom on every page; adding a panel after grading no longer reopens or changes completed results; unassigning a panel keeps their submitted score and stops counting them as missing. |
 | 1.5.2 | 2026-11-18 | Weighted rubrics in AI generation | Instructor, Super Admin | AI now reads criterion weights and percentage scales, preserving sections and 100-point totals for rubrics like the Database Final Project. |

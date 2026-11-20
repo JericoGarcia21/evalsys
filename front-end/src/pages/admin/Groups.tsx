@@ -1,4 +1,4 @@
-import { getApiMessage } from '../../utils/apiError';
+﻿import { getApiMessage } from '../../utils/apiError';
 import { useEffect, useState } from 'react';
 import api from '../../services/api';
 import { TableSkeleton } from '../../components/LoadingSkeleton';
@@ -298,10 +298,10 @@ export default function Groups() {
           <p className="evl-page-subtitle">Create groups and add members. Panel judges are managed per block via the Sections page.</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <button onClick={downloadTemplate} className="evl-btn-secondary !text-xs !py-1.5">
+          <button onClick={downloadTemplate} title="Download CSV import template" className="evl-btn-secondary !text-xs !py-1.5">
             Download Template
           </button>
-          <label className="evl-btn-primary !text-xs !py-1.5 cursor-pointer">
+          <label title="Import groups from a CSV file" className="evl-btn-primary !text-xs !py-1.5 cursor-pointer">
             Bulk Import (CSV)
             <input type="file" accept=".csv" onChange={handleBulkUpload} className="hidden" />
           </label>
@@ -312,7 +312,7 @@ export default function Groups() {
       <div className="evl-card p-6 mb-6">
         <h3 className="text-text font-bold text-sm mb-4">Add New Group</h3>
         <form onSubmit={handleAdd}>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-6">
             <div>
               <label className="evl-label">Group Name</label>
               <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required
@@ -335,10 +335,18 @@ export default function Groups() {
             onRemove={removeMemberRow}
           />
 
-          <div className="flex items-center gap-4 mt-5">
-            <button type="submit" className="evl-btn-primary">Add Group</button>
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3 mt-6">
+            <button type="submit" title="Create this group" className="evl-btn-primary w-full sm:w-auto">Add Group</button>
             {error && <p className="text-danger text-sm font-medium">{error}</p>}
           </div>
+          <button
+            type="button"
+            onClick={addMemberRow}
+            title="Add another member row"
+            className="mt-3 w-full sm:w-auto text-xs font-bold text-primary bg-primary/10 hover:bg-primary/15 px-3 py-1.5 rounded-lg transition-colors"
+          >
+            + Add Member
+          </button>
         </form>
       </div>
 
@@ -350,7 +358,7 @@ export default function Groups() {
             {filterBlock || search ? `${filteredGroups.length} of ${groups.length}` : groups.length} Groups
           </span>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-[minmax(220px,320px)_auto_auto] gap-2 items-center">
+        <div className="grid grid-cols-1 sm:grid-cols-[minmax(220px,320px)_auto_auto] gap-3 items-center">
           <input
             value={search}
             onChange={(e) => {
@@ -392,8 +400,8 @@ export default function Groups() {
         <TableSkeleton rows={8} cols={4} />
       ) : (
         <div className="evl-card overflow-x-auto">
-          <table data-tutorial="instructor-groups" className="evl-table evl-groups-table">
-            <thead>
+          <table data-tutorial="instructor-groups" className="evl-table evl-groups-table min-w-[640px]">
+            <thead className="sticky top-0 z-10">
               <tr>
                 <th>Group</th>
                 <th>Block</th>
@@ -421,7 +429,7 @@ export default function Groups() {
                   <td data-label="Actions" className="col-actions">
                     <div className="flex flex-wrap sm:flex-nowrap justify-end gap-2">
                       {g.proposalFile?.path ? (
-                        <a data-tutorial="group-proposal" href={`/proposal/${g._id}`} target="_blank" rel="noreferrer" className="evl-btn-ghost text-success border-success/30 hover:bg-success/5 hover:border-success/50">
+                        <a data-tutorial="group-proposal" href={`/proposal/${g._id}`} target="_blank" rel="noreferrer" title="Open the uploaded proposal" className="evl-btn-ghost text-success border-success/30 hover:bg-success/5 hover:border-success/50">
                           View Proposal
                         </a>
                       ) : (
@@ -429,10 +437,10 @@ export default function Groups() {
                           No Proposal
                         </span>
                       )}
-                      <button onClick={() => startEdit(g)} className="evl-btn-ghost text-primary border-primary/30 hover:bg-primary/5 hover:border-primary/50">
+                      <button onClick={() => startEdit(g)} title="Edit this group" className="evl-btn-ghost text-primary border-primary/30 hover:bg-primary/5 hover:border-primary/50">
                         Edit
                       </button>
-                      <button onClick={() => handleDelete(g._id)} className="evl-btn-ghost text-danger border-danger/30 hover:text-danger hover:bg-danger/5 hover:border-danger/50">
+                      <button onClick={() => handleDelete(g._id)} title="Delete this group" className="evl-btn-ghost text-danger border-danger/30 hover:text-danger hover:bg-danger/5 hover:border-danger/50">
                         Delete
                       </button>
                     </div>
@@ -449,12 +457,13 @@ export default function Groups() {
               <p className="text-[11px] text-text/65 font-semibold">
                 Showing {startDisplay}-{endDisplay} of {filteredGroups.length}
               </p>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5">
                 <button
                   type="button"
                   onClick={() => setPage((current) => Math.max(1, current - 1))}
                   disabled={currentPage === 1}
-                  className="px-3 py-1.5 rounded-lg text-[11px] font-bold border border-muted text-text/60 hover:text-text disabled:opacity-40 disabled:cursor-not-allowed"
+                  title="Go to previous page"
+                  className="px-2.5 py-1 rounded-lg text-[10px] font-bold border border-muted text-text/60 hover:text-text disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   Previous
                 </button>
@@ -465,7 +474,8 @@ export default function Groups() {
                   type="button"
                   onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
                   disabled={currentPage === totalPages}
-                  className="px-3 py-1.5 rounded-lg text-[11px] font-bold border border-muted text-text/60 hover:text-text disabled:opacity-40 disabled:cursor-not-allowed"
+                  title="Go to next page"
+                  className="px-2.5 py-1 rounded-lg text-[10px] font-bold border border-muted text-text/60 hover:text-text disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   Next
                 </button>
@@ -496,37 +506,30 @@ export default function Groups() {
 function MemberRowsEditor({
   rows,
   setRows,
-  onAdd,
   onRemove,
   compact = false,
 }: {
   rows: MemberFormRow[];
   setRows: React.Dispatch<React.SetStateAction<MemberFormRow[]>>;
-  onAdd: () => void;
+  onAdd?: () => void;
   onRemove: (index: number) => void;
   compact?: boolean;
 }) {
   return (
-    <div className="mb-4">
+    <div className="mb-6">
       <div className="flex items-center justify-between gap-3 mb-3">
         <label className="evl-label !mb-0">Members</label>
-        <button
-          type="button"
-          onClick={onAdd}
-          className="text-xs font-bold text-primary bg-primary/10 hover:bg-primary/15 px-3 py-1.5 rounded-lg transition-colors"
-        >
-          + Add Member
-        </button>
       </div>
       <div className={compact ? 'grid grid-cols-1 xl:grid-cols-2 gap-3' : 'space-y-3'}>
         {rows.map((member, index) => (
-          <div key={index} className="rounded-xl border border-muted/30 bg-bg/50 p-4">
+          <div key={index} className="rounded-xl border border-muted/30 bg-bg/50 p-4 sm:p-5">
             <div className="flex items-center justify-between mb-3">
               <p className="text-xs font-black text-text/70 uppercase tracking-widest">Member {index + 1}</p>
               {rows.length > 1 && (
                 <button
                   type="button"
                   onClick={() => onRemove(index)}
+                  title="Remove this member row"
                   className="text-[10px] font-black text-danger uppercase tracking-widest hover:underline"
                 >
                   Remove
@@ -602,12 +605,12 @@ function EditModal({ group, form, setForm, memberRows, setMemberRows, onAddMembe
 }) {
   return (
     <div className="fixed inset-0 bg-dark/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-surface w-full max-w-5xl rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
+      <div className="bg-surface w-full max-w-4xl rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
         <div className="px-6 py-4 border-b border-muted/30 flex justify-between items-center bg-bg">
           <h3 className="font-bold text-text">Edit Group: {group.name}</h3>
-          <button onClick={onCancel} className="text-text/65 hover:text-text text-xl">×</button>
+          <button onClick={onCancel} title="Close" aria-label="Close" className="text-text/65 hover:text-text text-xl leading-none">&times;</button>
         </div>
-        <form onSubmit={onSave} className="p-6 space-y-4 max-h-[82vh] overflow-y-auto">
+        <form onSubmit={onSave} className="p-6 space-y-5 max-h-[82vh] overflow-y-auto">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <div>
               <label className="evl-label">Group Name</label>
@@ -639,9 +642,17 @@ function EditModal({ group, form, setForm, memberRows, setMemberRows, onAddMembe
             compact
           />
           <div className="flex gap-3 pt-2">
-            <button type="submit" className="evl-btn-primary flex-1 py-2.5">Save Changes</button>
-            <button type="button" onClick={onCancel} className="evl-btn-secondary px-6 py-2.5">Cancel</button>
+            <button type="submit" title="Save group changes" className="evl-btn-primary flex-1 py-2.5">Save Changes</button>
+            <button type="button" onClick={onCancel} title="Cancel editing" className="evl-btn-secondary px-6 py-2.5">Cancel</button>
           </div>
+          <button
+            type="button"
+            onClick={onAddMember}
+            title="Add another member row"
+            className="text-xs font-bold text-primary bg-primary/10 hover:bg-primary/15 px-3 py-1.5 rounded-lg transition-colors"
+          >
+            + Add Member
+          </button>
         </form>
       </div>
     </div>

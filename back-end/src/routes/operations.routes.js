@@ -4,11 +4,12 @@ const {
   cleanupProposalOrphans,
   getActivity,
   getAuditLogs,
+  exportAuditLogs,
   getInstructorSummary,
   getProposalOrphans,
   getSecurityMonitor,
 } = require('../controllers/operations.controller');
-const { getAnalytics } = require('../controllers/analytics.controller');
+const { getAnalytics, exportAnalytics } = require('../controllers/analytics.controller');
 const { protect, superadminOnly } = require('../middleware/auth.middleware');
 const { cacheResponse } = require('../middleware/cache.middleware');
 const { backgroundJob } = require('../middleware/backgroundJob.middleware');
@@ -16,7 +17,9 @@ const { backgroundJob } = require('../middleware/backgroundJob.middleware');
 router.use(protect, superadminOnly);
 
 router.get('/analytics', cacheResponse('operations:analytics', 15000), getAnalytics);
+router.get('/analytics/export', exportAnalytics);
 router.get('/audit-logs', cacheResponse('operations:audit-logs', 10000), getAuditLogs);
+router.get('/audit-logs/export', exportAuditLogs);
 router.get('/activity', cacheResponse('operations:activity', 10000), getActivity);
 router.get('/security', cacheResponse('operations:security', 10000), getSecurityMonitor);
 router.get('/instructor-summary', cacheResponse('operations:instructor-summary', 15000), getInstructorSummary);

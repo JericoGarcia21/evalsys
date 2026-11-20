@@ -12,6 +12,7 @@ const panelSchema = new mongoose.Schema({
   lockUntil: { type: Date },
   lastLoginAt: { type: Date },
   isActive: { type: Boolean, default: true },
+  sessionVersion: { type: Number, default: 0, select: false },
 }, { timestamps: true, collection: 'panel_acc' });
 
 panelSchema.pre('save', async function (next) {

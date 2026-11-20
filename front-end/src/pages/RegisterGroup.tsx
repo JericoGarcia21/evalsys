@@ -107,7 +107,7 @@ export default function RegisterGroup() {
     const ok = await confirm({
       title: 'Submit Registration?',
       message: `Please confirm your details:\n\n` +
-        `Group/Name: ${form.name}\n` +
+        `Group: ${form.name}\n` +
         `Subject: ${selectedSubject ? `${selectedSubject.code} - ${selectedSubject.title}` : ''}\n` +
         `Block: ${selectedBlock}\n` +
         `Members: ${memberPreview}\n` +
@@ -247,7 +247,7 @@ export default function RegisterGroup() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               <div className="md:col-span-2">
                 <label className="evl-label block mb-1.5">
-                  Group Name / Student Name
+                  Group Name
                 </label>
                 <input 
                   data-tutorial="registration-name"
@@ -255,7 +255,7 @@ export default function RegisterGroup() {
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
                   required
                   className="evl-input !py-3"
-                  placeholder="e.g. Group Omega or Juan Dela Cruz" 
+                  placeholder="e.g. Group Omega" 
                 />
               </div>
 

@@ -62,9 +62,6 @@ const getErrorMessage = (err: unknown, fallback: string) => {
 
 const currentSubjectKey = 'evalsys_current_subject_id';
 const csvEscape = (value: unknown) => `"${String(value ?? '').replace(/"/g, '""')}"`;
-const getRefId = (value: string | { _id?: string } | undefined) => (
-  typeof value === 'string' ? value : value?._id || ''
-);
 const downloadCsv = (filename: string, rows: BackupRow[]) => {
   const headers = rows.length ? Object.keys(rows[0]) : ['Status'];
   const dataRows = rows.length ? rows : [{ Status: 'No records found' }];
@@ -107,7 +104,7 @@ export default function Subscription() {
   const [limitInputs, setLimitInputs] = useState<Record<string, string>>({});
   const [savingLimitId, setSavingLimitId] = useState<string | null>(null);
   const [savingCsvLockId, setSavingCsvLockId] = useState<string | null>(null);
-  const [savingGradingLockId, setSavingGradingLockId] = useState<string | null>(null);
+
   const [savingAiCreditsId, setSavingAiCreditsId] = useState<string | null>(null);
   const [aiCreditInputs, setAiCreditInputs] = useState<Record<string, string>>({});
   const [dataAction, setDataAction] = useState('');
@@ -199,43 +196,7 @@ export default function Subscription() {
     }
   };
 
-  const isSubjectAssigned = (instructor: Instructor, subjectId = currentSubjectId) => (
-    Boolean(subjectId) &&
-    (instructor.assignedSubjects || []).some((subject) => getRefId(subject) === subjectId)
-  );
 
-  const isSubjectGradingLocked = (instructor: Instructor, subjectId = currentSubjectId) => (
-    Boolean(subjectId) &&
-    (instructor.gradingLockedSubjects || []).some((subject) => getRefId(subject) === subjectId)
-  );
-
-  const handleToggleInstructorGrading = async (instructor: Instructor) => {
-    if (!currentSubjectId) return;
-    const savingKey = `${instructor._id}:${currentSubjectId}`;
-    setSavingGradingLockId(savingKey);
-    try {
-      const nextLocked = !isSubjectGradingLocked(instructor);
-      const res = await api.patch(`/users/${instructor._id}/grading-lock`, {
-        subject: currentSubjectId,
-        gradingLocked: nextLocked,
-      });
-      setInstructors((prev) =>
-        prev.map((item) => (
-          item._id === instructor._id
-            ? {
-                ...item,
-                gradingLocked: res.data.gradingLocked,
-                gradingLockedSubjects: res.data.gradingLockedSubjects,
-              }
-            : item
-        ))
-      );
-    } catch (err: unknown) {
-      notify(getErrorMessage(err, 'Failed to update grading access'), { type: 'error' });
-    } finally {
-      setSavingGradingLockId(null);
-    }
-  };
 
   const handleSaveAiCredits = async (instructor: Instructor) => {
     const val = parseInt(aiCreditInputs[instructor._id], 10);
@@ -501,7 +462,6 @@ export default function Subscription() {
                   <th className="text-center">Paid Limit</th>
                   <th className="text-center">AI Credits</th>
                   <th className="text-center">CSV Export</th>
-                  <th className="text-center">Grading</th>
                   <th className="col-actions">Actions</th>
                 </tr>
               </thead>
@@ -518,9 +478,7 @@ export default function Subscription() {
                   const aiParsedInput = parseInt(aiInputValue, 10);
                   const unchangedAi = aiParsedInput === aiCurrent;
                   const aiInvalid = !Number.isFinite(aiParsedInput) || aiParsedInput < 0;
-                  const assignedToCurrentSubject = isSubjectAssigned(instructor);
-                  const currentSubjectLocked = isSubjectGradingLocked(instructor);
-                  const gradingSavingKey = `${instructor._id}:${currentSubjectId}`;
+
 
                   return (
                     <tr key={instructor._id}>
@@ -568,15 +526,6 @@ export default function Subscription() {
                           {instructor.csvExportLocked ? 'Locked' : 'Allowed'}
                         </span>
                       </td>
-                      <td data-label="Grading" className="text-center">
-                        <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-full ${
-                          !assignedToCurrentSubject
-                            ? 'bg-muted/20 text-text/60'
-                            : currentSubjectLocked ? 'bg-danger/10 text-danger' : 'bg-success/10 text-success'
-                        }`}>
-                          {!assignedToCurrentSubject ? 'Not Assigned' : currentSubjectLocked ? 'Locked' : 'Allowed'}
-                        </span>
-                      </td>
                       <td data-label="Actions" className="col-actions">
                         <div className="flex flex-wrap items-center justify-end gap-2">
                           <button
@@ -606,19 +555,6 @@ export default function Subscription() {
                               ? 'Saving...'
                               : instructor.csvExportLocked ? 'Unlock CSV' : 'Lock CSV'}
                           </button>
-                          <button
-                            onClick={() => handleToggleInstructorGrading(instructor)}
-                            disabled={!assignedToCurrentSubject || savingGradingLockId === gradingSavingKey}
-                            className={`px-3 py-1.5 rounded-lg text-[11px] font-bold border transition-all disabled:opacity-40 whitespace-nowrap ${
-                              currentSubjectLocked
-                                ? 'border-success/30 text-success bg-success/5 hover:bg-success/15'
-                                : 'border-danger/30 text-danger bg-danger/5 hover:bg-danger/15'
-                            }`}
-                          >
-                            {savingGradingLockId === gradingSavingKey
-                              ? 'Saving...'
-                              : currentSubjectLocked ? 'Unlock Grading' : 'Lock Grading'}
-                          </button>
                         </div>
                       </td>
                     </tr>
@@ -629,7 +565,7 @@ export default function Subscription() {
           )}
           <div className="px-6 py-3 border-t border-muted/30 bg-bg/60">
             <p className="text-[11px] text-text/65 leading-relaxed">
-              Updating a limit changes how many paid subjects the instructor can manage. CSV export is per instructor. Grading lock applies only to the selected subject. AI credits control how many AI-generated rubrics the instructor can create.
+              Updating a limit changes how many paid subjects the instructor can manage. CSV export is per instructor. AI credits control how many AI-generated rubrics the instructor can create.
             </p>
           </div>
         </div>

@@ -2,6 +2,7 @@ import { useEffect, useId, useState } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../services/api';
 import { getApiMessage } from '../utils/apiError';
+import { downloadCsvText } from '../utils/downloadCsv';
 
 interface Analytics {
   scope: 'platform';
@@ -34,6 +35,9 @@ export default function PlatformAnalytics() {
   const gradientId = useId();
   const [requestVersion, setRequestVersion] = useState(0);
   const [response, setResponse] = useState<{ key: string; error?: string } | null>(null);
+  const [exporting, setExporting] = useState('');
+  const [exportError, setExportError] = useState('');
+  const [exportMessage, setExportMessage] = useState('');
   const key = days + ':' + requestVersion;
   const loading = response?.key !== key;
   const error = response?.key === key ? response.error : undefined;
@@ -52,6 +56,16 @@ export default function PlatformAnalytics() {
     });
     return () => controller.abort();
   }, [days, requestVersion, key]);
+
+  const downloadReport = async (report: string) => {
+    setExporting(report); setExportError(''); setExportMessage('');
+    try {
+      const response = await api.get<string>('/operations/analytics/export', { params: { report, days } });
+      downloadCsvText(`evalsys_${report}_${new Date().toISOString().slice(0, 10)}.csv`, response.data);
+      setExportMessage(`${report === 'registrations' ? `${days}-day registration` : `Current ${report}`} report downloaded. Platform and subject rows are separate scopes.`);
+    } catch (err: unknown) { setExportError(getApiMessage(err, 'Analytics report export failed')); }
+    finally { setExporting(''); }
+  };
 
   const totals = data?.totals;
   const metrics = totals ? [
@@ -90,7 +104,7 @@ export default function PlatformAnalytics() {
         <div className="flex flex-wrap items-center gap-3">
           <label htmlFor="analytics-range" className="sr-only">Registration period</label>
           <select id="analytics-range" value={days} onChange={event => { setDays(Number(event.target.value)); setInspectedDay(null); }}
-            className="evl-select !w-auto !rounded-md !text-sm" disabled={loading}>
+            className="evl-select !w-auto !rounded-md !text-sm" disabled={loading || Boolean(exporting)}>
             <option value={7}>Last 7 days</option><option value={30}>Last 30 days</option><option value={90}>Last 90 days</option>
           </select>
           <button onClick={() => setRequestVersion(version => version + 1)} disabled={loading}
@@ -100,6 +114,12 @@ export default function PlatformAnalytics() {
           </button>
         </div>
       </header>
+
+      <section aria-label="Analytics report exports" className="border-y border-muted/30 py-4 mb-5">
+        <div className="flex flex-wrap gap-2">{([['registrations', 'Export registrations CSV'], ['grading', 'Export grading progress CSV'], ['proposals', 'Export proposal coverage CSV']] as const).map(([report, label]) => <button key={report} type="button" className="evl-btn-secondary" disabled={loading || Boolean(error) || Boolean(exporting)} onClick={() => downloadReport(report)}>{exporting === report ? 'Exporting...' : label}</button>)}</div>
+        <p className="text-xs text-text/60 mt-2">Registration exports use the selected UTC period. Grading and proposal reports are current platform-wide snapshots, including all subject buckets with groups (not just the top 10).</p>
+        {exportError && <p role="alert" className="text-sm text-danger mt-2">{exportError}</p>}{exportMessage && <p role="status" className="text-sm text-success mt-2">{exportMessage}</p>}
+      </section>
 
       {loading ? (
         <div role="status" aria-label="Loading analytics" className="animate-pulse">

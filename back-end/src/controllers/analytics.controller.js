@@ -5,10 +5,16 @@ const Section = require('../models/Section');
 const Group = require('../models/Group');
 const Evaluation = require('../models/Evaluation');
 const RegistrationLink = require('../models/RegistrationLink');
+const { EXPORT_LIMIT, textFilter, csvDocument } = require('../utils/reporting');
+const { recordAuditLog } = require('../services/audit.service');
 
-exports.getAnalytics = async (req, res) => {
-  const days = Number(req.query.days ?? 30);
-  if (![7, 30, 90].includes(days)) return res.status(400).json({ message: 'Analytics range must be 7, 30, or 90 days.' });
+const parseDays = value => {
+  if (value === undefined) return 30;
+  if (typeof value !== 'string' || !['7', '30', '90'].includes(value)) throw Object.assign(new Error('Analytics range must be 7, 30, or 90 days.'), { statusCode: 400 });
+  return Number(value);
+};
+
+const collectAnalytics = async (days, allSubjects = false) => {
   const now = new Date();
   const since = new Date(now);
   since.setUTCHours(0, 0, 0, 0);
@@ -74,10 +80,16 @@ exports.getAnalytics = async (req, res) => {
           { $sort: { _id: 1 } },
         ],
         bySubject: [
-          { $group: { _id: { $ifNull: ['$_section.subject', null] }, groups: { $sum: 1 }, students: { $sum: '$_students' }, complete: countWhen({ $eq: ['$_status', 'complete'] }), proposals: countWhen('$_hasProposal') } },
-          { $sort: { groups: -1, _id: 1 } }, { $limit: 10 },
+          { $group: {
+            _id: { $ifNull: ['$_section.subject', null] }, groups: { $sum: 1 }, students: { $sum: '$_students' },
+            complete: countWhen({ $eq: ['$_status', 'complete'] }), proposals: countWhen('$_hasProposal'),
+            inProgress: countWhen({ $eq: ['$_status', 'inProgress'] }), pending: countWhen({ $eq: ['$_status', 'pending'] }),
+            unassigned: countWhen({ $eq: ['$_status', 'unassigned'] }), submittedEvaluations: { $sum: { $size: '$_evaluations' } },
+            proposalBytes: { $sum: { $cond: ['$_hasProposal', { $ifNull: ['$proposalFile.size', 0] }, 0] } },
+          } },
+          { $sort: { groups: -1, _id: 1 } }, { $limit: allSubjects ? EXPORT_LIMIT + 1 : 10 },
           { $lookup: { from: Subject.collection.name, localField: '_id', foreignField: '_id', as: '_subject' } },
-          { $project: { _id: 0, subjectId: '$_id', code: { $ifNull: [{ $arrayElemAt: ['$_subject.code', 0] }, 'Unlinked subject'] }, title: { $ifNull: [{ $arrayElemAt: ['$_subject.title', 0] }, ''] }, groups: 1, students: 1, complete: 1, proposals: 1 } },
+          { $project: { _id: 0, subjectId: '$_id', code: { $ifNull: [{ $arrayElemAt: ['$_subject.code', 0] }, 'Unlinked subject'] }, title: { $ifNull: [{ $arrayElemAt: ['$_subject.title', 0] }, ''] }, groups: 1, students: 1, complete: 1, proposals: 1, inProgress: 1, pending: 1, unassigned: 1, submittedEvaluations: 1, proposalBytes: 1 } },
         ],
       } },
     ]),
@@ -102,7 +114,7 @@ exports.getAnalytics = async (req, res) => {
     const day = dailyMap.get(label);
     return { date: label, groups: day?.groups || 0, students: day?.students || 0 };
   });
-  res.json({
+  return {
     scope: 'platform', generatedAt: now.toISOString(), days, timezone: 'UTC',
     totals: {
       students: totals.students || 0, groups: totals.groups || 0,
@@ -115,5 +127,32 @@ exports.getAnalytics = async (req, res) => {
     },
     period: registrations.reduce((sum, day) => ({ groups: sum.groups + day.groups, students: sum.students + day.students }), { groups: 0, students: 0 }),
     registrations, bySubject: group.bySubject || [],
-  });
+  };
+};
+
+exports.getAnalytics = async (req, res) => res.json(await collectAnalytics(parseDays(req.query.days)));
+
+exports.exportAnalytics = async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  const days = parseDays(req.query.days);
+  const report = textFilter(req.query, 'report', 20);
+  if (!['registrations', 'grading', 'proposals'].includes(report)) return res.status(400).json({ message: 'Choose registrations, grading, or proposals for the report' });
+  const data = await collectAnalytics(days, report !== 'registrations');
+  let headers, rows;
+  if (report === 'registrations') {
+    headers = ['Date (UTC)', 'Groups', 'Student entries', 'Period days', 'Generated at (UTC)'];
+    rows = data.registrations.map(day => [day.date, day.groups, day.students, days, data.generatedAt]);
+  } else if (report === 'grading') {
+    headers = ['Scope', 'Subject', 'Title', 'Groups', 'Complete', 'In progress', 'Pending', 'Unassigned', 'Submitted evaluations', 'Generated at (UTC)'];
+    const gradingRow = (scope, subject, title, stats) => [scope, subject, title, stats.groups, stats.complete, stats.inProgress, stats.pending, stats.unassigned, stats.submittedEvaluations, data.generatedAt];
+    rows = [gradingRow('Platform', 'All subjects', '', { groups: data.totals.groups, ...data.totals.grading }), ...data.bySubject.map(subject => gradingRow('Subject', subject.code, subject.title, subject))];
+  } else {
+    headers = ['Scope', 'Subject', 'Title', 'Groups', 'Uploaded', 'Missing', 'Coverage (%)', 'Storage bytes', 'Generated at (UTC)'];
+    const proposalRow = (scope, subject, title, groups, uploaded, bytes) => [scope, subject, title, groups, uploaded, groups - uploaded, groups ? Math.round(uploaded / groups * 10000) / 100 : 0, bytes, data.generatedAt];
+    rows = [proposalRow('Platform', 'All subjects', '', data.totals.groups, data.totals.proposals.uploaded, data.bySubject.reduce((sum, subject) => sum + subject.proposalBytes, 0)), ...data.bySubject.map(subject => proposalRow('Subject', subject.code, subject.title, subject.groups, subject.proposals, subject.proposalBytes))];
+  }
+  if (rows.length > EXPORT_LIMIT) return res.status(413).json({ message: 'Analytics export exceeds 10,000 rows. A narrower report is required.' });
+  const csv = csvDocument(headers, rows);
+  await recordAuditLog(req, { action: `analytics.export.${report}`, entity: { type: 'analytics', name: report }, metadata: { rows: rows.length, days: report === 'registrations' ? days : undefined, generatedAt: data.generatedAt, scope: 'platform' } });
+  res.type('text/csv').attachment(`evalsys_${report}_${data.generatedAt.slice(0, 10)}.csv`).send(csv);
 };

@@ -155,21 +155,20 @@ export default function Presentation() {
 
   useEffect(() => {
     let active = true;
-    setLoading(true);
-    setError('');
-
-    api.get('/groups')
-      .then((res) => {
+    const run = async () => {
+      setLoading(true);
+      setError('');
+      try {
+        const res = await api.get('/groups');
         if (!active) return;
         setGroups(Array.isArray(res.data) ? res.data : []);
-      })
-      .catch((err: unknown) => {
+      } catch (err: unknown) {
         if (active) setError(getApiMessage(err, 'Failed to load groups'));
-      })
-      .finally(() => {
+      } finally {
         if (active) setLoading(false);
-      });
-
+      }
+    };
+    void run();
     return () => {
       active = false;
     };
@@ -183,7 +182,11 @@ export default function Presentation() {
 
   // Drop a block selection that no longer exists (e.g. after switching subjects).
   useEffect(() => {
-    if (block !== ALL_BLOCKS && !blocks.includes(block)) setBlock(ALL_BLOCKS);
+    const nextBlock = block !== ALL_BLOCKS && !blocks.includes(block) ? ALL_BLOCKS : block;
+    if (nextBlock !== block) {
+      const applyBlock = () => setBlock(nextBlock);
+      applyBlock();
+    }
   }, [blocks, block]);
 
   const blockGroups = useMemo(
@@ -194,9 +197,15 @@ export default function Presentation() {
   // Hydrate order, presented marks, and minutes for the current instructor/subject/block.
   useEffect(() => {
     const stored = readStoredOrder(instructorId, subjectId, block);
-    setOrder(reconcileOrder(stored?.order ?? [], blockGroups));
-    setPresented(stored?.presented ?? []);
-    setMinutes(readStoredMinutes(instructorId, subjectId) ?? DEFAULT_MINUTES);
+    const nextOrder = reconcileOrder(stored?.order ?? [], blockGroups);
+    const nextPresented = stored?.presented ?? [];
+    const nextMinutes = readStoredMinutes(instructorId, subjectId) ?? DEFAULT_MINUTES;
+    const applyHydratedState = () => {
+      setOrder(nextOrder);
+      setPresented(nextPresented);
+      setMinutes(nextMinutes);
+    };
+    applyHydratedState();
   }, [instructorId, subjectId, block, blockGroups]);
 
   const groupById = useMemo(() => {

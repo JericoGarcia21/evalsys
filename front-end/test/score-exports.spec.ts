@@ -135,12 +135,21 @@ test('downloaded group summaries and member scores are alphabetized without alte
 });
 
 test('downloaded archived results are ordered by group A-Z with scores preserved', async ({ page }) => {
-  await page.route('**/api/legacy-data', route => route.fulfill({ status: 200, json: { sections: [], groups: [], panels: [], results: [
+  const results = [
     { _id: 'z', total: 9, scores: { quality: 9 }, updatedAt: '2026-01-01', legacySnapshot: { groupName: 'Zulu', panelName: 'Panel A' } },
     { _id: 'b', total: 8, scores: { quality: 8 }, updatedAt: '2026-01-01', legacySnapshot: { groupName: 'beta', panelName: 'Panel A' } },
     { _id: 'a2', total: 6, scores: { quality: 6 }, updatedAt: '2026-01-01', legacySnapshot: { groupName: 'Alpha', panelName: 'Panel Z' } },
     { _id: 'a1', total: 7, scores: { quality: 7 }, updatedAt: '2026-01-01', legacySnapshot: { groupName: 'Alpha', panelName: 'Panel A' } },
-  ] } }));
+  ];
+  await page.route('**/api/legacy-data?includeResults=false', route => route.fulfill({ json: { sections: [], groups: [], panels: [], results: [], resultCount: results.length } }));
+  await page.route('**/api/legacy-data/results?*', route => route.fulfill({ json: { items: results, pagination: { page: 1, total: results.length, totalPages: 1, hasPreviousPage: false, hasNextPage: false } } }));
+  await page.route('**/api/legacy-data/results/export?*', route => route.fulfill({ contentType: 'text/csv', body: [
+    '"Subject","Instructor","Block","Group","Members","Panel","Panel Email","Scores","Total"',
+    '"","","","Alpha","","Panel A","","","7"',
+    '"","","","Alpha","","Panel Z","","","6"',
+    '"","","","beta","","Panel A","","","8"',
+    '"","","","Zulu","","Panel A","","","9"',
+  ].join('\r\n') }));
   await login(page, 'qa-super');
   await page.goto('/legacy-data');
   await expect(page.getByText('Zulu', { exact: true })).toBeVisible();

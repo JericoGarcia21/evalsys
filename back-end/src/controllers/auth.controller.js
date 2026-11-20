@@ -1,13 +1,11 @@
 const { isMaintenanceActive } = require('../services/maintenance.service');
-const jwt = require('jsonwebtoken');
 const Admin = require('../models/Admin');
 const Panel = require('../models/Panel');
 const Section = require('../models/Section');
 const Settings = require('../models/Settings');
 const { recordAuditLog } = require('../services/audit.service');
-
-const signToken = (id, role) =>
-  jwt.sign({ id, role }, process.env.JWT_SECRET, { expiresIn: '7d' });
+const { issueSession, replacePassword } = require('../services/session.service');
+const AuthSession = require('../models/AuthSession');
 
 const MAX_FAILED_LOGIN_ATTEMPTS = 5;
 const LOGIN_LOCK_MINUTES = 15;
@@ -42,14 +40,14 @@ const normalizeEvalsysEmail = (value = '') => {
 const escapeRegex = (value = '') => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 const findUserByEmail = async (email) => (
-  await Admin.findOne({ email }) || await Panel.findOne({ email })
+  await Admin.findOne({ email }).select('+sessionVersion') || await Panel.findOne({ email }).select('+sessionVersion')
 );
 
 const findLegacyUserByUsername = async (email) => {
   const username = email.split('@')[0];
   if (!username) return null;
   const localPartRegex = new RegExp(`^${escapeRegex(username)}@`, 'i');
-  return await Admin.findOne({ email: localPartRegex }) || await Panel.findOne({ email: localPartRegex });
+  return await Admin.findOne({ email: localPartRegex }).select('+sessionVersion') || await Panel.findOne({ email: localPartRegex }).select('+sessionVersion');
 };
 
 const uniqueIds = (ids = []) => [
@@ -209,7 +207,7 @@ exports.login = async (req, res) => {
   });
 
   res.json({
-    token: signToken(user._id, user.role),
+    token: await issueSession(user, req),
     user: {
       id: user._id,
       name: user.name,
@@ -224,6 +222,7 @@ exports.login = async (req, res) => {
 
 exports.getMe = async (req, res) => {
   const user = req.user.toObject ? req.user.toObject() : req.user;
+  delete user.sessionVersion;
   const locks = await getUserFeatureLocks(req.user);
   res.json({ ...user, ...locks });
 };
@@ -237,23 +236,21 @@ exports.changePassword = async (req, res) => {
     return res.status(400).json({ message: passwordRuleMessage });
   }
   const Model = ['admin', 'superadmin'].includes(req.user.role) ? Admin : Panel;
-  const user = await Model.findById(req.user._id);
+  const user = await Model.findById(req.user._id).select('+sessionVersion');
   if (!user) return res.status(404).json({ message: 'Account not found' });
 
   if (await user.matchPassword(newPassword)) {
     return res.status(400).json({ message: 'New password must be different from the temporary password' });
   }
 
-  user.password = newPassword;
-  user.mustChangePassword = false;
-  await user.save();
+  const updated = await replacePassword(Model, user, newPassword, false);
   await recordAuditLog(req, {
     action: 'account.password.changed',
     actor: { id: user._id, name: user.name, email: user.email, role: user.role },
     entity: { type: user.role, id: user._id, name: user.name },
     metadata: { temporaryPasswordFlow: true },
   });
-  res.json({ message: 'Password changed successfully', mustChangePassword: false });
+  res.json({ message: 'Password changed successfully', mustChangePassword: false, token: await issueSession(updated, req) });
 };
 
 exports.updateOwnPassword = async (req, res) => {
@@ -266,7 +263,7 @@ exports.updateOwnPassword = async (req, res) => {
   }
 
   const Model = ['admin', 'superadmin'].includes(req.user.role) ? Admin : Panel;
-  const user = await Model.findById(req.user._id);
+  const user = await Model.findById(req.user._id).select('+sessionVersion');
   if (!user) return res.status(404).json({ message: 'Account not found' });
 
   if (!(await user.matchPassword(currentPassword))) {
@@ -276,14 +273,18 @@ exports.updateOwnPassword = async (req, res) => {
     return res.status(400).json({ message: 'New password must be different from the current password' });
   }
 
-  user.password = newPassword;
-  user.mustChangePassword = false;
-  await user.save();
+  const updated = await replacePassword(Model, user, newPassword, false);
   await recordAuditLog(req, {
     action: 'account.password.changed',
     actor: { id: user._id, name: user.name, email: user.email, role: user.role },
     entity: { type: user.role, id: user._id, name: user.name },
     metadata: { temporaryPasswordFlow: false },
   });
-  res.json({ message: 'Password updated successfully' });
+  res.json({ message: 'Password updated successfully', token: await issueSession(updated, req) });
+};
+
+exports.logout = async (req, res) => {
+  await AuthSession.updateOne({ _id: req.authSession._id }, { $set: { revokedAt: new Date() } });
+  await recordAuditLog(req, { action: 'session.logout', entity: { type: 'session', id: req.authSession._id } });
+  res.json({ message: 'Signed out' });
 };

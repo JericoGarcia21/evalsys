@@ -4,6 +4,10 @@ import api from '../../services/api';
 import { notify } from '../../utils/notify';
 import { useConfirmDialog } from '../../hooks/useConfirmDialog';
 import { waitForJob } from '../../services/backgroundJobs';
+import { useSearchParams } from 'react-router-dom';
+import AuditLogPanel from '../../components/admin/AuditLogPanel';
+import PermissionMatrix from '../../components/admin/PermissionMatrix';
+import AccountControlPanel from '../../components/admin/AccountControlPanel';
 
 interface AuditLog {
   _id: string;
@@ -64,6 +68,25 @@ const downloadJson = (filename: string, data: unknown) => {
 };
 
 export default function Operations() {
+  const [params, setParams] = useSearchParams();
+  const section = ['audit', 'permissions', 'accounts'].includes(params.get('view') || '') ? params.get('view') : 'overview';
+  return (
+    <div>
+      <div className="mb-6">
+        <h2 className="evl-page-title">Operations</h2>
+        <p className="evl-page-subtitle">Monitor platform activity, audit records, permissions, storage, and backups.</p>
+      </div>
+      <nav aria-label="Operations sections" className="flex flex-wrap gap-2 mb-6">
+        {[['overview', 'Overview'], ['audit', 'Audit Log'], ['permissions', 'Permissions'], ['accounts', 'Account Control']].map(([value, label]) => (
+          <button type="button" key={value} aria-pressed={section === value} className={section === value ? 'evl-btn-primary' : 'evl-btn-secondary'} onClick={() => setParams(value === 'overview' ? {} : { view: value })}>{label}</button>
+        ))}
+      </nav>
+      {section === 'audit' ? <AuditLogPanel /> : section === 'permissions' ? <PermissionMatrix /> : section === 'accounts' ? <AccountControlPanel /> : <OperationsOverview />}
+    </div>
+  );
+}
+
+function OperationsOverview() {
   const [loading, setLoading] = useState(true);
   const [activity, setActivity] = useState<ActivityStatus | null>(null);
   const [summary, setSummary] = useState<InstructorSummary[]>([]);
@@ -139,7 +162,6 @@ export default function Operations() {
   if (loading) {
     return (
       <div>
-        <h2 className="evl-page-title mb-6">Operations</h2>
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
           {Array(4).fill(0).map((_, i) => (
             <div key={i} className="h-48 rounded-xl bg-surface border border-muted/30 animate-pulse" />
@@ -152,12 +174,6 @@ export default function Operations() {
   return (
     <div>
       <ConfirmDialog />
-      <div className="mb-8">
-        <div>
-          <h2 className="evl-page-title">Operations</h2>
-          <p className="evl-page-subtitle">Monitor system activity, instructor usage, proposal storage, and backups.</p>
-        </div>
-      </div>
 
       <div className="grid grid-cols-1 2xl:grid-cols-[minmax(0,1.25fr)_minmax(360px,0.75fr)] gap-5 mb-6">
         <ActivityMonitor activity={activity} />

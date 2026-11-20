@@ -24,12 +24,13 @@ const Rubric = require('../src/models/Rubric');
 const Evaluation = require('../src/models/Evaluation');
 const Settings = require('../src/models/Settings');
 const AuditLog = require('../src/models/AuditLog');
+const AuthSession = require('../src/models/AuthSession');
 const { clearResponseCache } = require('../src/middleware/cache.middleware');
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 const percentile = (values, p) => values.length ? Math.round([...values].sort((a,b)=>a-b)[Math.ceil(values.length*p)-1]) : 0;
 let mongo, server, baseUrl;
 const actors = [], admins = [], successfulWrites = new Set();
-function sign(user) { return jwt.sign({ id: String(user._id), role: user.role }, process.env.JWT_SECRET, { expiresIn: '1h' }); }
+function sign(user) { return jwt.sign({ id: String(user._id), role: user.role, sid: String(user._id), sv: 0 }, process.env.JWT_SECRET, { expiresIn: '1h' }); }
 async function seed() {
   const password = await bcrypt.hash('GeneratedLoadTest!2026', 4);
   for (let i=0; i<10; i++) {
@@ -37,6 +38,7 @@ async function seed() {
     const [instructor] = await Admin.insertMany([{name:'Synthetic instructor '+i,email:'load-admin-'+i+'@evalsys.com',password,role:'admin',assignedSubjects:[subject._id]}]);
     const rubric = await Rubric.create({title:'Synthetic rubric',subject:subject._id,createdBy:instructor._id,criteria:[{key:'quality',label:'Quality',maxScore:10,levels:[{label:'Score',minScore:0,maxScore:10}]}]});
     const panels = await Panel.insertMany(Array.from({length:20},(_,j)=>({name:'Synthetic panel '+i+'-'+j,email:'load-panel-'+i+'-'+j+'@evalsys.com',password,createdBy:instructor._id,mustChangePassword:false})));
+    await AuthSession.insertMany([instructor, ...panels].map(user => ({ _id: user._id, user: user._id, role: user.role, version: 0, expiresAt: new Date(Date.now() + 3600000) })));
     for(let b=0;b<4;b++) {
       const assigned=panels.slice(b*5,b*5+5);
       const section=await Section.create({name:'Synthetic block '+b,block:'LOAD-'+i+'-'+b,subject:subject._id,createdBy:instructor._id,assignedPanels:assigned.map(p=>p._id)});

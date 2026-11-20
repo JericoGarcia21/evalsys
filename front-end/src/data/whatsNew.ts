@@ -13,9 +13,59 @@ export interface ReleaseNote {
 }
 
 /** Bump this whenever you add a release note — users see each version once. */
-export const CURRENT_VERSION = '1.5.4';
+export const CURRENT_VERSION = '1.6.3';
 
 export const RELEASES: ReleaseNote[] = [
+  {
+    version: '1.6.3',
+    date: '2026-11-20',
+    title: 'Super Admin interface polish',
+    // Internal release record only: do not show a popup for Super Admin-only updates.
+    audience: [],
+    items: [
+      'Resources, Operations, Security, System Control, and Archive now show their matching sidebar icons.',
+      'Removed the instructor/subject selector block and Manage Subjects shortcut from the Super Admin sidebar.',
+      'System Control now separates notice editing and maintenance, with clear statuses and draft previews.',
+    ],
+  },
+  {
+    version: '1.6.2',
+    date: '2026-11-20',
+    title: 'Relevant, scheduled notices',
+    audience: ['admin', 'panel'],
+    items: [
+      'Announcements can now be limited to your role and assigned subjects.',
+      'Scheduled notices appear during their active window and disappear after their end time.',
+    ],
+  },
+  {
+    version: '1.6.1',
+    date: '2026-11-20',
+    title: 'Safer sign-in sessions',
+    audience: ['admin', 'panel'],
+    items: [
+      'Signing out now closes your server session; older untracked sessions require a fresh sign-in.',
+      'Changing your password signs out older sessions while keeping your current session signed in.',
+    ],
+  },
+  {
+    version: '1.6.0',
+    date: '2026-11-20',
+    title: 'Super Admin audit tools and permissions',
+    audience: ['superadmin'],
+    items: [
+      'Filter the Operations audit log by actor, action, status, and date, then export matching records as CSV.',
+      'Review the read-only permission matrix in Operations to see access rules for each role.',
+    ],
+  },
+  {
+    version: '1.5.5',
+    date: '2026-11-20',
+    title: 'Clearer registration form',
+    items: [
+      'The registration form now asks for the group name only; student names belong in the member rows.',
+    ],
+  },
   {
     version: '1.5.4',
     date: '2026-11-19',

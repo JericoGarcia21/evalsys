@@ -139,11 +139,7 @@ export default function Users() {
   const paginatedUsers = filteredUsers.slice(pageStart, pageStart + pageSize);
   const startDisplay = filteredUsers.length ? pageStart + 1 : 0;
   const endDisplay = Math.min(pageStart + pageSize, filteredUsers.length);
-  const usersByRole = visibleRoles.map((role) => ({
-    role,
-    label: roleText(role),
-    users: paginatedUsers.filter((item) => item.role === role),
-  }));
+  // Accounts are shown in one unified list (not split by role).
   const hasAccountFilters = Boolean(search || roleFilter || statusFilter);
   const selectedUsers = users.filter((item) => selectedAccountIds.has(item._id));
   const visiblePageIds = paginatedUsers.map((item) => item._id);
@@ -746,73 +742,69 @@ export default function Users() {
       {loading ? (
         <TableSkeleton rows={5} cols={5} />
       ) : (
-        <div className="space-y-5">
-          {usersByRole.map((group) => (
-            <div key={group.role} className="evl-card overflow-hidden">
-              <div className="px-5 py-4 border-b border-muted/30 flex items-center justify-between bg-bg/50">
-                <div>
-                  <h3 className="text-sm font-black text-text">{group.label}</h3>
-                  <p className="text-[11px] text-text/65 mt-0.5">
-                    {group.users.length} account{group.users.length !== 1 ? 's' : ''}
-                  </p>
-                </div>
-                <span className="text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-md bg-muted/20 text-text/60">
-                  {group.users.filter((item) => item.isActive).length} Active
-                </span>
-              </div>
-
-              {group.users.length === 0 ? (
-                <div className="px-5 py-10 text-center text-sm text-text/65">
-                  No {group.label.toLowerCase()} accounts yet.
-                </div>
-              ) : (
-                <div className="divide-y divide-muted/30">
-                  {group.users.map((u) => (
-                    <div key={u._id} className="grid grid-cols-1 lg:grid-cols-[32px_1.4fr_1.6fr_120px_260px] gap-3 px-5 py-4 items-center">
-                      <div>
-                        <input
-                          type="checkbox"
-                          checked={selectedAccountIds.has(u._id)}
-                          onChange={() => toggleAccountSelection(u._id)}
-                          aria-label={`Select ${u.name}`}
-                          className="h-4 w-4 accent-primary"
-                        />
-                      </div>
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-9 h-9 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-black shrink-0">
-                          {u.name.charAt(0).toUpperCase()}
-                        </div>
-                        <div className="min-w-0">
-                          <p className="font-bold text-text truncate">{u.name}</p>
-                          <p className="text-[11px] text-text/60">{roleText(u.role)}</p>
-                        </div>
-                      </div>
-                      <p className="text-sm text-text/55 truncate">{u.email}</p>
-                      <div>
-                        <span className={u.isActive ? 'evl-badge-success' : 'evl-badge-danger'}>
-                          {u.isActive ? 'Active' : 'Blocked'}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-start lg:justify-end gap-2 whitespace-nowrap">
-                        <button onClick={() => handleToggle(u._id)}
-                          className="evl-btn-ghost text-primary border-primary/30 hover:bg-primary/5 hover:border-primary/50">
-                          {u.isActive ? 'Block' : 'Unblock'}
-                        </button>
-                        <button onClick={() => openTemporaryPasswordModal({ _id: u._id, name: u.name })}
-                          className="evl-btn-ghost text-primary border-primary/30 hover:bg-primary/5 hover:border-primary/50">
-                          Temp Pass
-                        </button>
-                        <button onClick={() => handleDelete(u._id)}
-                          className="evl-btn-ghost text-danger border-danger/30 hover:text-danger hover:bg-danger/5 hover:border-danger/50">
-                          Delete
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
+        <div className="evl-card overflow-hidden">
+          <div className="px-5 py-4 border-b border-muted/30 flex items-center justify-between bg-bg/50">
+            <div>
+              <h3 className="text-sm font-black text-text">Accounts</h3>
+              <p className="text-[11px] text-text/65 mt-0.5">
+                {paginatedUsers.length} account{paginatedUsers.length !== 1 ? 's' : ''} on this page
+              </p>
             </div>
-          ))}
+            <span className="text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-md bg-muted/20 text-text/60">
+              {paginatedUsers.filter((item) => item.isActive).length} Active
+            </span>
+          </div>
+
+          {paginatedUsers.length === 0 ? (
+            <div className="px-5 py-10 text-center text-sm text-text/65">
+              No accounts found.
+            </div>
+          ) : (
+            <div className="divide-y divide-muted/30">
+              {paginatedUsers.map((u) => (
+                <div key={u._id} className="grid grid-cols-1 lg:grid-cols-[32px_1.4fr_1.6fr_120px_260px] gap-3 px-5 py-4 items-center">
+                  <div>
+                    <input
+                      type="checkbox"
+                      checked={selectedAccountIds.has(u._id)}
+                      onChange={() => toggleAccountSelection(u._id)}
+                      aria-label={`Select ${u.name}`}
+                      className="h-4 w-4 accent-primary"
+                    />
+                  </div>
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-9 h-9 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-black shrink-0">
+                      {u.name.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-bold text-text truncate">{u.name}</p>
+                      <p className="text-[11px] text-text/60">{roleText(u.role)}</p>
+                    </div>
+                  </div>
+                  <p className="text-sm text-text/55 truncate">{u.email}</p>
+                  <div>
+                    <span className={u.isActive ? 'evl-badge-success' : 'evl-badge-danger'}>
+                      {u.isActive ? 'Active' : 'Blocked'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-start lg:justify-end gap-2 whitespace-nowrap">
+                    <button onClick={() => handleToggle(u._id)}
+                      className="evl-btn-ghost text-primary border-primary/30 hover:bg-primary/5 hover:border-primary/50">
+                      {u.isActive ? 'Block' : 'Unblock'}
+                    </button>
+                    <button onClick={() => openTemporaryPasswordModal({ _id: u._id, name: u.name })}
+                      className="evl-btn-ghost text-primary border-primary/30 hover:bg-primary/5 hover:border-primary/50">
+                      Temp Pass
+                    </button>
+                    <button onClick={() => handleDelete(u._id)}
+                      className="evl-btn-ghost text-danger border-danger/30 hover:text-danger hover:bg-danger/5 hover:border-danger/50">
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
           {filteredUsers.length > 0 && (
             <div className="evl-card px-5 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <p className="text-[11px] text-text/65 font-semibold">

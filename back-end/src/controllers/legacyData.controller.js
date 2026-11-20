@@ -71,7 +71,7 @@ const getLegacyFilter = async () => {
   };
 };
 
-exports.getLegacyData = async (_req, res) => {
+exports.getLegacyData = async (req, res) => {
   const { filter: legacyFilter, legacyBefore } = await getLegacyFilter();
   const sections = await Section.find(legacyFilter)
     .populate('subject', 'code title')
@@ -93,7 +93,8 @@ exports.getLegacyData = async (_req, res) => {
     .sort({ createdAt: -1 }))
     .filter((panel) => !panel.createdBy);
 
-  const results = await Evaluation.find({ isLegacyArchived: true })
+  const resultCount = await Evaluation.countDocuments({ isLegacyArchived: true });
+  const results = req.query.includeResults === 'false' ? [] : await Evaluation.find({ isLegacyArchived: true })
     .select('total comments scores isSubmitted legacySnapshot legacyArchivedAt updatedAt')
     .sort({ legacyArchivedAt: -1 });
 
@@ -102,6 +103,7 @@ exports.getLegacyData = async (_req, res) => {
     groups,
     panels,
     results,
+    resultCount,
     legacyBefore,
   });
 };

@@ -22,7 +22,7 @@ async function mockControls(page: Page, initial: Record<string, unknown> = {}, r
       } else settings = { ...settings, ...body };
       return route.fulfill({ json: settings });
     }
-    if (url.pathname.endsWith('/settings') || url.pathname.endsWith('/settings/public')) return route.fulfill({ json: settings });
+    if (url.pathname.endsWith('/settings') || url.pathname.endsWith('/settings/public') || url.pathname.endsWith('/settings/notices')) return route.fulfill({ json: settings });
     return route.fulfill({ json: [] });
   });
   return writes;
@@ -30,7 +30,7 @@ async function mockControls(page: Page, initial: Record<string, unknown> = {}, r
 
 test('calendar maintenance saves Manila timezone dates and can be rescheduled or cancelled', async ({ page }) => {
   const writes = await mockControls(page);
-  await page.goto('/system-control');
+  await page.goto('/system-control?view=maintenance');
   await expect(page.getByText('Asia/Manila', { exact: true })).toBeVisible();
   await page.getByLabel('Start date and time', { exact: true }).fill('2099-06-15T09:00');
   await page.getByLabel('End date and time (optional)').fill('2099-06-15T10:00');
@@ -56,7 +56,7 @@ test('calendar maintenance saves Manila timezone dates and can be rescheduled or
 
 test('invalid calendar windows cannot be submitted and maintenance UI fits mobile', async ({ page }) => {
   const writes = await mockControls(page);
-  await page.goto('/system-control');
+  await page.goto('/system-control?view=maintenance');
   await page.getByRole('button', { name: 'Schedule Maintenance', exact: true }).click();
   await expect(page.getByRole('alert')).toContainText('Choose a future');
   await page.getByLabel('Start date and time', { exact: true }).fill('2099-06-15T10:00');
@@ -70,7 +70,7 @@ test('invalid calendar windows cannot be submitted and maintenance UI fits mobil
 
 test('active maintenance supports message edits and manual ending', async ({ page }) => {
   const writes = await mockControls(page, { isMaintenanceMode: true, maintenanceStartsAt: new Date(Date.now() - 60000).toISOString() });
-  await page.goto('/system-control');
+  await page.goto('/system-control?view=maintenance');
   await expect(page.getByText('Maintenance is active.', { exact: false })).toBeVisible();
   await page.getByLabel('Maintenance message', { exact: true }).fill('Finishing server updates.');
   await page.getByRole('button', { name: 'Save Message' }).click();
@@ -89,7 +89,7 @@ test('expired maintenance window shows restored access rather than active mainte
     maintenanceStartsAt: new Date(Date.now() - 60000).toISOString(),
     maintenanceEndsAt: new Date(Date.now() - 1000).toISOString(),
   });
-  await page.goto('/system-control');
+  await page.goto('/system-control?view=maintenance');
   await expect(page.getByText('Access has resumed.', { exact: false })).toBeVisible();
   await expect(page.getByRole('button', { name: 'End Maintenance', exact: true })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Schedule Maintenance', exact: true })).toBeVisible();
@@ -98,7 +98,7 @@ test('expired maintenance window shows restored access rather than active mainte
 
 test('quick immediate maintenance remains available without an end date', async ({ page }) => {
   const writes = await mockControls(page);
-  await page.goto('/system-control');
+  await page.goto('/system-control?view=maintenance');
   await page.getByLabel('Start maintenance', { exact: true }).selectOption('quick');
   await page.getByLabel('Start delay', { exact: true }).selectOption('0');
   await page.getByRole('button', { name: 'Start Maintenance Now', exact: true }).click();
@@ -137,4 +137,18 @@ test('upcoming maintenance and announcements stack without overlapping on mobile
   const first = await maintenance.boundingBox();
   const second = await announcement.boundingBox();
   expect(second!.y).toBeGreaterThanOrEqual(first!.y + first!.height);
+});
+
+test('a stalled private notice does not delay the maintenance overlay', async ({ page }) => {
+  await mockControls(page, { isMaintenanceMode: true, maintenanceMessage: 'Maintenance remains independent.' }, 'panel');
+  let release: () => void = () => {};
+  const pending = new Promise<void>(resolve => { release = resolve; });
+  await page.route('**/api/settings/notices', async route => {
+    await pending;
+    await route.fulfill({ json: { announcement: { isActive: false } } }).catch(() => {});
+  });
+  try {
+    await page.goto('/dashboard');
+    await expect(page.getByRole('heading', { name: 'EvalSys is temporarily paused', exact: true })).toBeVisible();
+  } finally { release(); }
 });

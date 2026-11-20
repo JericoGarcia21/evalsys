@@ -53,7 +53,7 @@ export const tutorials: Record<TutorialRole, TutorialConfig> = {
     label: 'Group registration',
     steps: [
       { title: 'Register with your instructor link', target: target('registration-intro'), description: 'This is the group registration form, not an account dashboard. Your instructor link supplies the subject and allowed blocks. This guide helps you fill the real form without sending it.' },
-      { title: 'Enter your group name', target: target('registration-name'), interactive: true, action: 'name', description: 'Type your group name, or your name for an individual project. Enter a name to unlock Next. Nothing is sent while you type.' },
+      { title: 'Enter your group name', target: target('registration-name'), interactive: true, action: 'name', description: 'Type your group name. Enter a name to unlock Next. Nothing is sent while you type.' },
       { title: 'Verify the subject', target: target('registration-subject'), description: 'The subject comes from your instructor link and cannot be changed here. If it is incorrect, ask for the correct link before continuing.' },
       { title: 'Choose your block', target: target('registration-block'), interactive: true, action: 'block', description: 'Select your assigned block from the available options. Choose a block to continue.' },
       { title: 'Enter the group members', target: target('registration-members'), interactive: true, action: 'members', description: 'Fill in Last Name and First Name for every member. Middle Name is optional. Use + Add Member for another row, or Remove an extra row. One row is enough for an individual registration.' },

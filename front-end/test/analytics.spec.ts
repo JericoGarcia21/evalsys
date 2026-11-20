@@ -49,6 +49,39 @@ test('analytics lives in its own tab and does not add metrics to the dashboard',
   await expect(page.getByRole('region', { name: 'Subject breakdown' })).toContainText('IT101');
 });
 
+test('every Super Admin dashboard shortcut has a visible decorative icon on desktop and mobile', async ({ page }) => {
+  await mockAnalytics(page);
+  await page.goto('/dashboard');
+  const cards = page.locator('main .workspace-shortcut');
+  await expect(cards).toHaveCount(8);
+  for (const width of [1280, 390]) {
+    await page.setViewportSize({ width, height: 844 });
+    for (let index = 0; index < 8; index++) {
+      const icon = cards.nth(index).locator('svg');
+      await expect(icon).toHaveCount(1);
+      await expect(icon).toBeVisible();
+      await expect(icon).toHaveAttribute('aria-hidden', 'true');
+      expect(await icon.locator('path, rect, circle').count()).toBeGreaterThan(0);
+    }
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  }
+});
+
+test('Super Admin sidebar omits instructor and subject selectors but retains platform navigation', async ({ page }) => {
+  await mockAnalytics(page);
+  await page.goto('/dashboard');
+  for (const width of [1280, 390]) {
+    await page.setViewportSize({ width, height: 844 });
+    if (width === 390) await page.getByRole('button', { name: 'Toggle navigation menu', exact: true }).click();
+    const sidebar = page.getByRole('complementary', { name: 'Workspace sidebar', exact: true });
+    await expect(sidebar.getByRole('combobox', { name: 'Instructor', exact: true })).toHaveCount(0);
+    await expect(sidebar.locator('[data-tutorial="subject-switcher"]')).toHaveCount(0);
+    await expect(sidebar.getByRole('link', { name: 'Manage Subjects', exact: true })).toHaveCount(0);
+    await expect(sidebar.getByRole('link', { name: 'Subjects', exact: true })).toBeVisible();
+    await expect(sidebar.getByRole('link', { name: 'Operations', exact: true })).toBeVisible();
+  }
+});
+
 test('analytics period filters, chart metric and refresh work on desktop and mobile', async ({ page }) => {
   const state = await mockAnalytics(page);
   await page.goto('/analytics');

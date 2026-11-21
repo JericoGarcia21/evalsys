@@ -19,17 +19,16 @@ const getOwnerFilter = (ownerId) => (
 
 const getRubricOwnerId = async (req, subject) => {
   if (req.user?.role === 'panel') {
-    if (req.user.createdBy) {
-      const instructor = await Admin.findOne({
-        _id: req.user.createdBy,
-        role: 'admin',
-        isActive: true,
-        assignedSubjects: subject,
-      }).select('_id');
-      return instructor?._id || null;
+    const sections = await require('../services/panelAccess.service').getAssignedSections(req.user._id);
+    let eligible = sections.filter(section => String(section.subject) === String(subject));
+    if (req.query.groupId) {
+      const group = await require('../models/Group').findById(req.query.groupId);
+      eligible = eligible.filter(section => String(section._id) === String(group?.section) &&
+        (section.assignedPanels.some(id => String(id) === String(req.user._id)) ||
+          group.assignedPanels.some(id => String(id) === String(req.user._id))));
     }
-    const instructor = await Admin.findOne({ role: 'admin', assignedSubjects: subject }).select('_id').sort({ createdAt: -1 });
-    return instructor?._id || null;
+    const owners = [...new Set(eligible.map(section => String(section.createdBy._id)))];
+    return owners.length === 1 ? owners[0] : null;
   }
 
   if (req.user?.role === 'admin') return req.user._id;
@@ -227,7 +226,7 @@ exports.getActiveRubric = async (req, res) => {
   const subject = getSubjectId(req);
   if (!subject) return res.json(null);
   const ownerId = await getRubricOwnerId(req, subject);
-  if (ownerId) await claimUnownedSubjectRubrics(subject, ownerId);
+  if (ownerId && req.user.role !== 'panel') await claimUnownedSubjectRubrics(subject, ownerId);
   if (ownerId) await normalizeActiveRubrics(subject, ownerId);
   let rubric = ownerId
     ? await Rubric.findOne({ subject, createdBy: ownerId, isActive: true }).populate('createdBy', 'name email')
@@ -262,6 +261,10 @@ exports.getAllRubrics = async (req, res) => {
     await normalizeActiveRubrics(subject, req.user._id);
   }
   const pagination = getPagination(req);
+  if (req.user.role === 'panel') {
+    const owner = await getRubricOwnerId(req, subject);
+    filter.createdBy = owner || { $in: [] };
+  }
   const query = Rubric.find(filter)
     .populate('createdBy', 'name email')
     .sort({ createdAt: -1 });

@@ -11,15 +11,14 @@ const includes = (values, value) => (values || []).some(item => id(item) === id(
 const validId = value => typeof value === 'string' && /^[a-f0-9]{24}$/i.test(value);
 const deny = () => Object.assign(new Error('You are not assigned to this subject panel chat.'), { status: 403 });
 
-const getRooms = async user => {
-  const owner = user.role === 'admin' ? user : user.createdBy
-    ? await Admin.findOne({ _id: user.createdBy, role: 'admin', isActive: true }).select('name assignedSubjects') : null;
+const getOwnerRooms = async (user, owner) => {
   if (!owner) return [];
   const subjects = await Subject.find({ _id: { $in: owner.assignedSubjects || [] } }).select('code title').sort({ code: 1 }).lean();
   const sections = await Section.find({ createdBy: owner._id, subject: { $in: subjects.map(subject => subject._id) } }).select('subject assignedPanels').lean();
   const groups = await Group.find({ section: { $in: sections.map(section => section._id) }, createdBy: owner._id }).select('section assignedPanels').lean();
   const allPanelIds = [...sections.flatMap(section => section.assignedPanels || []), ...groups.flatMap(group => group.assignedPanels || [])];
-  const panels = await Panel.find({ _id: { $in: allPanelIds }, createdBy: owner._id, isActive: true }).select('_id name').lean();
+  const shared = await require('./panelAccess.service').sharedPanelsEnabled();
+  const panels = await Panel.find({ _id: { $in: allPanelIds }, isActive: true, ...(shared ? {} : { createdBy: owner._id }) }).select('_id name').lean();
   const descriptors = subjects.map(subject => {
     const subjectSections = sections.filter(section => id(section.subject) === id(subject._id));
     const subjectGroups = groups.filter(group => subjectSections.some(section => id(section._id) === id(group.section)));
@@ -60,15 +59,23 @@ const getRooms = async user => {
   });
 };
 
+const getRooms = async user => {
+  if (user.role === 'admin') return getOwnerRooms(user, user);
+  const sections = await require('./panelAccess.service').getAssignedSections(user._id);
+  const owners = [...new Map(sections.map(section => [String(section.createdBy._id), section.createdBy])).values()];
+  return (await Promise.all(owners.map(owner => getOwnerRooms(user, owner)))).flat();
+};
+
 const authorizeRoom = async (user, roomId) => {
   if (!validId(roomId)) throw Object.assign(new Error('Invalid panel chat.'), { status: 400 });
   const room = await ChatRoom.findById(roomId);
   if (!room) throw deny();
-  const owner = user.role === 'admin' ? user : user.createdBy
-    ? await Admin.findOne({ _id: user.createdBy, role: 'admin', isActive: true, assignedSubjects: room.subject }).select('_id') : null;
+  const owner = user.role === 'admin' ? user :
+    await Admin.findOne({ _id: room.instructor, role: 'admin', isActive: true, assignedSubjects: room.subject }).select('_id');
   if (!owner || id(owner._id) !== id(room.instructor) || (user.role === 'admin' && !includes(user.assignedSubjects, room.subject))) throw deny();
   if (!await Subject.exists({ _id: room.subject })) throw deny();
   if (user.role === 'panel') {
+    if (!await require('./panelAccess.service').canAccessOwner(user, room.instructor)) throw deny();
     const sections = await Section.find({ createdBy: owner._id, subject: room.subject }).select('assignedPanels');
     const assigned = sections.some(section => includes(section.assignedPanels, user._id));
     if (!assigned && !await Group.exists({ createdBy: owner._id, section: { $in: sections.map(section => section._id) }, assignedPanels: user._id })) throw deny();

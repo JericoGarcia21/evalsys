@@ -8,7 +8,7 @@ EvalSys is a multi-subject web-based rubric evaluation system for IT/IR project 
 - **Multi-subject management**: Instructors manage assigned subjects within paid subject limits.
 - **Block and group management**: Create sections/blocks, register groups, and manage structured group members.
 - **Structured member data**: New groups store members as last name, first name, and optional middle name. Old comma-separated/string member records remain supported.
-- **Panel assignment isolation**: Panels belong to an instructor and can only be assigned within that instructor's subjects.
+- **Reusable panel accounts**: Assign existing panels immediately from My Panels or Other Instructors’ Panels. One login works across assigned instructor workspaces; rubrics, grading locks, and chat follow the workspace instructor. Instructors only manage their own assignments. While a panel has cross-instructor assignments, global account deletion, status changes, and password resets require Super Admin.
 - **Instructor-owned rubrics**: Instructors create, edit, delete, and activate their own rubrics per subject.
 - **Per-subject grading lock**: Instructors can lock grading for their own subject; Super Admin can control instructor locks.
 - **Panel grading workflow**: Panels grade assigned groups, leave comments, and can view read-only mode when grading is locked.
@@ -41,6 +41,10 @@ automated-rubrics/
 ```
 
 ## Backend Setup
+
+### Temporary shared-panel rollout switch
+
+In **Super Admin → System Control**, turn **Cross-instructor panel assignments** ON to use shared panels. It defaults OFF, including existing installations. OFF restores owner-only assignment/access; it preserves shared assignments and submitted results for resuming later. Shared panels cannot submit to another instructor while OFF. Refresh open pages to update lists. Existing result completeness still includes saved assignments; do not disable while a shared judge needs to finish grading. This switch is temporary for the ongoing presentation and will be removed in a later change after confirmation.
 
 1. Install dependencies:
 

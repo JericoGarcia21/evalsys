@@ -38,11 +38,8 @@ const currentAnnouncement = async (announcement, user, now = Date.now()) => {
     if (user.role === 'admin') {
       if (!(user.assignedSubjects || []).some(id => targets.includes(String(id)))) return hidden;
     } else {
-      const owner = user.createdBy ? await Admin.findOne({ _id: user.createdBy, role: 'admin', isActive: true }).select('assignedSubjects') : null;
-      const subjectIds = (owner?.assignedSubjects || []).filter(id => targets.includes(String(id)));
-      if (!subjectIds.length) return hidden;
-      const groupSections = await Group.distinct('section', { createdBy: owner._id, assignedPanels: user._id });
-      if (!await Section.exists({ createdBy: owner._id, subject: { $in: subjectIds }, $or: [{ assignedPanels: user._id }, { _id: { $in: groupSections } }] })) return hidden;
+      const sections = await require('./panelAccess.service').getAssignedSections(user._id);
+      if (!sections.some(section => targets.includes(String(section.subject)))) return hidden;
     }
   }
   return { isActive: true, title: announcement.title, message: announcement.message, startsAt: announcement.startsAt, endsAt: announcement.endsAt, updatedAt: announcement.updatedAt };

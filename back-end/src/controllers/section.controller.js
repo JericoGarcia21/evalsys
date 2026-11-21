@@ -65,35 +65,7 @@ const archiveBlockEvaluations = async (groupIds) => {
   return evaluations.length;
 };
 
-const validatePanelAssignments = async (req, panelIds = [], subject) => {
-  if (!Array.isArray(panelIds) || !panelIds.length) return null;
-
-  const uniquePanelIds = [...new Set(panelIds.map((id) => id.toString()))];
-  const panels = await Panel.find({ _id: { $in: uniquePanelIds }, isActive: true }).select('name createdBy');
-  if (panels.length !== uniquePanelIds.length) {
-    return 'One or more selected panels are inactive or missing';
-  }
-
-  for (const panel of panels) {
-    const ownerId = getOwnerId(req);
-    if (!panel.createdBy) {
-      return `${panel.name} is old data without an instructor owner`;
-    }
-    if (!ownerId || panel.createdBy.toString() !== ownerId.toString()) {
-      return `${panel.name} belongs to another instructor`;
-    }
-
-    const owner = await Admin.findOne({
-      _id: panel.createdBy,
-      role: 'admin',
-      isActive: true,
-      assignedSubjects: subject,
-    }).select('_id');
-    if (!owner) return `${panel.name}'s instructor is not assigned to this subject`;
-  }
-
-  return null;
-};
+const { validatePanelAssignments, getAssignedSections } = require('../services/panelAccess.service');
 
 exports.createSection = async (req, res) => {
   const { name, block, assignedPanels } = req.body;
@@ -123,20 +95,8 @@ exports.getSections = async (req, res) => {
   } else if (!req.user) {
     return res.status(400).json({ message: 'Subject is required to view public blocks' });
   } else if (req.user && req.user.role === 'panel') {
-    const directlyAssignedSections = await Group.distinct('section', {
-      assignedPanels: req.user._id,
-      ...(req.user.createdBy ? { createdBy: req.user.createdBy } : {}),
-    });
-    filter = { $or: [
-      { assignedPanels: req.user._id },
-      { _id: { $in: directlyAssignedSections } },
-    ] };
-    if (req.user.createdBy) {
-      const instructor = await Admin.findOne({ _id: req.user.createdBy, role: 'admin', isActive: true }).select('assignedSubjects');
-      if (!instructor) return res.json([]);
-      filter.subject = { $in: instructor.assignedSubjects || [] };
-      filter.createdBy = req.user.createdBy;
-    }
+    const assigned = await getAssignedSections(req.user._id);
+    filter = { _id: { $in: assigned.map(section => section._id) } };
   } else if (req.user) {
     filter.createdBy = getOwnerId(req);
     if (subject) {
@@ -151,6 +111,7 @@ exports.getSections = async (req, res) => {
   const query = Section.find(filter)
     .populate('assignedPanels', 'name email')
     .populate('subject', 'code title')
+    .populate('createdBy', 'name')
     .sort({ createdAt: -1 });
   if (!pagination) return res.json(await query);
 
@@ -229,22 +190,8 @@ exports.assignBlocksToPanel = async (req, res) => {
     return res.status(404).json({ message: 'Panel account not found or inactive' });
   }
 
-  if (!panel.createdBy) {
-    return res.status(400).json({ message: 'This panel is old data without an instructor owner' });
-  }
-  if (!ownerId || panel.createdBy.toString() !== ownerId.toString()) {
-    return res.status(403).json({ message: 'This panel belongs to another instructor' });
-  }
-
-  const owner = await Admin.findOne({
-    _id: panel.createdBy,
-    role: 'admin',
-    isActive: true,
-    assignedSubjects: subject,
-  }).select('_id');
-  if (!owner) {
-    return res.status(400).json({ message: 'This panel owner is not assigned to the selected subject' });
-  }
+  const assignmentError = await validatePanelAssignments(req, [panelId]);
+  if (assignmentError) return res.status(400).json({ message: assignmentError });
 
   if (sectionIds.length > 0) {
     const validSectionCount = await Section.countDocuments({

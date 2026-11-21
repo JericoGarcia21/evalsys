@@ -88,35 +88,7 @@ const normalizeMembers = (members) => {
   return [];
 };
 
-const validatePanelAssignments = async (req, panelIds = [], subject) => {
-  if (!Array.isArray(panelIds) || !panelIds.length) return null;
-
-  const uniquePanelIds = [...new Set(panelIds.map((id) => id.toString()))];
-  const panels = await Panel.find({ _id: { $in: uniquePanelIds }, isActive: true }).select('name createdBy');
-  if (panels.length !== uniquePanelIds.length) {
-    return 'One or more selected panels are inactive or missing';
-  }
-
-  for (const panel of panels) {
-    const ownerId = getOwnerId(req);
-    if (!panel.createdBy) {
-      return `${panel.name} is old data without an instructor owner`;
-    }
-    if (!ownerId || panel.createdBy.toString() !== ownerId.toString()) {
-      return `${panel.name} belongs to another instructor`;
-    }
-
-    const owner = await Admin.findOne({
-      _id: panel.createdBy,
-      role: 'admin',
-      isActive: true,
-      assignedSubjects: subject,
-    }).select('_id');
-    if (!owner) return `${panel.name}'s instructor is not assigned to this subject`;
-  }
-
-  return null;
-};
+const { validatePanelAssignments, getAssignedSections } = require('../services/panelAccess.service');
 
 exports.createGroup = async (req, res) => {
   const { name, section, members, assignedPanels } = req.body;
@@ -215,29 +187,16 @@ exports.getGroups = async (req, res) => {
 
   // If the user is a panel, only return groups from sections they are assigned to
   if (req.user.role === 'panel') {
-    const sectionFilter = {
-      assignedPanels: req.user._id,
-    };
-    let allowedSubjectIds = [];
-
-    if (req.user.createdBy) {
-      const instructor = await Admin.findOne({ _id: req.user.createdBy, role: 'admin', isActive: true }).select('assignedSubjects');
-      if (!instructor) return res.json([]);
-      allowedSubjectIds = (instructor.assignedSubjects || []).map((id) => id.toString());
-      sectionFilter.subject = { $in: instructor.assignedSubjects || [] };
-      sectionFilter.createdBy = req.user.createdBy;
-    }
-
-    const assignedSections = await Section.find(sectionFilter).select('_id subject');
-    const sectionIds = assignedSections.map((s) => s._id);
+    const accessibleSections = await getAssignedSections(req.user._id);
+    const sectionIds = accessibleSections.filter(s => s.assignedPanels.some(id => String(id) === String(req.user._id))).map(s => s._id);
 
 
     // Bypass Mongoose $in array casting edge cases by filtering in memory
-    const allGroups = await Group.find(req.user.createdBy ? { createdBy: req.user.createdBy } : {})
+    const allGroups = await Group.find({ section: { $in: accessibleSections.map(s => s._id) } })
       .populate({
         path: 'section',
-        select: 'name block subject',
-        populate: { path: 'subject', select: 'code title' },
+        select: 'name block subject createdBy',
+        populate: [{ path: 'subject', select: 'code title' }, { path: 'createdBy', select: 'name' }],
       })
       .populate('assignedPanels', 'name email')
       .sort({ createdAt: -1 });
@@ -255,13 +214,12 @@ exports.getGroups = async (req, res) => {
     const groups = allGroups.filter(g => {
       const gSecId = g.section ? g.section._id.toString() : null;
       const isInSection = gSecId && strSectionIds.includes(gSecId);
-      const gSubjectId = g.section?.subject?._id?.toString() || g.section?.subject?.toString();
-      const isOwnedSubject = !req.user.createdBy || (gSubjectId && allowedSubjectIds.includes(gSubjectId));
+      const isOwnedSubject = g.createdBy && String(g.createdBy) === String(g.section?.createdBy?._id);
 
       const gPanels = g.assignedPanels || [];
       const isAssignedDirectly = gPanels.some(p => (p._id || p).toString() === panelIdStr);
 
-      return isOwnedSubject && (isInSection || isAssignedDirectly);
+      return isOwnedSubject && (!req.query.section || gSecId === req.query.section) && (isInSection || isAssignedDirectly);
     }).map(g => {
       const gObj = g.toObject();
       gObj.isGraded = gradedGroupIds.includes(g._id.toString());
@@ -330,10 +288,13 @@ exports.getGroup = async (req, res) => {
   if (req.user.role !== 'panel' && !canAccessSubject(req, group.section?.subject)) {
     return res.status(403).json({ message: 'You are not assigned to this subject' });
   }
-  if (req.user.role === 'panel' && req.user.createdBy) {
+  if (req.user.role === 'panel') {
     const groupSubjectId = group.section?.subject?._id || group.section?.subject;
+    if (!await require('../services/panelAccess.service').canAccessOwner(req.user, group.createdBy)) {
+      return res.status(403).json({ message: 'Cross-instructor panel access is disabled by Super Admin.' });
+    }
     const instructor = await Admin.findOne({
-      _id: req.user.createdBy,
+      _id: group.createdBy,
       role: 'admin',
       isActive: true,
       assignedSubjects: groupSubjectId,
@@ -344,10 +305,10 @@ exports.getGroup = async (req, res) => {
   }
   if (req.user.role === 'panel') {
     const isSectionAssigned = (group.section?.assignedPanels || []).some(
-      (panelId) => panelId.toString() === req.user._id.toString()
+      (panelId) => (panelId._id || panelId).toString() === req.user._id.toString()
     );
     const isGroupAssigned = (group.assignedPanels || []).some(
-      (panelId) => panelId.toString() === req.user._id.toString()
+      (panelId) => (panelId._id || panelId).toString() === req.user._id.toString()
     );
     if (!isSectionAssigned && !isGroupAssigned) {
       return res.status(403).json({ message: 'You are not assigned to this group' });
@@ -392,9 +353,12 @@ exports.getGroupProposalUrl = async (req, res) => {
   }
 
   if (req.user.role === 'panel') {
-    if (req.user.createdBy) {
+    {
+      if (!await require('../services/panelAccess.service').canAccessOwner(req.user, group.createdBy)) {
+        return res.status(403).json({ message: 'Cross-instructor panel access is disabled by Super Admin.' });
+      }
       const instructor = await Admin.findOne({
-        _id: req.user.createdBy,
+        _id: group.createdBy,
         role: 'admin',
         isActive: true,
         assignedSubjects: groupSubjectId,

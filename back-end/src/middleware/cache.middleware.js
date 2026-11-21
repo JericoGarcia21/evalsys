@@ -17,6 +17,7 @@ const getCacheKey = (req, namespace) => JSON.stringify({
   actor: getActorKey(req),
   subject: normalizeHeader(req.headers['x-subject-id']),
   instructor: normalizeHeader(req.headers['x-instructor-id']),
+  sharedPanelsEnabled: Boolean(req.sharedPanelsEnabled),
 });
 
 const pruneCache = () => {

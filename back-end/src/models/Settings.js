@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 
 const settingsSchema = new mongoose.Schema({
   isGradingLocked: { type: Boolean, default: false },
+  sharedPanelsEnabled: { type: Boolean, default: false },
   isCsvExportLocked: { type: Boolean, default: false },
   isMaintenanceMode: { type: Boolean, default: false },
   maintenanceStartsAt: { type: Date, default: null },

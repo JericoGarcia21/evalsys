@@ -77,9 +77,13 @@ exports.updateSystemControls = async (req, res) => {
     maintenanceDurationMinutes,
     maintenanceMessage,
     announcement,
+    sharedPanelsEnabled,
   } = req.body;
   // Validate the whole announcement before modifying any maintenance fields.
   const nextAnnouncement = announcement === undefined ? undefined : await validateAnnouncement(announcement);
+  if (sharedPanelsEnabled !== undefined && typeof sharedPanelsEnabled !== 'boolean') {
+    return res.status(400).json({ message: 'Shared panels must be true or false.' });
+  }
   if (maintenanceDurationMinutes !== undefined && (isMaintenanceMode !== true || !Number.isInteger(maintenanceDurationMinutes) || maintenanceDurationMinutes < 1 || maintenanceDurationMinutes > 10080)) {
     return res.status(400).json({ message: 'Maintenance duration must be 1–10,080 minutes when enabling maintenance.' });
   }
@@ -140,6 +144,7 @@ exports.updateSystemControls = async (req, res) => {
   }
 
   if (nextAnnouncement !== undefined) settings.announcement = nextAnnouncement;
+  if (sharedPanelsEnabled !== undefined) settings.sharedPanelsEnabled = sharedPanelsEnabled;
 
   await settings.save();
   await recordAuditLog(req, {
@@ -147,6 +152,7 @@ exports.updateSystemControls = async (req, res) => {
     entity: { type: 'settings', id: settings._id, name: 'System Control' },
     metadata: {
       isMaintenanceMode: settings.isMaintenanceMode,
+      sharedPanelsEnabled: settings.sharedPanelsEnabled,
       maintenanceStartsAt: settings.maintenanceStartsAt,
       maintenanceEndsAt: settings.maintenanceEndsAt,
       maintenanceDelayMinutes: typeof maintenanceDelayMinutes === 'number' ? maintenanceDelayMinutes : undefined,

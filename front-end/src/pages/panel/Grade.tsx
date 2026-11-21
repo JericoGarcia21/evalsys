@@ -11,9 +11,9 @@ import { useConfirmDialog } from '../../hooks/useConfirmDialog';
 interface Level { label: string; minScore: number; maxScore: number; description: string; percentage?: number; }
 interface Criteria { key: string; label: string; maxScore: number; levels: Level[]; section?: string; description?: string; scoringMode?: string; }
 interface Rubric { _id: string; title: string; criteria: Criteria[]; isActive: boolean; subject?: string; instructions?: string; }
-interface Section { _id: string; name: string; block: string; subject?: string | { _id: string; code?: string; title?: string }; }
+interface Section { _id: string; name: string; block: string; createdBy?: { _id: string; name: string }; subject?: string | { _id: string; code?: string; title?: string }; }
 interface ProposalFile { path?: string; originalName?: string; mimeType?: string; size?: number; uploadedAt?: string; }
-interface Group { _id: string; name: string; section: Section; members: Member[]; isGraded?: boolean; proposalFile?: ProposalFile; }
+interface Group { _id: string; name: string; createdBy?: string; section: Section; members: Member[]; isGraded?: boolean; proposalFile?: ProposalFile; }
 
 const draftKey = (panelId: string, groupId: string, subjectId?: string | null) => `grading_draft_${panelId}_${groupId}_${subjectId || 'legacy'}`;
 const legacyDraftKey = (groupId: string, subjectId?: string | null) => `grading_draft_${groupId}_${subjectId || 'legacy'}`;
@@ -103,7 +103,7 @@ export default function Grade() {
   const [selectedSidebarSectionId, setSelectedSidebarSectionId] = useState<string>('');
   const getGroupSubjectId = (group: Group | null) => getRefId(group?.section?.subject);
   const selectedSubjectId = getGroupSubjectId(selectedGroup);
-  const subjectGradingLocked = Boolean(selectedSubjectId) && lockedSubjectIds.includes(selectedSubjectId);
+  const subjectGradingLocked = Boolean(selectedSubjectId) && (lockedSubjectIds.includes(`${getRefId(selectedGroup?.createdBy)}:${selectedSubjectId}`) || lockedSubjectIds.includes(selectedSubjectId));
   const gradingLocked = subjectGradingLocked;
 
   const cacheGroupStatus = useCallback((nextGroups: Group[]) => {
@@ -121,7 +121,7 @@ export default function Grade() {
 
   const refreshGradingLock = useCallback(() => {
     api.get('/auth/me').then(meRes => {
-      setLockedSubjectIds((meRes.data.gradingLockedSubjects || []).map((subject: string | { _id?: string }) => getRefId(subject)));
+      setLockedSubjectIds(meRes.data.gradingLockedWorkspaces ?? (meRes.data.gradingLockedSubjects || []).map(getRefId));
     }).catch(() => undefined);
   }, []);
 
@@ -245,7 +245,7 @@ export default function Grade() {
       const [res, rubricRes] = await Promise.all([
         api.get(`/evaluations/group/${group._id}/mine`),
         api.get('/rubrics/active', {
-          params: { subject: subjectId },
+          params: { subject: subjectId, groupId: group._id },
           headers: { 'x-subject-id': subjectId },
         }),
       ]);
@@ -620,6 +620,7 @@ export default function Grade() {
                     }`}
                 >
                   <span className="block">{section.block}</span>
+                  {section.createdBy?.name && <span className="block text-xs opacity-70">{section.createdBy.name}</span>}
                   <span hidden={!showListDetails} className={`text-xs mt-1 truncate font-semibold ${selectedSidebarSectionId === section._id ? 'text-white/85' : 'text-text/55'}`}>
                     {getSubjectLabel(section)}
                   </span>

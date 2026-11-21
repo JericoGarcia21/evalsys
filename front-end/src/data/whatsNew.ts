@@ -7,15 +7,42 @@ export interface ReleaseNote {
   version: string;
   date: string;
   title: string;
+  summary?: string;
   items: string[];
   /** Roles that should see this release note. Omit to show everyone. */
   audience?: WhatsNewAudience[];
 }
 
 /** Bump this whenever you add a release note — users see each version once. */
-export const CURRENT_VERSION = '1.6.3';
+export const CURRENT_VERSION = '1.6.5';
 
 export const RELEASES: ReleaseNote[] = [
+  {
+    version: '1.6.5',
+    date: '2026-11-21',
+    title: 'Better teamwork. Clearer assignments.',
+    summary: 'Less account setup for instructors. One familiar login for panel judges. A clearer workspace to bring everyone together.',
+    audience: ['admin', 'panel'],
+    items: [
+      'For instructors: find existing judges in My Panels or Other Instructors, with a simple search and clear instructor labels.',
+      'Assign with confidence: select blocks, review exactly what will change, then save. Select-all and discard controls make updates easier.',
+      'For panel judges: use the same account across assigned instructors when sharing is enabled. Each workspace keeps its own rubrics, grading locks, and panel chat.',
+      'Presentation-ready control: cross-instructor sharing starts OFF. Super Admin can enable it or return to owner-only access while keeping saved grades and assignments.',
+      'A bigger, more readable What’s New brings each upgrade into focus, on desktop and mobile.',
+    ],
+  },
+  {
+    version: '1.6.4',
+    date: '2026-11-21',
+    title: 'Reuse panel accounts across instructors',
+    audience: ['admin', 'panel'],
+    items: [
+      'Assign Panels now lets instructors search My Panels and Other Instructors’ Panels and assign immediately.',
+      'Cross-instructor panels are controlled by a temporary Super Admin switch, OFF by default during presentations.',
+      'Panels use one login for assigned blocks across instructors, with each workspace’s rubrics, grading locks, and chat.',
+      'Shared panel account deletion, deactivation, and password resets are managed by Super Admin while cross-instructor assignments exist.',
+    ],
+  },
   {
     version: '1.6.3',
     date: '2026-11-20',

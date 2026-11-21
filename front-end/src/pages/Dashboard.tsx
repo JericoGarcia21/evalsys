@@ -7,8 +7,8 @@ import { formatMemberList, memberSearchText, type Member } from '../utils/member
 import { getApiMessage } from '../utils/apiError';
 import { notify } from '../utils/notify';
 
-interface Section { _id: string; name: string; block: string; subject?: string | { _id?: string; code?: string; title?: string }; }
-interface Group { _id: string; name: string; section: Section; members: Member[]; isGraded?: boolean; }
+interface Section { _id: string; name: string; block: string; createdBy?: { _id: string; name: string }; subject?: string | { _id?: string; code?: string; title?: string }; }
+interface Group { _id: string; name: string; createdBy?: string; section: Section; members: Member[]; isGraded?: boolean; }
 interface Subject { _id: string; code: string; title: string; }
 
 const currentSubjectKey = 'evalsys_current_subject_id';
@@ -293,7 +293,7 @@ function PanelDashboard({ name, panelId }: { name: string; panelId: string }) {
         localStorage.setItem(groupNameCacheKey, JSON.stringify(groupNames));
         localStorage.setItem(groupStatusCacheKey(panelId), JSON.stringify(groupStatus));
       }
-      setLockedSubjectIds((meRes.data.gradingLockedSubjects || []).map(getRefId));
+      setLockedSubjectIds(meRes.data.gradingLockedWorkspaces ?? (meRes.data.gradingLockedSubjects || []).map(getRefId));
     }).catch((err) => {
       if (!controller.signal.aborted) setRequestError(getApiMessage(err, 'Unable to load your assigned subjects and groups.'));
     }).finally(() => {
@@ -367,7 +367,8 @@ function PanelDashboard({ name, panelId }: { name: string; panelId: string }) {
               {assignedSubjects.map(subject => {
                 const assignedGroups = groups.filter(group => getRefId(group.section?.subject) === subject.id);
                 const count = assignedGroups.filter(group => group.isGraded).length;
-                const locked = lockedSubjectIds.includes(subject.id);
+                const locked = lockedSubjectIds.includes(subject.id) || sections.filter(section => getRefId(section.subject) === subject.id)
+                  .every(section => lockedSubjectIds.includes(`${section.createdBy?._id}:${subject.id}`));
                 return (
                   <button key={subject.id} onClick={() => { setSelectedSubject(subject.id); setSelectedSection(''); }}
                     aria-pressed={selectedSubject === subject.id}
@@ -407,7 +408,7 @@ function PanelDashboard({ name, panelId }: { name: string; panelId: string }) {
 
           <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-5">
             {filteredGroups.map(group => {
-              const locked = lockedSubjectIds.includes(getRefId(group.section?.subject));
+              const locked = lockedSubjectIds.includes(`${group.createdBy}:${getRefId(group.section?.subject)}`) || lockedSubjectIds.includes(getRefId(group.section?.subject));
               return (
                 <article key={group._id}
                   className={'evl-card min-w-0 p-6 border-2 transition-colors hover:border-primary/50 ' +
@@ -420,6 +421,7 @@ function PanelDashboard({ name, panelId }: { name: string; panelId: string }) {
                   <h3 className="text-text font-bold text-base break-words">{group.name}</h3>
                   <p className="text-primary font-semibold text-sm mt-2 break-words">{subjectLabel(group.section?.subject)}</p>
                   <p className="text-text/65 text-xs mt-1">Block: {group.section?.block || group.section?.name || 'Unassigned'}</p>
+                  <p className="text-text/65 text-xs mt-1">Instructor: {group.section?.createdBy?.name || 'Unknown'}</p>
                   <div className="mt-4 text-primary text-xs font-bold">{locked ? 'Review group →' : group.isGraded ? 'Update evaluation →' : 'Grade now →'}</div>
                   </Link>
                   <button type="button" data-tutorial="panel-dashboard-members" aria-expanded={expandedGroups.includes(group._id)} aria-controls={'panel-members-' + group._id}

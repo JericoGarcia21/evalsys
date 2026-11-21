@@ -56,7 +56,8 @@ const protect = async (req, res, next) => {
 
     const noticeRead = req.originalUrl.split('?')[0] === '/api/settings/notices';
     if (user.role !== 'superadmin' && !passwordChangeAllowed && !noticeRead) {
-      const settings = await Settings.findOne().select('isMaintenanceMode maintenanceStartsAt maintenanceEndsAt maintenanceMessage');
+      const settings = await Settings.findOne().select('isMaintenanceMode maintenanceStartsAt maintenanceEndsAt maintenanceMessage sharedPanelsEnabled');
+      req.sharedPanelsEnabled = Boolean(settings?.sharedPanelsEnabled);
       if (isMaintenanceActive(settings)) {
         await recordAuditLog(req, {
           action: 'security.maintenance.access_attempt',

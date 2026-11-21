@@ -121,6 +121,31 @@ test('panel load failures are shown as errors rather than missing assignments', 
   await expect(page.getByText('No assignments yet', { exact: true })).toHaveCount(0);
 });
 
+test('workspace locks do not lock another instructor teaching the same subject', async ({ page }) => {
+  await mockPanel(page);
+  const first = { ...sectionA, createdBy: { _id: 'owner-a', name: 'First Instructor' } };
+  const second = { ...sectionB, subject: subjectA, createdBy: { _id: 'owner-b', name: 'Second Instructor' } };
+  await page.route('**/api/auth/me', route => route.fulfill({ json: {
+    id: 'panel-test', name: 'Panel Tester', role: 'panel',
+    gradingLockedWorkspaces: ['owner-b:subject-a'],
+  } }));
+  await page.route('**/api/sections', route => route.fulfill({ json: [first, second] }));
+  await page.route('**/api/groups', route => route.fulfill({ json: [
+    { ...groups[0], section: first, createdBy: 'owner-a' },
+    { ...groups[1], section: second, createdBy: 'owner-b', isGraded: false },
+  ] }));
+  await page.route('**/api/rubrics/active*', route => route.fulfill({ json: {
+    _id: 'workspace-rubric', title: 'Workspace Rubric', isActive: true, subject: 'subject-a',
+    criteria: [{ key: 'quality', label: 'Quality', description: 'Quality of work', maxScore: 10, levels: [{ label: 'Score', minScore: 0, maxScore: 10, description: 'Overall score' }] }],
+  } }));
+  await page.goto('/dashboard');
+  await expect(page.getByRole('region', { name: 'Assigned subjects' }).getByRole('button', { name: /IT101/ })).not.toContainText('Grading locked');
+  await expect(page.getByRole('link', { name: /Programming Team/ })).toContainText('Grade now');
+  await expect(page.getByRole('link', { name: /Database Team/ })).toContainText('Review group');
+  await page.getByRole('link', { name: /Database Team/ }).click();
+  await expect(page.getByRole('button', { name: 'Read-only Mode', exact: true })).toBeDisabled();
+});
+
 test('proposal viewer identifies the group and returns to its grading page', async ({ page }) => {
   await mockPanel(page);
   await page.goto('/proposal/group-a');

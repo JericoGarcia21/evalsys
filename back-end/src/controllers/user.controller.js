@@ -322,6 +322,9 @@ exports.toggleActive = async (req, res) => {
   let user = await Admin.findById(req.params.id) || await Panel.findById(req.params.id);
   if (!user) return res.status(404).json({ message: 'User not found' });
   if (!canManageUser(req, user)) return res.status(403).json({ message: 'You can only manage panel accounts created by you' });
+  if (req.user.role !== 'superadmin' && user.role === 'panel' && await require('../services/panelAccess.service').hasSharedAssignments(user)) {
+    return res.status(409).json({ message: 'This panel is assigned to other instructors. Ask Super Admin to manage the shared account.' });
+  }
   if (user._id.toString() === req.user._id.toString()) return res.status(409).json({ message: 'You cannot deactivate your own account' });
   const isActive = !user.isActive;
   await setActive(user, isActive);
@@ -343,6 +346,9 @@ exports.resetPassword = async (req, res) => {
   let user = await Admin.findById(req.params.id).select('+sessionVersion') || await Panel.findById(req.params.id).select('+sessionVersion');
   if (!user) return res.status(404).json({ message: 'User not found' });
   if (!canManageUser(req, user)) return res.status(403).json({ message: 'You can only manage panel accounts created by you' });
+  if (req.user.role !== 'superadmin' && user.role === 'panel' && await require('../services/panelAccess.service').hasSharedAssignments(user)) {
+    return res.status(409).json({ message: 'This panel is assigned to other instructors. Ask Super Admin to reset the shared account password.' });
+  }
 
   await replacePassword(user.role === 'panel' ? Panel : Admin, user, newPassword, user.role !== 'superadmin');
   await recordAuditLog(req, {
@@ -474,6 +480,9 @@ exports.deleteUser = async (req, res) => {
   const user = await Admin.findById(req.params.id) || await Panel.findById(req.params.id);
   if (!user) return res.status(404).json({ message: 'User not found' });
   if (!canManageUser(req, user)) return res.status(403).json({ message: 'You can only manage panel accounts created by you' });
+  if (req.user.role !== 'superadmin' && user.role === 'panel' && await require('../services/panelAccess.service').hasSharedAssignments(user)) {
+    return res.status(409).json({ message: 'This panel is assigned to other instructors. Remove your assignments or ask Super Admin to manage the shared account.' });
+  }
 
   if (user.role === 'panel') {
     const preservedEvaluations = await snapshotPanelEvaluations(user);

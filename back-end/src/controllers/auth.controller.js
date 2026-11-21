@@ -55,26 +55,9 @@ const uniqueIds = (ids = []) => [
 ];
 
 const getPanelLockedSubjects = async (panel) => {
-  if (!panel.createdBy) return [];
-
-  const assignedSections = await Section.find({
-    assignedPanels: panel._id,
-    subject: { $exists: true, $ne: null },
-    createdBy: panel.createdBy,
-  }).select('subject');
-  const assignedSubjectIds = uniqueIds(assignedSections.map((section) => section.subject));
-
-  if (!assignedSubjectIds.length) return [];
-
-  const instructor = await Admin.findOne({
-    _id: panel.createdBy,
-    role: 'admin',
-    isActive: true,
-    gradingLockedSubjects: { $in: assignedSubjectIds },
-  }).select('gradingLockedSubjects');
-
-  return uniqueIds(instructor?.gradingLockedSubjects || [])
-    .filter((subjectId) => assignedSubjectIds.includes(subjectId));
+  const sections = await require('../services/panelAccess.service').getAssignedSections(panel._id);
+  return [...new Set(sections.filter(section => section.createdBy.gradingLockedSubjects.some(id => String(id) === String(section.subject)))
+    .map(section => `${section.createdBy._id}:${section.subject}`))];
 };
 
 const getUserFeatureLocks = async (user) => {
@@ -85,7 +68,8 @@ const getUserFeatureLocks = async (user) => {
     return {
       csvExportLocked: Boolean(instructor?.csvExportLocked),
       gradingLocked: false,
-      gradingLockedSubjects: await getPanelLockedSubjects(user),
+      gradingLockedSubjects: [],
+      gradingLockedWorkspaces: await getPanelLockedSubjects(user),
     };
   }
 

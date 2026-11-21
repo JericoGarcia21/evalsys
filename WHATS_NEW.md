@@ -75,6 +75,8 @@ The "seen" flag is stored per user in `localStorage` under
 
 | Version | Date | Title | Audience | Summary |
 | --- | --- | --- | --- | --- |
+| 1.6.5 | 2026-11-21 | Better teamwork. Clearer assignments. | Instructor, Panel | Simplified assignment workspace with searchable directory, shared-instructor labels and pending-change feedback; larger, readable What’s New with instructor/panel benefits and keyboard-accessible modal. |
+| 1.6.4 | 2026-11-21 | Reuse panel accounts across instructors | Instructor, Panel | Immediate shared assignment with workspace-specific grading, rubrics, locks and chat. Temporary Super Admin switch defaults OFF for the presentation; OFF preserves grades and assignments. |
 | 1.6.3 | 2026-11-20 | Super Admin interface polish | Internal only — no popup | Added five dashboard icons, removed sidebar scope selectors, and refined System Control with separate views and previews; empty audience prevents a popup. |
 | 1.6.2 | 2026-11-20 | Relevant, scheduled notices | Instructor, Panel | User-facing announcement delivery now respects role, actual subject assignments, and schedule windows. No Super Admin tools announced. |
 | 1.6.1 | 2026-11-20 | Safer sign-in sessions | Instructor, Panel | Shared authentication update: tracked sessions, server-side sign-out, and session rotation after password changes. No Super Admin feature announcement. |

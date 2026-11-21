@@ -198,20 +198,18 @@ exports.submitEvaluation = async (req, res) => {
   if (!section) return res.status(404).json({ message: 'Group block not found' });
   if (req.user.role === 'panel') {
     const subjectId = section?.subject?.toString();
+    if (!await require('../services/panelAccess.service').canAccessOwner(req.user, section.createdBy)) {
+      return res.status(403).json({ message: 'Cross-instructor panel access is disabled by Super Admin.' });
+    }
     if (
-      req.user.createdBy &&
-      (
-        !section?.createdBy ||
-        section.createdBy.toString() !== req.user.createdBy.toString() ||
-        !group.createdBy ||
-        group.createdBy.toString() !== req.user.createdBy.toString()
-      )
+      !section.createdBy || !group.createdBy ||
+      section.createdBy.toString() !== group.createdBy.toString()
     ) {
       return res.status(403).json({ message: 'This group belongs to another instructor' });
     }
-    if (req.user.createdBy) {
+    {
       const ownerCanGradeSubject = Boolean(subjectId) && await Admin.exists({
-        _id: req.user.createdBy,
+        _id: section.createdBy,
         role: 'admin',
         isActive: true,
         assignedSubjects: subjectId,
@@ -220,8 +218,8 @@ exports.submitEvaluation = async (req, res) => {
         return res.status(403).json({ message: 'This group belongs to another instructor subject' });
       }
     }
-    const subjectLocked = Boolean(subjectId) && Boolean(req.user.createdBy) && await Admin.exists({
-      _id: req.user.createdBy,
+    const subjectLocked = Boolean(subjectId) && await Admin.exists({
+      _id: section.createdBy,
       role: 'admin',
       isActive: true,
       gradingLockedSubjects: subjectId,
@@ -241,8 +239,7 @@ exports.submitEvaluation = async (req, res) => {
     return res.status(400).json({ message: 'Selected rubric does not belong to this group subject' });
   }
   if (req.user.role === 'panel') {
-    const rubricOwner = req.user.createdBy ||
-      (await Admin.findOne({ role: 'admin', assignedSubjects: section?.subject }).select('_id').sort({ createdAt: -1 }))?._id;
+    const rubricOwner = section.createdBy;
     if (
       rubricOwner &&
       (!rubric.createdBy || rubric.createdBy.toString() !== rubricOwner.toString())

@@ -8,6 +8,7 @@ import MaintenancePresets, { type MaintenancePreset } from '../../components/adm
 import './SystemControl.css';
 
 interface SystemSettings {
+  sharedPanelsEnabled: boolean;
   isMaintenanceMode: boolean;
   maintenanceStartsAt?: string | null;
   maintenanceEndsAt?: string | null;
@@ -33,6 +34,7 @@ interface ConfirmAction {
 }
 
 const defaultSettings: SystemSettings = {
+  sharedPanelsEnabled: false,
   isMaintenanceMode: false,
   maintenanceStartsAt: null,
   maintenanceEndsAt: null,
@@ -45,6 +47,7 @@ const defaultSettings: SystemSettings = {
 };
 
 const normalizeSettings = (value: SystemSettings): SystemSettings => ({
+  sharedPanelsEnabled: Boolean(value.sharedPanelsEnabled),
   isMaintenanceMode: Boolean(value.isMaintenanceMode),
   maintenanceStartsAt: value.maintenanceStartsAt || null,
   maintenanceEndsAt: value.maintenanceEndsAt || null,
@@ -326,6 +329,21 @@ export default function SystemControl() {
         </div>
         <Link to="/security" className="evl-btn-secondary">View activity log <span aria-hidden="true">↗</span></Link>
       </header>
+
+      <section className="evl-card p-5 mb-5" aria-label="Shared panel feature control">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <h3 className="font-bold text-text">Cross-instructor panel assignments</h3>
+            <p className="text-sm text-text/70 mt-1">{savedSettings.sharedPanelsEnabled ? 'ON — panels can work across instructors.' : 'OFF — owner-only panel mode (previous behavior).'}</p>
+          </div>
+          <button type="button" role="switch" aria-checked={savedSettings.sharedPanelsEnabled} aria-label="Cross-instructor panel assignments"
+            disabled={saving} className={savedSettings.sharedPanelsEnabled ? 'evl-btn-secondary' : 'evl-btn-primary'}
+            onClick={() => { void updateSettings({ sharedPanelsEnabled: !savedSettings.sharedPanelsEnabled }, savedSettings.sharedPanelsEnabled ? 'Owner-only panel mode restored.' : 'Cross-instructor panels enabled.'); }}>
+            {saving ? 'Saving...' : savedSettings.sharedPanelsEnabled ? 'Turn OFF — restore owner-only mode' : 'Turn ON shared panels'}
+          </button>
+        </div>
+        <p className="text-xs text-text/65 mt-3">Temporary presentation control, default OFF. Turning OFF blocks new cross-instructor assignments and shared panel access. Assignments and grades stay saved; unfinished shared judges still count toward result completeness. Turn ON to resume. Refresh open pages to update their lists.</p>
+      </section>
 
       <dl className="sc-status-strip" aria-label="Saved platform status">
         <div><dt>Platform access</dt><dd><span className={`sc-status-dot ${hasMaintenanceStarted ? 'sc-dot-danger' : isMaintenanceScheduled ? 'sc-dot-warning' : 'sc-dot-success'}`} />{hasMaintenanceStarted ? 'Access paused' : isMaintenanceScheduled ? 'Downtime scheduled' : 'Available'}</dd></div>

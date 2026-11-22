@@ -98,7 +98,7 @@ export default function Dashboard() {
 }
 
 /* ── Instructor view ── */
-function AdminDashboard({ name, role, userId }: { name: string; role: 'admin' | 'superadmin'; userId: string }) {
+function AdminDashboard({ role, userId }: { name: string; role: 'admin' | 'superadmin'; userId: string }) {
   const [locked, setLocked] = useState(false);
   const [loading, setLoading] = useState(true);
   const [currentSubject, setCurrentSubject] = useState<Subject | null>(null);
@@ -136,10 +136,10 @@ function AdminDashboard({ name, role, userId }: { name: string; role: 'admin' | 
   };
 
   return (
-    <div>
+    <div className="instructor-dashboard">
       <div className="mb-8 grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_auto] gap-4 xl:items-start">
         <div className="min-w-0">
-          <h2 data-tutorial="dashboard-welcome" className="evl-page-title">Welcome back, {name}</h2>
+          <h2 data-tutorial="dashboard-welcome" className="evl-page-title">Evaluation workspace</h2>
           <p className="evl-page-subtitle">
             {role === 'superadmin'
               ? 'Manage the selected instructor subjects, blocks, groups, panels, and results.'
@@ -154,7 +154,7 @@ function AdminDashboard({ name, role, userId }: { name: string; role: 'admin' | 
                 <span className="truncate" title={currentSubject.code}>{currentSubject.code}</span>
               </div>
               <div className="min-w-0 flex-1">
-                <span className="block text-[10px] font-bold uppercase tracking-widest text-text/65">Current Subject</span>
+                <span className="block text-[10px] font-bold uppercase tracking-widest text-text/65">Current subject</span>
                 <abbr className="block text-sm font-extrabold text-text truncate no-underline cursor-help leading-snug" title={currentSubject.title} aria-label={currentSubject.title}>
                   {compactSubjectTitle(currentSubject.title)}
                 </abbr>
@@ -165,15 +165,15 @@ function AdminDashboard({ name, role, userId }: { name: string; role: 'admin' | 
           {role !== 'superadmin' && (
             <div className={`evl-card min-h-[64px] px-4 py-3 flex items-center justify-between gap-3 transition-colors ${locked ? 'bg-danger/5 border-danger/20' : 'bg-success/5 border-success/20'}`}>
               <div className="min-w-0">
-                <span className="block text-[10px] font-bold uppercase tracking-widest text-text/65">Subject Status</span>
+                <span className="block text-[10px] font-bold uppercase tracking-widest text-text/65">Grading status</span>
                 <span className={`block text-xs font-extrabold uppercase truncate ${locked ? 'text-danger' : 'text-success'}`}>
-                  {locked ? 'Grading Locked' : 'Grading Active'}
+                  {locked ? 'Grading locked' : 'Grading active'}
                 </span>
               </div>
               <button 
                 disabled={loading || !currentSubject}
                 onClick={toggleLock}
-                className={`shrink-0 px-4 py-2 rounded-lg text-[10px] font-extrabold uppercase tracking-widest transition-all ${
+                className={`shrink-0 px-4 py-2 rounded-lg text-[10px] font-extrabold uppercase tracking-widest transition-colors ${
                   locked 
                     ? 'bg-success text-white hover:bg-success/90' 
                     : 'bg-danger text-white hover:bg-danger/90'

@@ -64,7 +64,7 @@ export default function Landing() {
           <div className="landing-hero-grid">
             <div className="landing-hero-copy">
               <p className="landing-eyebrow">INSTRUCTOR-LED. PROJECT-FOCUSED.</p>
-              <h1 id="hero-heading">One evaluation.<br /><em>Connected.</em></h1>
+              <h1 id="hero-heading">From project rubric<br />to final results</h1>
               <p className="landing-intro">Bring your rubric, student groups, and panel feedback into one clear evaluation workflow.</p>
               <div className="landing-hero-actions"><Link to="/login" className="landing-button">Open portal <span aria-hidden="true">↗</span></Link><a href="#product-video" className="landing-text-link">Watch EvalSys in action <span aria-hidden="true">↘</span></a></div>
               <p className="landing-access-note">New instructor? <a href="#instructor-access">Request an instructor account</a></p>

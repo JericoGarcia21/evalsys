@@ -1,0 +1,21 @@
+/* Scoped public registration styling; validation and submission stay unchanged. */
+.registration-page { color:#1e293b; background:#f8fafc; }
+.registration-page .evl-card { border:1px solid #dbe2ea; border-radius:12px; box-shadow:none; background:#fff; }
+.registration-page .font-black,.registration-page .font-extrabold { font-weight:500; }
+.registration-page .uppercase { text-transform:none; letter-spacing:0; }
+.registration-page .text-\[10px\],.registration-page .text-\[11px\] { font-size:13px; line-height:1.6; }
+.registration-page .evl-label { font-size:14px; font-weight:500; color:#334155; }
+.registration-page .evl-input,.registration-page .evl-select { min-height:48px; border-radius:8px; background:#fff; border-color:#cbd5e1; }
+.registration-page .evl-input::placeholder { color:#64748b; }
+.registration-page .evl-btn-primary { min-height:48px; border-radius:8px; font-weight:500; box-shadow:none; transform:none; transition:background-color .15s,opacity .15s; }
+.registration-page h1 { font-weight:500; letter-spacing:-1px; }
+.registration-page h2 { font-weight:500; line-height:1.5; }
+.registration-page .shadow-lg,.registration-page .shadow-xl { box-shadow:none; }
+.registration-page .animate-pulse,.registration-page .animate-bounce { animation:none; }
+.registration-page :focus-visible { outline:3px solid #2563eb; outline-offset:4px; }
+.registration-page input[type=file] { overflow-wrap:anywhere; }
+@media(max-width:560px) {
+  .registration-page h2 { font-size:16px; }
+  .registration-page [data-tutorial=registration-members] > div:first-child { flex-wrap:wrap; }
+}
+@media(prefers-reduced-motion:reduce) { .registration-page * { animation:none!important; transition:none!important; } }

@@ -6,6 +6,7 @@ import { formatMemberName, type StructuredMember } from '../utils/members';
 import { useConfirmDialog } from '../hooks/useConfirmDialog';
 import TutorialLauncher from '../tutorial/TutorialLauncher';
 import LegalLinks from '../components/LegalLinks';
+import './RegisterGroup.css';
 
 interface Subject { _id: string; code: string; title: string; }
 interface Section { _id: string; name: string; block: string; subject?: string | Subject; }
@@ -138,12 +139,12 @@ export default function RegisterGroup() {
 
   if (success) {
     return (
-      <div className="evl-public-page min-h-screen bg-bg flex items-center justify-center p-4">
+      <div className="registration-page evl-public-page min-h-screen bg-bg flex items-center justify-center p-4">
         <div className="w-full max-w-md evl-card p-8 text-center animate-in fade-in zoom-in duration-300">
           <div className="w-20 h-20 bg-success/10 text-success rounded-full flex items-center justify-center text-4xl mx-auto mb-6">
             ✓
           </div>
-          <h2 className="text-2xl font-black text-text mb-2">Registration Successful!</h2>
+          <h2 className="text-2xl font-black text-text mb-2">Registration complete</h2>
           <p className="text-text/70 mb-8">Your group <strong>{form.name}</strong> has been registered. You can now wait for your panel to start the evaluation.</p>
           <button 
             onClick={() => {
@@ -168,7 +169,7 @@ export default function RegisterGroup() {
 
   if (registrationClosed) {
     return (
-      <div className="evl-public-page min-h-screen bg-bg flex items-center justify-center p-4">
+      <div className="registration-page evl-public-page min-h-screen bg-bg flex items-center justify-center p-4">
         <div className="w-full max-w-md evl-card p-8 text-center">
           <div className="w-12 h-12 rounded-xl bg-primary flex items-center justify-center text-white text-xl font-extrabold mx-auto mb-5">
             E
@@ -186,7 +187,7 @@ export default function RegisterGroup() {
   }
 
   return (
-    <div className="evl-public-page min-h-screen bg-bg flex items-center justify-center p-4 py-10">
+    <div className="registration-page evl-public-page min-h-screen bg-bg flex items-center justify-center p-4 py-10">
       <ConfirmDialog />
       <div className="w-full max-w-4xl">
         {/* Header */}
@@ -202,7 +203,7 @@ export default function RegisterGroup() {
 
         {/* Instructions Card */}
         <div className="evl-card p-5 mb-6 bg-primary/[0.03] border-primary/10">
-          <h3 className="text-xs font-extrabold text-primary uppercase tracking-widest mb-3">📋 How to Register</h3>
+          <h3 className="text-xs font-extrabold text-primary uppercase tracking-widest mb-3">Before you register</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div className="flex items-start gap-2.5">
               <span className="w-5 h-5 rounded-md bg-primary/10 text-primary text-[10px] font-black flex items-center justify-center shrink-0 mt-0.5">1</span>
@@ -227,7 +228,7 @@ export default function RegisterGroup() {
           {isWakingUp && !error && (
             <div className="bg-primary/10 text-primary text-[11px] font-bold py-2.5 px-4 rounded-lg mb-6 text-center flex items-center justify-center gap-2 animate-pulse">
               <span className="w-2 h-2 bg-primary rounded-full animate-bounce" />
-              Initializing system… (Server is waking up)
+              Loading your registration details…
             </div>
           )}
 
@@ -246,11 +247,12 @@ export default function RegisterGroup() {
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               <div className="md:col-span-2">
-                <label className="evl-label block mb-1.5">
+                <label htmlFor="group-name" className="evl-label block mb-1.5">
                   Group Name
                 </label>
                 <input 
                   data-tutorial="registration-name"
+                  id="group-name"
                   value={form.name} 
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
                   required
@@ -260,9 +262,10 @@ export default function RegisterGroup() {
               </div>
 
               <div>
-                <label className="evl-label block mb-1.5">Subject</label>
+                <label htmlFor="group-subject" className="evl-label block mb-1.5">Subject</label>
                 <select
                   data-tutorial="registration-subject"
+                  id="group-subject"
                   value={form.subject}
                   onChange={(e) => setForm({ ...form, subject: e.target.value, section: '' })}
                   required
@@ -277,9 +280,10 @@ export default function RegisterGroup() {
               </div>
 
               <div>
-                <label className="evl-label block mb-1.5">Assigned Block</label>
+                <label htmlFor="group-block" className="evl-label block mb-1.5">Assigned Block</label>
                 <select 
                   data-tutorial="registration-block"
+                  id="group-block"
                   value={form.section} 
                   onChange={(e) => setForm({ ...form, section: e.target.value })}
                   required
@@ -327,9 +331,10 @@ export default function RegisterGroup() {
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                       <div>
-                        <label className="text-[10px] font-bold text-text/65 uppercase block mb-1">Last Name</label>
+                        <label htmlFor={`member-${index}-last`} className="text-[10px] font-bold text-text/65 uppercase block mb-1">Last name</label>
                         <input
                           value={member.lastName}
+                          id={`member-${index}-last`}
                           onChange={(e) => updateMember(index, 'lastName', e.target.value)}
                           required
                           className="evl-input !py-2 !text-sm"
@@ -337,9 +342,10 @@ export default function RegisterGroup() {
                         />
                       </div>
                       <div>
-                        <label className="text-[10px] font-bold text-text/65 uppercase block mb-1">First Name</label>
+                        <label htmlFor={`member-${index}-first`} className="text-[10px] font-bold text-text/65 uppercase block mb-1">First name</label>
                         <input
                           value={member.firstName}
+                          id={`member-${index}-first`}
                           onChange={(e) => updateMember(index, 'firstName', e.target.value)}
                           required
                           className="evl-input !py-2 !text-sm"
@@ -347,9 +353,10 @@ export default function RegisterGroup() {
                         />
                       </div>
                       <div>
-                        <label className="text-[10px] font-bold text-text/65 uppercase block mb-1">Middle Name</label>
+                        <label htmlFor={`member-${index}-middle`} className="text-[10px] font-bold text-text/65 uppercase block mb-1">Middle name (optional)</label>
                         <input
                           value={member.middleName}
+                          id={`member-${index}-middle`}
                           onChange={(e) => updateMember(index, 'middleName', e.target.value)}
                           className="evl-input !py-2 !text-sm"
                           placeholder="Bautista"
@@ -373,6 +380,7 @@ export default function RegisterGroup() {
               <div className="rounded-xl border border-dashed border-muted/50 bg-bg/60 p-4">
                 <input
                   ref={proposalInputRef}
+                  aria-label="Proposal or project document (optional)"
                   type="file"
                   accept=".pdf,.doc,.docx,.ppt,.pptx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation"
                   onChange={(e) => {

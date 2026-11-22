@@ -117,7 +117,7 @@ test('public registration rejects a missing link and submits a valid registratio
   await page.getByRole('checkbox').check();
   await page.getByRole('button', { name: 'Complete Registration', exact: true }).click();
   await page.getByRole('button', { name: 'Submit Registration', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Registration Successful!', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Registration complete', exact: true })).toBeVisible();
 });
 test('superadmin opens platform controls and announcements without browser errors', async ({ page }) => {
   const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));

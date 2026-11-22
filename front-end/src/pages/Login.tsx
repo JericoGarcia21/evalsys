@@ -66,7 +66,7 @@ export default function Login() {
         <Link className="login-back" to="/"><span aria-hidden="true">←</span> Back to home</Link>
         <main className="login-form-panel">
           <p className="login-eyebrow">THE EVALSYS PORTAL</p>
-          <h1>Welcome back.</h1>
+          <h1>Sign in to EvalSys</h1>
           <p className="login-intro">Sign in to your evaluation workspace.</p>
           {error && <div id="login-error" role="alert" className="login-error">{error}</div>}
           {(isWakingUp || (loading && loginPhase !== 'signing-in')) && !error && <div role="status" className="login-status"><span aria-hidden="true" />{loading && loginPhase === 'reconnecting' ? 'Reconnecting automatically. Please keep this page open.' : 'Connecting to the server. It may take a moment to start.'}</div>}

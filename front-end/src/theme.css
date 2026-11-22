@@ -49,6 +49,37 @@
   .evl-alert { border-radius: 6px; line-height: 1.8; }
   .evl-alert-error { color: #991b1b; background-color: #fef2f2; border-color: #fecaca; }
 .workspace-shell { background: var(--evl-background); }
+/* Shared workspace redline pass: Unslop by Damir Sokolovsky,
+   https://github.com/heydamir/unslop (CC BY 4.0).
+   Preserve page composition, semantic colors, charts, and all role behavior. */
+.workspace-shell .evl-page-title { font-weight:500; letter-spacing:-.6px; }
+.workspace-shell .evl-page-subtitle { font-size:14px; margin-top:8px; }
+.workspace-shell .evl-label { font-size:13px; font-weight:500; margin-bottom:8px; }
+.workspace-shell .evl-input,.workspace-shell .evl-select { min-height:44px; font-size:14px; border-radius:8px; }
+.workspace-shell .evl-card { box-shadow:none; }
+.workspace-shell .evl-btn-primary,.workspace-shell .evl-btn-secondary,
+.workspace-shell .evl-btn-danger,.workspace-shell .evl-btn-ghost { min-height:40px; border-radius:8px; font-weight:500; box-shadow:none; }
+.workspace-shell .font-black,.workspace-shell .font-extrabold { font-weight:600; }
+.workspace-shell .uppercase { text-transform:none; letter-spacing:0; }
+.workspace-shell .text-\[9px\],.workspace-shell .text-\[10px\],.workspace-shell .text-\[11px\] { font-size:12px; line-height:1.5; }
+.workspace-shell .evl-table th { font-size:12px; font-weight:500; text-transform:none; letter-spacing:0; padding:16px 20px; }
+.workspace-shell .evl-table td { padding:16px 20px; }
+.workspace-shell .evl-badge { font-size:12px; font-weight:500; letter-spacing:0; text-transform:none; }
+.workspace-shell .transition-all { transition-property:color,background-color,border-color,opacity,transform; }
+.workspace-shell button:disabled { cursor:not-allowed; }
+.workspace-shell .evl-table button,.workspace-shell .evl-table .col-actions a { min-height:36px; }
+.workspace-shell .evl-input:focus-visible,.workspace-shell .evl-select:focus-visible,
+.workspace-shell button:focus-visible,.workspace-shell summary:focus-visible { outline:3px solid var(--evl-primary); outline-offset:3px; }
+.workspace-shell .workspace-shortcut h3 { font-weight:500; letter-spacing:0; }
+.workspace-shell .workspace-shortcut p { font-size:14px; line-height:1.6; }
+.workspace-shell .workspace-shortcut .workspace-shortcut-action { font-size:13px; margin-top:16px; }
+.workspace-shell .workspace-shortcut { padding:24px; }
+.workspace-shell .workspace-topbar-context,.workspace-shell .workspace-tools > span { font-size:12px; letter-spacing:0; text-transform:none; font-weight:500; }
+.workspace-shell .workspace-breadcrumb { font-size:13px; }
+.workspace-shell .workspace-sidebar label { font-size:12px; letter-spacing:0; font-weight:500; }
+@media(prefers-reduced-motion:reduce) {
+  .workspace-shell *,.workspace-shell *::before,.workspace-shell *::after { animation:none!important; transition:none!important; scroll-behavior:auto!important; }
+}
 /* The main column is a flex container so the page content fills the remaining
    height at every breakpoint and the legal footer always lands at the bottom. */
 #workspace-main { display: flex; flex-direction: column; }
@@ -80,6 +111,24 @@
 .workspace-shortcut h3 { font-size: 16px; letter-spacing: -.3px; font-weight: 650; }
 .workspace-shortcut p { color: #526176; font-size: 12px; }
 .workspace-shortcut .workspace-shortcut-action { opacity: 1; margin-top: 22px; font-size: 11px; }
+/* Instructor dashboard polish, guided by Unslop by Damir Sokolovsky
+   https://github.com/heydamir/unslop — CC BY 4.0. Scoped to this role's dashboard. */
+.instructor-dashboard .evl-page-title { font-weight:500; letter-spacing:-.6px; }
+.instructor-dashboard .evl-page-subtitle { margin-top:8px; font-size:14px; }
+.instructor-dashboard .uppercase { text-transform:none; letter-spacing:0; }
+.instructor-dashboard .font-black,.instructor-dashboard .font-extrabold { font-weight:500; }
+.instructor-dashboard .text-\[10px\] { font-size:12px; line-height:1.5; }
+.instructor-dashboard > div:first-child .evl-card { background:white; border-color:var(--evl-border); box-shadow:none; min-height:72px; }
+.instructor-dashboard > div:first-child button { min-height:40px; font-size:13px; font-weight:500; }
+.instructor-dashboard .workspace-shortcut { display:grid; grid-template-columns:40px minmax(0,1fr); column-gap:16px; padding:24px; }
+.instructor-dashboard .workspace-shortcut > div:first-child { grid-column:1; grid-row:1 / 4; margin:0; }
+.instructor-dashboard .workspace-shortcut > div:first-child > div { background:#f1f5f9; color:#526176; }
+.instructor-dashboard .workspace-shortcut svg { width:18px; height:18px; stroke-width:1.5; }
+.instructor-dashboard .workspace-shortcut h3 { grid-column:2; font-size:16px; font-weight:500; letter-spacing:0; }
+.instructor-dashboard .workspace-shortcut p { grid-column:2; font-size:14px; line-height:1.6; }
+.instructor-dashboard .workspace-shortcut .workspace-shortcut-action { grid-column:2; margin-top:12px; font-size:13px; font-weight:500; }
+.instructor-dashboard :focus-visible { outline:3px solid var(--evl-primary); outline-offset:3px; }
+@media(max-width:640px) { .instructor-dashboard .workspace-shortcut { padding:20px; column-gap:12px; } }
 .workspace-skip { position: fixed; z-index: 100; top: -100px; left: 16px; padding: 12px 20px; color: white; background: var(--evl-primary); }
 .workspace-skip:focus { top: 12px; }
 .grading-view-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 18px; margin-bottom: 22px; }

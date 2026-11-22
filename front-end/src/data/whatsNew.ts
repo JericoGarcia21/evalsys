@@ -14,9 +14,21 @@ export interface ReleaseNote {
 }
 
 /** Bump this whenever you add a release note — users see each version once. */
-export const CURRENT_VERSION = '1.7.2';
+export const CURRENT_VERSION = '1.7.3';
 
 export const RELEASES: ReleaseNote[] = [
+  {
+    version: '1.7.3',
+    date: '2026-11-22',
+    title: 'Archive semesters and share panel judges',
+    items: [
+      'Instructors: in Subjects, select Archive & Start New Semester, enter a semester label, and confirm with the subject code.',
+      'Results, members, feedback, and rubric details stay in your private, read-only My Archive. Old groups are cleared and registration links disabled; subjects, rubrics, blocks, and assignments stay.',
+      'When Super Admin enables sharing, instructors can open Assign Panels → Panels from Other Instructors to assign judges owned by another instructor.',
+      'Search by judge name, email, or instructor, select your subject’s blocks, and click Save assignments.',
+      'Panel judges can evaluate assigned groups across instructors using each subject’s active rubric.',
+    ],
+  },
   {
     version: '1.7.2',
     date: '2026-11-22',

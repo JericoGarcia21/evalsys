@@ -92,6 +92,7 @@ The "seen" flag is stored per user in `localStorage` under
 
 | Version | Date | Title | Audience | Summary |
 | --- | --- | --- | --- | --- |
+| 1.7.3 | 2026-11-22 | Archive semesters and share panel judges | All roles | Latest announcement highlights semester archiving, private My Archive records, and assigning panel judges owned by other instructors when sharing is enabled. No UI redesign notes. |
 | 1.7.2 | 2026-11-22 | The same latest update for every account | All roles | What’s New uses the latest public release across instructor, panel, and Super Admin accounts, matching the sidebar version while skipping internal-only records. |
 | 1.7.1 | 2026-11-22 | Start a new semester and share panel judges | Instructor | Subjects: archive the semester into private, read-only My Archive, clear old groups and disable old registration links while preserving setup. Assign Panels: search panels owned by other instructors and save block assignments when Super Admin enables sharing. |
 | 1.7.0 | 2026-11-22 | Ready for the next semester | Instructor | Transactional semester archiving with independent score/member/rubric snapshots, instructor-only My Archive, preserved blocks and assignments, and disabled old registration links. |

@@ -12,6 +12,8 @@ const { protect, adminOnly, panelOnly, superadminInstructorContext } = require('
 const { validateScores } = require('../middleware/validate.middleware');
 const { cacheResponse } = require('../middleware/cache.middleware');
 const { backgroundJob } = require('../middleware/backgroundJob.middleware');
+const { instructorOnly } = require('../middleware/auth.middleware');
+const { startSemester, myArchive } = require('../controllers/semester.controller');
 
 const superadminContextForSelectedSubject = (req, res, next) => {
   const subject = req.headers['x-subject-id'] || req.query.subject || req.body?.subject;
@@ -24,6 +26,8 @@ router.post('/group/:groupId', protect, panelOnly, validateScores, submitEvaluat
 router.get('/group/:groupId/mine', protect, panelOnly, cacheResponse('evaluation:mine', 10000), getMyEvaluation);
 
 // Admin routes
+router.post('/archive-semester', protect, instructorOnly, startSemester);
+router.get('/my-archive', protect, instructorOnly, myArchive);
 router.get('/group/:groupId/result', protect, adminOnly, superadminInstructorContext, cacheResponse('evaluation:group-result', 15000), getGroupResult);
 router.get('/section/:sectionId/results', protect, adminOnly, superadminInstructorContext, cacheResponse('evaluation:section-results', 15000), getSectionResults);
 router.get('/export-all', protect, adminOnly, superadminContextForSelectedSubject, backgroundJob('results.export', exportAllResults));

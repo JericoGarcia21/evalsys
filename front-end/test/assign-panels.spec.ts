@@ -7,6 +7,10 @@ const mockAssignments = async (page: Page, shared = true) => {
     { _id: 'panel-b', name: 'Alexandra Victoria Dela Cruz', email: 'alexandra.victoria.delacruz@example.com', role: 'panel', isActive: true, createdBy: { _id: 'instructor-b', name: 'Professor Emmanuel Bautista' } },
   ];
   const state = { failSave: false, failLoad: false, writes: [] as Record<string, unknown>[] };
+  const sections = [
+    { _id: 'block-a', name: 'BSIT 3-A', block: 'BSIT 3-A', subject, assignedPanels: [panels[0]] },
+    { _id: 'block-b', name: 'BSIT 3-B — afternoon presentation', block: 'BSIT 3-B — afternoon presentation', subject, assignedPanels: [] as typeof panels },
+  ];
   await page.addInitScript(() => {
     localStorage.setItem('token', 'isolated-assignment-ui-test');
     localStorage.setItem('evalsys_current_subject_id', 'subject-a');
@@ -22,13 +26,16 @@ const mockAssignments = async (page: Page, shared = true) => {
       : route.fulfill({ json: shared ? panels : [panels[0]] });
     if (path.endsWith('/sections/assign-blocks')) {
       if (state.failSave) return route.fulfill({ status: 400, json: { message: 'Sharing was disabled. Your changes were not saved.' } });
-      state.writes.push(route.request().postDataJSON());
+      const payload = route.request().postDataJSON();
+      state.writes.push(payload);
+      const selected = panels.find(panel => panel._id === payload.panelId)!;
+      for (const section of sections) {
+        section.assignedPanels = section.assignedPanels.filter(panel => panel._id !== selected._id);
+        if (payload.sectionIds.includes(section._id)) section.assignedPanels.push(selected);
+      }
       return route.fulfill({ json: { message: 'Saved' } });
     }
-    if (path.endsWith('/sections')) return route.fulfill({ json: [
-      { _id: 'block-a', name: 'BSIT 3-A', block: 'BSIT 3-A', subject, assignedPanels: [panels[0]] },
-      { _id: 'block-b', name: 'BSIT 3-B — afternoon presentation', block: 'BSIT 3-B — afternoon presentation', subject, assignedPanels: [] },
-    ] });
+    if (path.endsWith('/sections')) return route.fulfill({ json: sections });
     return route.fulfill({ json: [] });
   });
   return state;
@@ -59,6 +66,37 @@ test('assignment changes are explicit, survive errors, and persist only after sa
   expect(state.writes).toEqual([{ panelId: 'panel-b', sectionIds: ['block-a', 'block-b'] }]);
   await expect(page.getByText('2 of 2 blocks selected')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Save assignments', exact: true })).toBeDisabled();
+});
+
+test('saved shared assignments reload correctly and clearing them preserves other judges', async ({ page }) => {
+  const state = await mockAssignments(page);
+  const selectSharedPanel = async () => {
+    await page.getByRole('button', { name: /Other Instructors/ }).click();
+    await page.getByRole('button', { name: /Alexandra Victoria/ }).click();
+  };
+  await page.goto('/assign-panels');
+  await selectSharedPanel();
+  await page.getByRole('button', { name: 'Select all', exact: true }).click();
+  await page.getByRole('button', { name: 'Save assignments', exact: true }).click();
+  await expect(page.getByRole('status')).toContainText('assigned to 2 blocks');
+  await page.reload();
+  await selectSharedPanel();
+  await expect(page.getByRole('checkbox', { name: /BSIT 3-A/ })).toBeChecked();
+  await expect(page.getByRole('checkbox', { name: /BSIT 3-B/ })).toBeChecked();
+  await page.getByRole('button', { name: 'Clear selection', exact: true }).click();
+  await page.getByRole('button', { name: 'Save assignments', exact: true }).click();
+  await expect(page.getByRole('status')).toContainText('assigned to 0 blocks');
+  await page.reload();
+  await selectSharedPanel();
+  await expect(page.getByRole('checkbox', { name: /BSIT 3-A/ })).not.toBeChecked();
+  await expect(page.getByRole('checkbox', { name: /BSIT 3-B/ })).not.toBeChecked();
+  await page.getByRole('button', { name: /My Panels/ }).click();
+  await page.getByRole('button', { name: /Maria Santos/ }).click();
+  await expect(page.getByRole('checkbox', { name: /BSIT 3-A/ })).toBeChecked();
+  expect(state.writes).toEqual([
+    { panelId: 'panel-b', sectionIds: ['block-a', 'block-b'] },
+    { panelId: 'panel-b', sectionIds: [] },
+  ]);
 });
 
 test('owner-only directory handles failed loads and no search results', async ({ page }) => {

@@ -358,53 +358,39 @@ function PanelDashboard({ name, panelId }: { name: string; panelId: string }) {
         </div>
       ) : (
         <>
-          <section data-tutorial="panel-dashboard-subjects" aria-label="Assigned subjects" className="mb-6">
-            <h3 className="text-text font-bold mb-3">Assigned subjects</h3>
-            <div className="flex flex-wrap gap-2">
-              <button onClick={() => { setSelectedSubject(''); setSelectedSection(''); }}
-                aria-pressed={!selectedSubject}
-                className={!selectedSubject ? 'evl-btn-primary' : 'evl-btn-secondary'}>All Subjects</button>
+          <section data-tutorial="panel-dashboard-subjects" aria-label="Assigned subjects" className="evl-card p-4 mb-6 grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
+            <div className="min-w-0">
+              <label htmlFor="panel-dashboard-subject" className="evl-label">Subject</label>
+              <select id="panel-dashboard-subject" className="evl-select w-full min-w-0" value={selectedSubject}
+                onChange={event => { setSelectedSubject(event.target.value); setSelectedSection(''); }}>
+                <option value="">All Subjects</option>
               {assignedSubjects.map(subject => {
                 const assignedGroups = groups.filter(group => getRefId(group.section?.subject) === subject.id);
                 const count = assignedGroups.filter(group => group.isGraded).length;
                 const locked = lockedSubjectIds.includes(subject.id) || sections.filter(section => getRefId(section.subject) === subject.id)
                   .every(section => lockedSubjectIds.includes(`${section.createdBy?._id}:${subject.id}`));
-                return (
-                  <button key={subject.id} onClick={() => { setSelectedSubject(subject.id); setSelectedSection(''); }}
-                    aria-pressed={selectedSubject === subject.id}
-                    className={'text-left max-w-full px-4 py-3 rounded-xl border transition-colors ' +
-                      (selectedSubject === subject.id ? 'bg-primary text-white border-primary' : 'bg-surface text-text border-muted/40 hover:border-primary/50')}>
-                    <span className="block text-sm font-bold break-words">{subject.label}</span>
-                    <span className="block text-xs mt-1">{count}/{assignedGroups.length} graded{locked ? ' · Grading locked' : ''}</span>
-                  </button>
-                );
+                return <option key={subject.id} value={subject.id}>{subject.label} · {count}/{assignedGroups.length} graded{locked ? ' · Grading locked' : ''}</option>;
               })}
+              </select>
             </div>
-          </section>
-
-          <div className="mb-6 flex flex-col md:flex-row gap-4 md:items-end">
-            <div className="flex-1 min-w-0">
-              <h3 className="text-text text-sm font-bold mb-2">Blocks</h3>
-              <div className="flex flex-wrap gap-2">
-                <button onClick={() => setSelectedSection('')} aria-pressed={!selectedSection}
-                  className={!selectedSection ? 'evl-btn-primary' : 'evl-btn-secondary'}>All Blocks</button>
+            <div className="min-w-0">
+              <label htmlFor="panel-dashboard-block" className="evl-label">Block</label>
+              <select id="panel-dashboard-block" className="evl-select w-full min-w-0" value={selectedSection}
+                onChange={event => setSelectedSection(event.target.value)}>
+                <option value="">All Blocks</option>
                 {visibleSections.map(section => (
-                  <button key={section._id} onClick={() => setSelectedSection(section._id)}
-                    aria-pressed={selectedSection === section._id}
-                    className={'px-4 py-2 rounded-lg border text-sm text-left max-w-full ' +
-                      (selectedSection === section._id ? 'bg-primary text-white border-primary' : 'border-muted/40 bg-surface text-text')}>
-                    <span className="block font-bold break-words">{section.block || section.name}</span>
-                    {!selectedSubject && <span className="block text-xs break-words">{subjectLabel(section.subject)}</span>}
-                  </button>
+                  <option key={section._id} value={section._id}>
+                    {section.block || section.name} · {subjectLabel(section.subject)}{section.createdBy?.name ? ` · ${section.createdBy.name}` : ''}
+                  </option>
                 ))}
-              </div>
+              </select>
             </div>
-            <div className="w-full md:w-64 md:shrink-0">
+            <div className="min-w-0">
               <label htmlFor="panel-group-search" className="evl-label">Search groups or students</label>
               <input id="panel-group-search" type="search" placeholder="Group or student name..."
                 value={search} onChange={event => setSearch(event.target.value)} className="evl-input" />
             </div>
-          </div>
+          </section>
 
           <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-5">
             {filteredGroups.map(group => {

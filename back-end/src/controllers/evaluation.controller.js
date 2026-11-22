@@ -44,35 +44,7 @@ const getPanelName = (evaluation) => (
 
 const toIdString = (value) => (value?._id || value)?.toString?.() || '';
 
-// A group's expected graders are frozen when its first evaluation is submitted.
-// Panels added later may still submit, but they are not required for a group that
-// was already graded, and adding one must not change an already computed result.
-const resolveExpectedPanelIds = ({ group, sectionPanels = [], groupPanels = [], evaluations = [], panelCreatedAt = new Map() }) => {
-  const snapshotIds = (group?.gradingPanelIds || []).map(toIdString).filter(Boolean);
-  const assignedIds = getAssignedPanels(sectionPanels, groupPanels).map(toIdString).filter(Boolean);
-  const submittedIds = evaluations.map((evaluation) => toIdString(evaluation.panel)).filter(Boolean);
-
-  if (snapshotIds.length) {
-    const assignedSet = new Set(assignedIds);
-    // Panels removed from the block are no longer required.
-    const expected = snapshotIds.filter((id) => assignedSet.has(id) || submittedIds.includes(id));
-    return { ids: expected.length ? expected : submittedIds, legacy: false };
-  }
-
-  if (!evaluations.length) return { ids: assignedIds, legacy: false };
-
-  // Groups graded before snapshots existed: keep the graders that existed then.
-  const submittedAt = evaluations
-    .map((evaluation) => new Date(evaluation.createdAt || evaluation.updatedAt || 0).getTime())
-    .filter(Number.isFinite);
-  const firstSubmittedAt = submittedAt.length ? Math.min(...submittedAt) : NaN;
-  const existingIds = assignedIds.filter((id) => {
-    const createdAt = panelCreatedAt.get(id);
-    if (!createdAt || !Number.isFinite(firstSubmittedAt)) return true;
-    return new Date(createdAt).getTime() <= firstSubmittedAt;
-  });
-  return { ids: Array.from(new Set([...existingIds, ...submittedIds])), legacy: true };
-};
+const { resolveExpectedPanelIds } = require('../utils/expectedPanels');
 
 const persistGradingSnapshot = (groupId, ids) => {
   if (!groupId || !ids.length) return;
@@ -262,26 +234,30 @@ exports.submitEvaluation = async (req, res) => {
 
   const total = Math.round(rubric.criteria.reduce((sum, criterion) => sum + scores[criterion.key], 0) * 100) / 100;
 
-  const evaluation = await Evaluation.findOneAndUpdate(
-    { group: groupId, panel: req.user._id, isLegacyArchived: { $ne: true } },
-    {
-      scores,
-      total,
-      rubric: rubricId,
-      subject: section.subject,
-      comments: req.body.comments || '',
-      isSubmitted: true,
-    },
-    { new: true, upsert: true, runValidators: true }
-  );
-
-  // Freeze the roster the first time this group is graded.
-  if (!(group.gradingPanelIds || []).length) {
-    persistGradingSnapshot(
-      group._id,
-      getAssignedPanels(section.assignedPanels || [], group.assignedPanels || []).map(toIdString).filter(Boolean)
+  const evaluation = await require('../services/gradingTransaction.service').withGradingTransaction(async session => {
+    const fence = await Group.updateOne({ _id: groupId }, { $inc: { gradingRevision: 1 } }, { session });
+    if (!fence.matchedCount) require('../services/accountControl.service').fail('This group has been archived or removed. Refresh your assigned groups.', 404);
+    const saved = await Evaluation.findOneAndUpdate(
+      { group: groupId, panel: req.user._id, isLegacyArchived: { $ne: true } },
+      {
+        scores,
+        total,
+        rubric: rubricId,
+        subject: section.subject,
+        comments: req.body.comments || '',
+        isSubmitted: true,
+      },
+      { new: true, upsert: true, runValidators: true, session }
     );
-  }
+
+    // Freeze the roster the first time this group is graded.
+    if (!(group.gradingPanelIds || []).length) {
+      await Group.updateOne({ _id: group._id, $or: [{ gradingPanelIds: { $exists: false } }, { gradingPanelIds: { $size: 0 } }] }, {
+        $set: { gradingPanelIds: getAssignedPanels(section.assignedPanels || [], group.assignedPanels || []).map(toIdString).filter(Boolean) },
+      }, { session });
+    }
+    return saved;
+  });
 
   await recordAuditLog(req, {
     action: evaluation.createdAt?.getTime?.() === evaluation.updatedAt?.getTime?.()

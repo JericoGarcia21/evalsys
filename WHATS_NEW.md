@@ -73,8 +73,19 @@ The "seen" flag is stored per user in `localStorage` under
 
 ## History
 
+### v1.7.1 final verification — 2026-11-22
+
+- Backend: `npm run check` passed (85 files); `npm test` passed (111 tests).
+- Frontend: `npm run lint`, `npm run build`, and `npm run test:e2e` passed (101 browser tests).
+- Covered semester archive ownership, incomplete results, transaction rollback, duplicate requests, concurrent grading, standalone-database refusal, and shared-panel assignment/access isolation.
+- Corrected My Archive loading-state handling and updated popup tests to follow the latest release for each role.
+- Non-blocking: the frontend build reports a large JavaScript bundle. Production database configuration and live deployment were not verified by these local checks.
+
 | Version | Date | Title | Audience | Summary |
 | --- | --- | --- | --- | --- |
+| 1.7.1 | 2026-11-22 | Start a new semester and share panel judges | Instructor | Subjects: archive the semester into private, read-only My Archive, clear old groups and disable old registration links while preserving setup. Assign Panels: search panels owned by other instructors and save block assignments when Super Admin enables sharing. |
+| 1.7.0 | 2026-11-22 | Ready for the next semester | Instructor | Transactional semester archiving with independent score/member/rubric snapshots, instructor-only My Archive, preserved blocks and assignments, and disabled old registration links. |
+| 1.6.6 | 2026-11-22 | Cleaner filters and table actions | All roles | Aligned table action headings and button groups with consistent minimum button height; compact panel subject/block dropdowns preserve progress, locks, and filtering. |
 | 1.6.5 | 2026-11-21 | Better teamwork. Clearer assignments. | Instructor, Panel | Simplified assignment workspace with searchable directory, shared-instructor labels and pending-change feedback; larger, readable What’s New with instructor/panel benefits and keyboard-accessible modal. |
 | 1.6.4 | 2026-11-21 | Reuse panel accounts across instructors | Instructor, Panel | Immediate shared assignment with workspace-specific grading, rubrics, locks and chat. Temporary Super Admin switch defaults OFF for the presentation; OFF preserves grades and assignments. |
 | 1.6.3 | 2026-11-20 | Super Admin interface polish | Internal only — no popup | Added five dashboard icons, removed sidebar scope selectors, and refined System Control with separate views and previews; empty audience prevents a popup. |

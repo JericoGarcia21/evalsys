@@ -17,6 +17,7 @@ const Section = require('../src/models/Section');
 const Group = require('../src/models/Group');
 const Rubric = require('../src/models/Rubric');
 const Evaluation = require('../src/models/Evaluation');
+const SemesterArchive = require('../src/models/SemesterArchive');
 const RegistrationLink = require('../src/models/RegistrationLink');
 const Settings = require('../src/models/Settings');
 const AuthSession = require('../src/models/AuthSession');
@@ -69,6 +70,105 @@ beforeEach(async () => {
   await ChatMessage.create({ room: room._id, sender: { id: source._id, role: 'admin', name: source.name }, body: 'Keep chat history', clientMessageId: 'control-history' });
   await Settings.create({});
   [ownerToken, sourceToken, targetToken, panelToken] = await Promise.all([owner, source, target, panel].map(user => issueSession(user, fakeReq)));
+});
+
+const archiveSemester = (token = sourceToken, body = {}) => api('post', '/evaluations/archive-semester', token)
+  .set('x-subject-id', String(subject._id)).send({ semester: 'First Semester AY 2026–2027', confirmText: `ARCHIVE ${subject.code}`, ...body });
+
+test('semester archive preserves results and rubrics while keeping blocks ready for new groups', async () => {
+  const ungraded = await Group.create({ name: 'Not yet graded', section: section._id, createdBy: source._id, members: ['New Student'] });
+  const response = await archiveSemester().expect(200);
+  assert.equal(response.body.archivedGroups, 2);
+  assert.equal(response.body.archivedResults, 1);
+  assert.equal(await Group.countDocuments({ createdBy: source._id }), 0);
+  assert.deepEqual((await Section.findById(section._id)).assignedPanels.map(String), [String(panel._id)]);
+  assert.ok(await Subject.exists({ _id: subject._id }));
+  assert.ok(await Rubric.exists({ _id: rubric._id }));
+  assert.equal((await RegistrationLink.findById(link._id)).isActive, false);
+  assert.equal((await Evaluation.findOne({ group: group._id })).isLegacyArchived, true);
+  const archive = await api('get', '/evaluations/my-archive', sourceToken).expect(200);
+  assert.equal(archive.body.pagination.total, 2);
+  const graded = archive.body.items.find(item => item.snapshot.group.name === group.name);
+  assert.equal(graded.snapshot.finalTotal, 8);
+  assert.equal(graded.snapshot.status, 'Complete');
+  assert.equal(graded.snapshot.evaluations[0].scores.quality, 8);
+  assert.equal(graded.snapshot.evaluations[0].comments, 'Keep feedback');
+  assert.equal(graded.snapshot.evaluations[0].rubric.criteria[0].maxScore, 10);
+  assert.equal(archive.body.items.find(item => item.snapshot.group.name === ungraded.name).snapshot.status, 'Not graded');
+  await Rubric.updateOne({ _id: rubric._id }, { title: 'Changed next semester' });
+  await Panel.deleteOne({ _id: panel._id });
+  const retained = await api('get', '/evaluations/my-archive', sourceToken).expect(200);
+  assert.equal(retained.body.items.find(item => item._id === graded._id).snapshot.evaluations[0].rubric.title, 'Keep Rubric');
+  const fresh = await Group.create({ name: 'Next semester group', section: section._id, createdBy: source._id });
+  assert.ok(fresh);
+  const activeResults = await api('get', `/evaluations/section/${section._id}/results`, sourceToken).set('x-subject-id', String(subject._id)).expect(200);
+  assert.equal(activeResults.body.length, 1);
+  assert.equal(activeResults.body[0].finalTotal, null);
+});
+
+test('semester archive enforces role, ownership, confirmation and label before any changes', async () => {
+  await archiveSemester(null).expect(401);
+  for (const token of [ownerToken, panelToken, targetToken]) await archiveSemester(token).expect(403);
+  for (const semester of ['', ' ', 12, 'x'.repeat(101)]) await archiveSemester(sourceToken, { semester }).expect(400);
+  await archiveSemester(sourceToken, { confirmText: 'WRONG' }).expect(400);
+  assert.equal(await Group.countDocuments({ _id: group._id }), 1);
+  assert.equal(await SemesterArchive.countDocuments(), 0);
+  for (const token of [ownerToken, panelToken]) await api('get', '/evaluations/my-archive', token).expect(403);
+});
+
+test('semester archives isolate instructors and retain access after subject reassignment', async () => {
+  await archiveSemester().expect(200);
+  const unrelated = await api('get', '/evaluations/my-archive', targetToken).set('x-instructor-id', String(source._id)).query({ subject: String(subject._id) }).expect(200);
+  assert.deepEqual(unrelated.body.items, []);
+  await Admin.updateOne({ _id: source._id }, { assignedSubjects: [] });
+  const retained = await api('get', '/evaluations/my-archive', sourceToken).expect(200);
+  assert.equal(retained.body.pagination.total, 1);
+  await archiveSemester().expect(403);
+});
+
+test('semester archive keeps incomplete results pending and concurrent retries do not duplicate history', async () => {
+  const extra = await Panel.create({ name: 'Missing judge', email: 'missing@qa.test', password: hash, createdBy: source._id });
+  await Section.updateOne({ _id: section._id }, { $addToSet: { assignedPanels: extra._id } });
+  await Group.updateOne({ _id: group._id }, { gradingPanelIds: [panel._id, extra._id] });
+  const responses = await Promise.all([archiveSemester(), archiveSemester()]);
+  assert.deepEqual(responses.map(response => response.status).sort(), [200, 409]);
+  assert.equal(await SemesterArchive.countDocuments(), 1);
+  const snapshot = (await SemesterArchive.findOne()).snapshot;
+  assert.equal(snapshot.status, 'Incomplete');
+  assert.equal(snapshot.finalTotal, null);
+  assert.deepEqual(snapshot.missingPanels, ['Missing judge']);
+  await archiveSemester().expect(409);
+});
+
+test('in-flight panel submission cannot create a lost grade after semester archival', async () => {
+  let entered, release;
+  const atFence = new Promise(resolve => { entered = resolve; });
+  const proceed = new Promise(resolve => { release = resolve; });
+  const original = Group.updateOne;
+  Group.updateOne = async function (...args) {
+    if (args[1]?.$inc?.gradingRevision) { entered(); await proceed; }
+    return original.apply(this, args);
+  };
+  const scoring = api('post', `/evaluations/group/${group._id}`, panelToken)
+    .send({ rubricId: String(rubric._id), scores: { quality: 10 } }).then(response => response);
+  try {
+    await atFence;
+    await archiveSemester().expect(200);
+    release();
+    assert.equal((await scoring).status, 404);
+    assert.equal((await SemesterArchive.findOne()).snapshot.finalTotal, 8);
+    assert.equal(await Evaluation.countDocuments({ isLegacyArchived: { $ne: true } }), 0);
+  } finally { release(); Group.updateOne = original; await scoring; }
+});
+
+test('semester archive rolls back snapshots, group removal and links when audit fails', async () => {
+  const original = AuditLog.create;
+  AuditLog.create = async () => { throw new Error('QA audit failure'); };
+  try { await archiveSemester().expect(500); } finally { AuditLog.create = original; }
+  assert.equal(await SemesterArchive.countDocuments(), 0);
+  assert.ok(await Group.exists({ _id: group._id }));
+  assert.equal((await Evaluation.findOne({ group: group._id })).isLegacyArchived, false);
+  assert.equal((await RegistrationLink.findById(link._id)).isActive, true);
 });
 
 test('account controls reject unauthenticated, instructor and panel requests', async () => {

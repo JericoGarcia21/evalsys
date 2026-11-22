@@ -217,11 +217,11 @@ export default function LegacyData() {
         <table className="evl-table min-w-[760px]">
           <thead>
             {activeTab === 'sections' ? (
-              <tr><th>Block</th><th>Subject</th><th>Previous Owner</th><th>Created</th><th className="text-right">Actions</th></tr>
+              <tr><th>Block</th><th>Subject</th><th>Previous Owner</th><th>Created</th><th className="col-actions">Actions</th></tr>
             ) : activeTab === 'groups' ? (
-              <tr><th>Group</th><th>Block</th><th>Subject</th><th>Previous Owner</th><th>Members</th><th>Created</th><th className="text-right">Actions</th></tr>
+              <tr><th>Group</th><th>Block</th><th>Subject</th><th>Previous Owner</th><th>Members</th><th>Created</th><th className="col-actions">Actions</th></tr>
             ) : (
-              <tr><th>Panel</th><th>Email</th><th>Status</th><th>Owner</th><th>Created</th><th className="text-right">Actions</th></tr>
+              <tr><th>Panel</th><th>Email</th><th>Status</th><th>Owner</th><th>Created</th><th className="col-actions">Actions</th></tr>
             )}
           </thead>
           <tbody>
@@ -233,7 +233,7 @@ export default function LegacyData() {
                 <td>{subjectLabel(section.subject)}</td>
                 <td>{ownerLabel(section.createdBy)}</td>
                 <td>{formatDate(section.createdAt)}</td>
-                <td className="text-right">
+                <td className="col-actions">
                   <button
                     type="button"
                     onClick={() => setDeleteTarget({ type: 'section', id: section._id, name: section.block || section.name })}
@@ -251,7 +251,7 @@ export default function LegacyData() {
                 <td>{ownerLabel(group.createdBy)}</td>
                 <td className="max-w-[300px] truncate">{formatMemberList(group.members) || 'No members'}</td>
                 <td>{formatDate(group.createdAt)}</td>
-                <td className="text-right">
+                <td className="col-actions">
                   <button
                     type="button"
                     onClick={() => setDeleteTarget({ type: 'group', id: group._id, name: group.name })}
@@ -272,7 +272,7 @@ export default function LegacyData() {
                 </td>
                 <td>No instructor owner</td>
                 <td>{formatDate(panel.createdAt)}</td>
-                <td className="text-right">
+                <td className="col-actions">
                   <button
                     type="button"
                     onClick={() => setDeleteTarget({ type: 'panel', id: panel._id, name: panel.name })}

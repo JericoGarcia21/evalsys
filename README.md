@@ -20,6 +20,7 @@ EvalSys is a multi-subject web-based rubric evaluation system for IT/IR project 
 - **Maintenance mode**: Super Admin can temporarily block instructor/panel access while updates are being applied.
 - **Operations dashboard**: Audit logs, activity monitor, instructor summary, proposal storage cleanup view, and backup exports.
 - **Archive support**: Submitted results are preserved when subjects are reset or when groups/blocks are deleted.
+- **Semester rollover**: Instructors can archive a semester and start fresh while keeping their subject, rubrics, blocks and panel assignments. My Archive retains private, read-only historical snapshots.
 - **PWA support**: EvalSys can be installed on a device and shows an update notice when a new app build is available.
 
 ## Tech Stack
@@ -85,6 +86,21 @@ Set `FRONTEND_URL` to your deployed frontend origin, for example `https://your-a
 `DB_CACHE_TTL_MS` controls short-lived backend response caching for repeated database reads. Set it to `0` to disable caching.
 
 Important: never put `SUPABASE_SERVICE_ROLE_KEY` in the frontend or Vercel environment variables. It belongs only in the backend Render service.
+
+## Starting the next semester
+
+1. Review your current results, then open **Subjects → Archive Semester**.
+2. Enter the semester being archived (for example `First Semester AY 2026–2027`) and type the subject code to confirm.
+3. Results, members, feedback, panel names and rubric definitions are snapshotted in **My Archive**. Incomplete and ungraded groups are preserved with their status; incomplete scores are never presented as final grades.
+4. Old student groups are cleared. The subject, rubrics, blocks and panel assignments are retained. Existing registration links are disabled; create new links for new students. Proposal files are not copied into the archive or deleted from storage by this action.
+
+This action cannot be undone in the UI. It uses MongoDB transactions (Atlas or a replica set required); without transaction support it refuses to change data. Snapshot creation, marking old evaluations archived, clearing groups, disabling links and the audit event commit together or roll back together. Duplicate requests cannot create duplicate archives for the same cleared groups. An instructor can only read their own semester snapshots, including after a later subject reassignment. Legacy Super Admin archives and subject reset endpoints remain separate; My Archive contains semesters archived through this new action, not an automatic migration of older legacy records.
+
+### Production files and Git
+
+Keep `back-end/test/` and `front-end/test/` in Git so regression checks remain reproducible. `.gitignore` excludes generated coverage, browser reports, build outputs, local environment files and TypeScript build caches; it does not control what a hosting platform deploys or remove files already tracked.
+
+For Vercel, publish `front-end/dist` after `npm ci` and `npm run build`; tests are not imported into that production bundle. For Render, use `back-end` as the service root, `npm ci --omit=dev` to install runtime dependencies, and `npm start`. Test sources can stay in the repository and are not executed by the production start command. No live hosting configuration is changed by these instructions.
 
 ## Frontend Setup
 

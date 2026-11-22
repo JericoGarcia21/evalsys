@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import api from '../../services/api';
 import { useAuth } from '../../context/useAuth';
 import { notify } from '../../utils/notify';
-import { waitForJob } from '../../services/backgroundJobs';
+import { Link } from 'react-router-dom';
 
 interface Subject {
   _id: string;
@@ -62,6 +62,7 @@ export default function Subjects() {
   const [resetSubject, setResetSubject] = useState<Subject | null>(null);
   const [resetConfirmCode, setResetConfirmCode] = useState('');
   const [resetting, setResetting] = useState(false);
+  const [semester, setSemester] = useState('');
 
   const fetchSubjects = () =>
     api.get('/subjects', { params: isSuperadmin ? { scope: 'all' } : {} }).then((r) => setSubjects(r.data));
@@ -202,19 +203,17 @@ export default function Subjects() {
 
   const handleSubjectReset = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!resetSubject || resetConfirmCode !== resetSubject.code) return;
+    if (!resetSubject || resetConfirmCode !== resetSubject.code || !semester.trim()) return;
     setResetting(true);
     try {
-      const queued = await api.post('/evaluations/master-reset', { confirmText: `RESET ${resetSubject.code}` }, {
-        params: { background: 'true' },
+      const result = await api.post('/evaluations/archive-semester', { confirmText: `ARCHIVE ${resetSubject.code}`, semester: semester.trim() }, {
         headers: { 'x-subject-id': resetSubject._id },
       });
-      const result = await waitForJob<{ message: string }>(queued.data.job.id);
-      notify(result.message, { type: 'success' });
+      notify(result.data.message, { type: 'success' });
       setResetSubject(null);
       setResetConfirmCode('');
     } catch (err: unknown) {
-      notify(getErrorMessage(err, 'Failed to reset subject'), { type: 'error' });
+      notify(getErrorMessage(err, 'Unable to archive this semester. No changes were applied.'), { type: 'error' });
     } finally {
       setResetting(false);
     }
@@ -288,25 +287,25 @@ export default function Subjects() {
                       </td>
                     )}
                     <td data-label="Actions" className="col-actions">
-                      <div className="flex flex-wrap items-center justify-end gap-2">
+                      <div className="flex flex-row flex-wrap sm:flex-nowrap items-center gap-2">
                         <button
                           onClick={() => openEdit(s)}
-                          className="px-3 py-1.5 rounded-lg text-[11px] font-bold border border-muted text-text/60 hover:text-text hover:border-text/30 transition-all"
+                          className="evl-btn-ghost"
                         >
                           Edit
                         </button>
                         {!isSuperadmin && (
                           <button
-                            onClick={() => { setResetSubject(s); setResetConfirmCode(''); }}
-                            className="px-3 py-1.5 rounded-lg text-[11px] font-bold border border-danger/30 text-danger bg-danger/5 hover:bg-danger/15 transition-all"
+                            onClick={() => { setResetSubject(s); setResetConfirmCode(''); setSemester(''); }}
+                            className="evl-btn-ghost"
                           >
-                            Reset
+                            Archive Semester
                           </button>
                         )}
                         {isSuperadmin && (
                           <button
                             onClick={() => { setSubjectToDelete(s); setDeleteConfirmCode(''); }}
-                            className="px-3 py-1.5 rounded-lg text-[11px] font-bold border border-danger/30 text-danger bg-danger/5 hover:bg-danger/15 transition-all"
+                            className="evl-btn-ghost"
                           >
                             Delete
                           </button>
@@ -314,7 +313,7 @@ export default function Subjects() {
                         {isSuperadmin && (
                           <button
                             onClick={() => openAssign(s)}
-                            className="px-3 py-1.5 rounded-lg text-[11px] font-bold border border-primary/30 text-primary bg-primary/5 hover:bg-primary/15 transition-all"
+                            className="evl-btn-ghost"
                           >
                             Assign Instructors
                           </button>
@@ -332,44 +331,51 @@ export default function Subjects() {
       {/* ── Create Modal ── */}
       {resetSubject && !isSuperadmin && (
         <div className="fixed inset-0 bg-dark/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-surface w-full max-w-md rounded-lg shadow-2xl max-h-[calc(100dvh-2rem)] overflow-y-auto">
+          <div role="dialog" aria-modal="true" aria-labelledby="archive-semester-title" className="bg-surface w-full max-w-md rounded-lg shadow-2xl max-h-[calc(100dvh-2rem)] overflow-y-auto">
             <div className="px-6 py-4 border-b border-danger/20 flex justify-between items-center bg-danger/5">
               <div>
-                <h3 className="font-bold text-danger">Reset Subject</h3>
+                <h3 id="archive-semester-title" className="font-bold text-danger">Archive &amp; Start New Semester</h3>
                 <p className="text-text/70 text-xs mt-0.5">{resetSubject.code} - {resetSubject.title}</p>
               </div>
-              <button onClick={() => setResetSubject(null)} className="text-text/65 hover:text-text text-xl">x</button>
+              <button disabled={resetting} aria-label="Close semester archive" onClick={() => setResetSubject(null)} className="text-text/65 hover:text-text text-xl">x</button>
             </div>
             <form onSubmit={handleSubjectReset} className="p-6 space-y-4">
               <div className="bg-warning/5 border border-warning/30 rounded-lg p-4 space-y-2">
                 <p className="text-sm font-bold text-text">This starts a fresh evaluation cycle.</p>
                 <p className="text-xs text-text/65 leading-relaxed">
-                  Current blocks and groups will be removed so this subject can start again.
+                  Results, members, and rubric details are saved in My Archive. Old student groups are then cleared. Your subject, rubrics, blocks, and panel assignments stay available.
                 </p>
-                <p className="text-xs font-bold text-danger">Groups without submitted results cannot be restored.</p>
+                <p className="text-xs font-bold text-danger">Incomplete and ungraded groups are kept as archive snapshots, not marked complete. Old registration links will be disabled; create new links for the next semester. This cannot be undone.</p>
+                <Link to="/my-archive" className="text-xs font-bold text-primary">View My Archive</Link>
               </div>
               <div>
-                <label className="evl-label">
+                <label htmlFor="archive-semester-label" className="evl-label">Semester being archived</label>
+                <input id="archive-semester-label" className="evl-input" placeholder="e.g. First Semester, AY 2026–2027" maxLength={100} value={semester} onChange={event => setSemester(event.target.value)} disabled={resetting} autoFocus required />
+              </div>
+              <div>
+                <label htmlFor="archive-semester-confirm" className="evl-label">
                   Type <span className="font-black text-danger font-mono">{resetSubject.code}</span> to confirm
                 </label>
                 <input
                   className="evl-input"
+                  id="archive-semester-confirm"
                   value={resetConfirmCode}
-                  onChange={(e) => setResetConfirmCode(e.target.value.toUpperCase())}
+                  onChange={(e) => setResetConfirmCode(e.target.value)}
+                  disabled={resetting}
                   autoComplete="off"
                   required
                 />
               </div>
               <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => setResetSubject(null)} className="evl-btn-secondary flex-1">
+                <button type="button" disabled={resetting} onClick={() => setResetSubject(null)} className="evl-btn-secondary flex-1">
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  disabled={resetting || resetConfirmCode !== resetSubject.code}
+                  disabled={resetting || resetConfirmCode !== resetSubject.code || !semester.trim()}
                   className="evl-btn-danger flex-1 disabled:opacity-40"
                 >
-                  {resetting ? 'Resetting...' : 'Reset Subject'}
+                  {resetting ? 'Archiving...' : 'Archive & Start New Semester'}
                 </button>
               </div>
             </form>

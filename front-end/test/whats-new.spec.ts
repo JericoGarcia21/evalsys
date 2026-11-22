@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { latestReleaseForRole } from '../src/data/whatsNew';
 
 for (const role of ['admin', 'panel']) {
   test(`What's New gives ${role} a readable, keyboard-contained update on desktop and mobile`, async ({ page }) => {
@@ -15,10 +16,10 @@ for (const role of ['admin', 'panel']) {
     await page.goto('/dashboard');
     const reopen = page.getByRole('button', { name: /What's new/ });
     await reopen.click();
-    const dialog = page.getByRole('dialog', { name: 'Better teamwork. Clearer assignments.' });
+    const release = latestReleaseForRole(role)!;
+    const dialog = page.getByRole('dialog', { name: release.title });
     await expect(dialog).toBeVisible();
-    await expect(dialog.getByText(/For instructors:/)).toBeVisible();
-    await expect(dialog.getByText(/For panel judges:/)).toBeVisible();
+    for (const item of release.items) await expect(dialog.getByText(item, { exact: true })).toBeVisible();
     const desktopBounds = await dialog.boundingBox();
     expect(desktopBounds!.width).toBeGreaterThan(700);
     await expect(dialog.getByRole('button', { name: 'Got it', exact: true })).toBeFocused();
@@ -30,11 +31,11 @@ for (const role of ['admin', 'panel']) {
     expect(mobileBounds!.width).toBeLessThanOrEqual(390);
     expect(mobileBounds!.height).toBeLessThanOrEqual(844);
     await expect(dialog.getByRole('button', { name: 'Got it', exact: true })).toBeVisible();
-    await dialog.getByText(/A bigger, more readable/).scrollIntoViewIfNeeded();
+    await dialog.getByText(release.items[release.items.length - 1], { exact: true }).scrollIntoViewIfNeeded();
     await page.screenshot({ path: test.info().outputPath(`whats-new-${role}-mobile.png`) });
     await page.keyboard.press('Escape');
     await expect(dialog).toHaveCount(0);
-    expect(await page.evaluate(() => localStorage.getItem('evalsys_whats_new_seen_release-reader'))).toBe('1.6.5');
+    expect(await page.evaluate(() => localStorage.getItem('evalsys_whats_new_seen_release-reader'))).toBe(release.version);
     await page.setViewportSize({ width: 1440, height: 1000 });
     await reopen.click();
     await expect(dialog).toBeVisible();

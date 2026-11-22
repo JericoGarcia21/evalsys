@@ -66,7 +66,7 @@ export default function ArchiveResultsPanel({ revision, totalArchived, onDelete,
     {loading ? <p role="status" className="p-5 text-sm">Loading archived results...</p> : error ? <div className="p-5"><p role="alert" className="text-danger text-sm mb-3">{error}</p><button type="button" className="evl-btn-secondary" onClick={() => setRequest(previous => ({ ...previous, refresh: previous.refresh + 1 }))}>Retry archive search</button></div> : data && <>
       <div className="overflow-x-auto" role="region" aria-label="Archived results" tabIndex={0}>
         <table className="evl-table min-w-[850px]"><caption className="sr-only">Matching archived results, ordered by group A–Z</caption>
-          <thead><tr>{['Group / subject', 'Block', 'Panel / instructor', 'Members', 'Score', 'Archived (UTC)', 'Actions'].map(label => <th scope="col" key={label}>{label}</th>)}</tr></thead>
+          <thead><tr>{['Group / subject', 'Block', 'Panel / instructor', 'Members', 'Score', 'Archived (UTC)', 'Actions'].map(label => <th scope="col" key={label} className={label === 'Actions' ? 'col-actions' : undefined}>{label}</th>)}</tr></thead>
           <tbody>{data.items.map(item => <tr key={item._id}>
             <td><p className="font-bold text-text">{item.legacySnapshot?.groupName || 'Deleted old group'}</p><p className="text-xs text-text/65">{item.legacySnapshot?.subject || 'Unknown subject'}</p></td>
             <td>{item.legacySnapshot?.block || 'Unknown block'}</td>
@@ -74,7 +74,7 @@ export default function ArchiveResultsPanel({ revision, totalArchived, onDelete,
             <td className="max-w-[260px] break-words">{formatMemberList((item.legacySnapshot?.members || []).filter(Boolean)) || 'No member snapshot'}</td>
             <td className="font-bold text-primary">{typeof item.total === 'number' ? item.total : 'Pending'}</td>
             <td className="text-xs">{item.legacyArchivedAt || item.updatedAt ? new Date((item.legacyArchivedAt || item.updatedAt)!).toISOString().replace('T', ' ').replace('Z', ' UTC') : 'Unknown date'}</td>
-            <td><button type="button" className="evl-btn-danger" disabled={exporting} onClick={() => onDelete(item._id, `${item.legacySnapshot?.groupName || 'old group'} result`)}>Delete</button></td>
+            <td className="col-actions"><button type="button" className="evl-btn-danger" disabled={exporting} onClick={() => onDelete(item._id, `${item.legacySnapshot?.groupName || 'old group'} result`)}>Delete</button></td>
           </tr>)}{!data.items.length && <tr><td colSpan={7} className="text-center text-text/65 py-10">No archived results match the applied filters.</td></tr>}</tbody>
         </table>
       </div>

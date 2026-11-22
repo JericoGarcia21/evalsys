@@ -37,6 +37,7 @@ const instructorLinks = [
   { to: '/presentation', label: 'Presentation' },
   { to: '/registration-links', label: 'Registration Links' },
   { to: '/results', label: 'Results' },
+  { to: '/my-archive', label: 'My Archive' },
   { to: '/ai-insights', label: 'AI Insights' },
 ];
 
@@ -65,6 +66,7 @@ const getNavIconName = (to: string): NavIconName => {
   if (to === '/security') return 'security';
   if (to === '/system-control') return 'system';
   if (to === '/legacy-data') return 'legacy';
+  if (to === '/my-archive') return 'legacy';
   return 'dashboard';
 };
 

@@ -132,7 +132,7 @@ body {
   .evl-table .col-actions {
     width: 1%;
     white-space: nowrap;
-    text-align: right;
+    text-align: left;
   }
 
   /* Status badges */
@@ -173,6 +173,20 @@ body {
   .evl-page-subtitle {
     @apply text-sm text-text/50 mt-0.5;
   }
+}
+
+/* Shared action layout overrides legacy per-page alignment utilities. */
+.evl-table .col-actions > div {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.5rem;
+}
+.evl-table .col-actions :is(button, a) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.25rem;
 }
 
 @media (max-width: 640px) {

@@ -313,6 +313,12 @@ test('subject grading lock blocks submission while preserving submitted results'
   await submit().expect(403);
   assert.equal(await Evaluation.countDocuments({}), 1);
 });
+test('semester archiving refuses standalone databases without changing groups or scores', async () => {
+  await api('post', '/api/evaluations/archive-semester').send({ semester: 'First Semester', confirmText: `ARCHIVE ${subject.code}` }).expect(503);
+  assert.ok(await Group.exists({ _id: group._id }));
+  assert.equal(await require('../src/models/SemesterArchive').countDocuments(), 0);
+});
+
 test('transactional account actions refuse standalone databases without partial changes', async () => {
   await api('post', '/api/account-control/password-resets', superadmin).send({ instructorIds: [String(instructor._id)], confirmText: 'RESET PASSWORDS' }).expect(503);
   assert.equal((await Admin.findById(instructor._id)).password, passwordHash);
@@ -1005,6 +1011,49 @@ test('analytics handles an empty platform without fabricating students or regist
 });
 
 const chatPayload = body => ({ body, clientMessageId: require('node:crypto').randomUUID() });
+for (const actorRole of ['instructor', 'superadmin']) {
+  test(`${actorRole} saves shared panel assignments through score retrieval and final export`, async () => {
+    await Settings.updateOne({}, { sharedPanelsEnabled: true });
+    await Section.updateOne({ _id: section._id }, { assignedPanels: [] });
+    const actor = actorRole === 'superadmin' ? superadmin : instructor;
+    const assign = judge => api('post', '/api/sections/assign-blocks', actor)
+      .send({ panelId: String(judge._id), sectionIds: [String(section._id)] });
+
+    await submit(outsider).expect(403);
+    for (const judge of [panel, outsider]) {
+      await assign(judge).expect(200);
+      await assign(judge).expect(200); // Repeated saves must not duplicate assignments.
+    }
+    const blocks = await api('get', '/api/sections', actor).expect(200);
+    assert.deepEqual(blocks.body[0].assignedPanels.map(judge => judge._id).sort(),
+      [String(panel._id), String(outsider._id)].sort());
+    const assignedGroups = await api('get', '/api/groups', outsider).expect(200);
+    assert.ok(assignedGroups.body.some(item => item._id === String(group._id)));
+
+    await submit(panel, { quality: 8 }).expect(200);
+    const pending = await api('get', `/api/evaluations/section/${section._id}/results`, actor).expect(200);
+    assert.equal(pending.body[0].isIncomplete, true);
+    assert.deepEqual(pending.body[0].missingPanels, [outsider.name]);
+    await submit(outsider, { quality: 10 }).expect(200);
+    const saved = await api('get', `/api/evaluations/group/${group._id}/mine`, outsider).expect(200);
+    assert.equal(saved.body.scores.quality, 10);
+    assert.equal(saved.body.total, 10);
+    await submit(outsider, { quality: 11 }).expect(400);
+    const preserved = await api('get', `/api/evaluations/group/${group._id}/mine`, outsider).expect(200);
+    assert.equal(preserved.body.total, 10);
+
+    const results = await api('get', `/api/evaluations/section/${section._id}/results`, actor).expect(200);
+    assert.equal(results.body[0].isIncomplete, false);
+    assert.equal(results.body[0].finalTotal, 9);
+    assert.deepEqual(results.body[0].missingPanels, []);
+    const exported = await api('get', '/api/evaluations/export-all', actor).expect(200);
+    assert.equal(exported.body[0].Status, 'Complete');
+    assert.equal(exported.body[0].AverageScore, 9);
+    await api('get', `/api/evaluations/section/${section._id}/results`, secondPanel).expect(403);
+    await submit(secondPanel).expect(403);
+  });
+}
+
 test('shared panels are opt-in, immediately reusable, and reversible without losing grades', async () => {
   const settings = await api('get', '/api/settings', superadmin).expect(200);
   assert.equal(settings.body.sharedPanelsEnabled, false);

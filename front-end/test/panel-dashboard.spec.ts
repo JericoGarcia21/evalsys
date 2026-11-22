@@ -95,11 +95,11 @@ test('panel dashboard separates subjects with identical blocks and filters progr
   await mockPanel(page);
   await page.goto('/dashboard');
   const subjects = page.getByRole('region', { name: 'Assigned subjects' });
-  await expect(subjects.getByRole('button', { name: /IT101/ })).toBeVisible();
-  await expect(subjects.getByRole('button', { name: /IT202/ })).toContainText('Grading locked');
+  await expect(subjects.getByLabel('Subject', { exact: true })).toBeVisible();
+  await expect(subjects.getByLabel('Subject', { exact: true }).getByRole('option', { name: /IT202/ })).toContainText('Grading locked');
   await expect(page.getByRole('link', { name: /Programming Team/ })).toContainText('Object Oriented Programming');
   await expect(page.getByRole('link', { name: /Database Team/ })).toContainText('Database Systems');
-  await subjects.getByRole('button', { name: /IT202/ }).click();
+  await subjects.getByLabel('Subject', { exact: true }).selectOption('subject-b');
   await expect(page.getByRole('link', { name: /Programming Team/ })).toHaveCount(0);
   await expect(page.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '100');
   await expect(page.getByRole('link', { name: /Database Team/ })).toContainText('Review group');
@@ -121,6 +121,36 @@ test('panel load failures are shown as errors rather than missing assignments', 
   await expect(page.getByText('No assignments yet', { exact: true })).toHaveCount(0);
 });
 
+test('compact subject and block filters reset stale blocks and fit mobile', async ({ page }) => {
+  await mockPanel(page);
+  await page.goto('/dashboard');
+  const invitation = page.getByRole('region', { name: 'Tutorial invitation' });
+  await expect(invitation).toBeVisible();
+  await invitation.getByRole('button', { name: 'Maybe later', exact: true }).click();
+  const filters = page.getByRole('region', { name: 'Assigned subjects' });
+  const subject = filters.getByLabel('Subject', { exact: true });
+  const block = filters.getByLabel('Block', { exact: true });
+  await block.selectOption('block-a');
+  await expect(page.getByRole('link', { name: /Programming Team/ })).toBeVisible();
+  await expect(page.getByRole('link', { name: /Database Team/ })).toHaveCount(0);
+  await subject.selectOption('subject-b');
+  await expect(block).toHaveValue('');
+  await expect(block.getByRole('option')).toHaveCount(2);
+  await expect(page.getByRole('link', { name: /Database Team/ })).toBeVisible();
+  await subject.selectOption('');
+  await expect(block.getByRole('option')).toHaveCount(3);
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    if (width === 390) {
+      await expect(page.getByRole('complementary', { name: 'Workspace sidebar' })).not.toBeInViewport();
+    }
+    await expect(subject).toBeVisible();
+    await expect(block).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await page.screenshot({ path: test.info().outputPath(`compact-filters-${width}.png`), fullPage: true, animations: 'disabled' });
+  }
+});
+
 test('workspace locks do not lock another instructor teaching the same subject', async ({ page }) => {
   await mockPanel(page);
   const first = { ...sectionA, createdBy: { _id: 'owner-a', name: 'First Instructor' } };
@@ -139,7 +169,7 @@ test('workspace locks do not lock another instructor teaching the same subject',
     criteria: [{ key: 'quality', label: 'Quality', description: 'Quality of work', maxScore: 10, levels: [{ label: 'Score', minScore: 0, maxScore: 10, description: 'Overall score' }] }],
   } }));
   await page.goto('/dashboard');
-  await expect(page.getByRole('region', { name: 'Assigned subjects' }).getByRole('button', { name: /IT101/ })).not.toContainText('Grading locked');
+  await expect(page.getByLabel('Subject', { exact: true }).getByRole('option', { name: /IT101/ })).not.toContainText('Grading locked');
   await expect(page.getByRole('link', { name: /Programming Team/ })).toContainText('Grade now');
   await expect(page.getByRole('link', { name: /Database Team/ })).toContainText('Review group');
   await page.getByRole('link', { name: /Database Team/ }).click();

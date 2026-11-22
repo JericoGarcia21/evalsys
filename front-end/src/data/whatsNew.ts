@@ -14,9 +14,45 @@ export interface ReleaseNote {
 }
 
 /** Bump this whenever you add a release note — users see each version once. */
-export const CURRENT_VERSION = '1.6.5';
+export const CURRENT_VERSION = '1.7.1';
 
 export const RELEASES: ReleaseNote[] = [
+  {
+    version: '1.7.1',
+    date: '2026-11-22',
+    title: 'Start a new semester and share panel judges',
+    audience: ['admin'],
+    items: [
+      'In Subjects, use Archive & Start New Semester: enter a semester label and confirm with the subject code.',
+      'Results, members, feedback, and rubric details stay in your private, read-only My Archive.',
+      'Old groups are cleared and registration links disabled; subjects, rubrics, blocks, and assignments stay.',
+      'When Super Admin enables sharing, Assign Panels lets you choose Panels from Other Instructors.',
+      'Find a judge by name, email, or instructor, select your subject’s blocks, then click Save assignments.',
+    ],
+  },
+  {
+    version: '1.7.0',
+    date: '2026-11-22',
+    title: 'Ready for the next semester',
+    audience: ['admin'],
+    items: [
+      'Archive a semester from Subjects with a semester label and confirmation. Results, members, feedback, and rubric details are preserved in My Archive.',
+      'Old groups are cleared while your subject, rubrics, blocks, and panel assignments stay ready for the next semester.',
+      'Incomplete and ungraded groups remain clearly marked. Old registration links are disabled so you can issue fresh links.',
+      'My Archive is read-only and private to the instructor who archived the semester.',
+      'Subject action buttons now use matching neutral styles and a horizontal layout.',
+    ],
+  },
+  {
+    version: '1.6.6',
+    date: '2026-11-22',
+    title: 'Cleaner filters and table actions',
+    items: [
+      'Table action headings and buttons now share a consistent alignment, spacing, and minimum button height.',
+      'Mobile group and resource cards keep their existing responsive action layouts.',
+      'Panel dashboard subject and block filters now use compact dropdowns instead of long button lists.',
+    ],
+  },
   {
     version: '1.6.5',
     date: '2026-11-21',

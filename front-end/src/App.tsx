@@ -17,6 +17,7 @@ import Presentation from './pages/admin/Presentation';
 import AssignPanels from './pages/admin/AssignPanels';
 import RegistrationLinks from './pages/admin/RegistrationLinks';
 import Subjects from './pages/admin/Subjects';
+import MyArchive from './pages/admin/MyArchive';
 import Subscription from './pages/admin/Subscription';
 import LegacyData from './pages/admin/LegacyData';
 import Operations from './pages/admin/Operations';
@@ -76,6 +77,7 @@ export default function App() {
           {/* Admin routes */}
           <Route path="/sections" element={<ProtectedRoute role="admin"><Sections /></ProtectedRoute>} />
           <Route path="/subjects" element={<ProtectedRoute role="admin"><Subjects /></ProtectedRoute>} />
+          <Route path="/my-archive" element={<ProtectedRoute role="admin" instructorOnly><MyArchive /></ProtectedRoute>} />
           <Route path="/subscription" element={<ProtectedRoute role="admin"><Subscription /></ProtectedRoute>} />
           <Route path="/operations" element={<ProtectedRoute role="admin" superadminOnly><Operations /></ProtectedRoute>} />
           <Route path="/security" element={<ProtectedRoute role="admin" superadminOnly><SecurityMonitor /></ProtectedRoute>} />

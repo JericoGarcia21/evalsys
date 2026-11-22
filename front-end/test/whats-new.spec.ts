@@ -1,7 +1,23 @@
 import { test, expect } from '@playwright/test';
-import { latestReleaseForRole } from '../src/data/whatsNew';
+import { CURRENT_VERSION, RELEASES, latestReleaseForRole } from '../src/data/whatsNew';
 
-for (const role of ['admin', 'panel']) {
+test('Every account gets the current public version even for role-focused releases', () => {
+  const current = RELEASES[0];
+  const audience = current.audience;
+  try {
+    current.audience = ['admin'];
+    for (const role of ['admin', 'panel', 'superadmin']) {
+      expect(latestReleaseForRole(role)?.version).toBe(CURRENT_VERSION);
+    }
+    current.audience = [];
+    expect(latestReleaseForRole('panel')).not.toBe(current);
+    expect(latestReleaseForRole(undefined)).toBeNull();
+  } finally {
+    current.audience = audience;
+  }
+});
+
+for (const role of ['admin', 'panel', 'superadmin']) {
   test(`What's New gives ${role} a readable, keyboard-contained update on desktop and mobile`, async ({ page }) => {
     await page.addInitScript(() => localStorage.setItem('token', 'isolated-release-ui-test'));
     await page.route('**/api/**', async route => {
@@ -19,6 +35,8 @@ for (const role of ['admin', 'panel']) {
     const release = latestReleaseForRole(role)!;
     const dialog = page.getByRole('dialog', { name: release.title });
     await expect(dialog).toBeVisible();
+    await expect(dialog.getByText(`Version ${CURRENT_VERSION} · ${release.date}`, { exact: true })).toBeVisible();
+    await expect(reopen).toContainText(CURRENT_VERSION);
     for (const item of release.items) await expect(dialog.getByText(item, { exact: true })).toBeVisible();
     const desktopBounds = await dialog.boundingBox();
     expect(desktopBounds!.width).toBeGreaterThan(700);

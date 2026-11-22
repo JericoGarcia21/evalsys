@@ -9,14 +9,24 @@ export interface ReleaseNote {
   title: string;
   summary?: string;
   items: string[];
-  /** Roles that should see this release note. Omit to show everyone. */
+  /** Feature audience for context; an empty array marks an internal-only release. */
   audience?: WhatsNewAudience[];
 }
 
 /** Bump this whenever you add a release note — users see each version once. */
-export const CURRENT_VERSION = '1.7.1';
+export const CURRENT_VERSION = '1.7.2';
 
 export const RELEASES: ReleaseNote[] = [
+  {
+    version: '1.7.2',
+    date: '2026-11-22',
+    title: 'The same latest update for every account',
+    items: [
+      'What’s New now shows the same latest public release for instructors, panel judges, and Super Admin.',
+      'The popup version now matches the version in the sidebar, even when a release focuses on another role.',
+      'Reopen the latest update anytime using What’s new in the sidebar.',
+    ],
+  },
   {
     version: '1.7.1',
     date: '2026-11-22',
@@ -197,5 +207,5 @@ export const RELEASES: ReleaseNote[] = [
 
 export const latestReleaseForRole = (role?: string) => {
   if (!role) return null;
-  return RELEASES.find((release) => !release.audience || release.audience.includes(role as WhatsNewAudience)) || null;
+  return RELEASES.find((release) => !release.audience || release.audience.length > 0) || null;
 };

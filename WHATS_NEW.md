@@ -46,7 +46,7 @@ their next login. Users can reopen it anytime from the sidebar link
 
 ### Audience values
 
-| Value | Who sees it |
+| Value | Feature audience |
 | --- | --- |
 | `['admin']` | Instructors only |
 | `['superadmin']` | Super Admin only |
@@ -54,7 +54,10 @@ their next login. Users can reopen it anytime from the sidebar link
 | `['panel']` | Panel judges only |
 | omitted | Everyone |
 
-If the current role has no matching entry, that user sees no popup.
+All signed-in roles see the same latest public release, regardless of its feature
+audience. An empty audience (`[]`) marks an internal-only record and is skipped.
+Audience metadata describes who a feature is for; it does not select an older
+popup version for other accounts.
 
 ### Writing the items
 
@@ -73,6 +76,12 @@ The "seen" flag is stored per user in `localStorage` under
 
 ## History
 
+### v1.7.2 verification — 2026-11-22
+
+- Frontend: `npm run build` passed; the existing large-bundle warning remains.
+- `npm run test:e2e -- test/whats-new.spec.ts` passed all 4 tests, covering the same current version for all roles, internal-only exclusion, desktop/mobile display, keyboard behavior, and reopening.
+- No backend changes or live deployment were performed.
+
 ### v1.7.1 final verification — 2026-11-22
 
 - Backend: `npm run check` passed (85 files); `npm test` passed (111 tests).
@@ -83,6 +92,7 @@ The "seen" flag is stored per user in `localStorage` under
 
 | Version | Date | Title | Audience | Summary |
 | --- | --- | --- | --- | --- |
+| 1.7.2 | 2026-11-22 | The same latest update for every account | All roles | What’s New uses the latest public release across instructor, panel, and Super Admin accounts, matching the sidebar version while skipping internal-only records. |
 | 1.7.1 | 2026-11-22 | Start a new semester and share panel judges | Instructor | Subjects: archive the semester into private, read-only My Archive, clear old groups and disable old registration links while preserving setup. Assign Panels: search panels owned by other instructors and save block assignments when Super Admin enables sharing. |
 | 1.7.0 | 2026-11-22 | Ready for the next semester | Instructor | Transactional semester archiving with independent score/member/rubric snapshots, instructor-only My Archive, preserved blocks and assignments, and disabled old registration links. |
 | 1.6.6 | 2026-11-22 | Cleaner filters and table actions | All roles | Aligned table action headings and button groups with consistent minimum button height; compact panel subject/block dropdowns preserve progress, locks, and filtering. |

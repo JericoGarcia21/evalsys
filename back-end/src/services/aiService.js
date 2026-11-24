@@ -258,7 +258,7 @@ const buildModelList = (configured, fallbacks) => {
 const isModelNotFound = (status, body) =>
   status === 404 || /model_not_found|does not exist|not found|decommissioned|unsupported model/i.test(String(body || ''));
 
-const callGroq = async (inputText) => {
+const callGroq = async (inputText, signal) => {
   const apiKey = (process.env.GROQ_API_KEY || '').trim();
   if (!apiKey) throw new Error('GROQ_API_KEY not configured');
 
@@ -267,6 +267,7 @@ const callGroq = async (inputText) => {
 
   for (const model of models) {
     const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      signal,
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -286,6 +287,7 @@ const callGroq = async (inputText) => {
     if (!res.ok) {
       const errorText = await res.text().catch(() => '');
       lastError = new Error(`Groq API error (${res.status}): ${errorText}`);
+      lastError.status = res.status;
       if (isModelNotFound(res.status, errorText)) continue;
       throw lastError;
     }
@@ -301,7 +303,7 @@ const callGroq = async (inputText) => {
   throw lastError || new Error('No usable Groq model available');
 };
 
-const callGemini = async (inputText) => {
+const callGemini = async (inputText, signal) => {
   const apiKey = (process.env.GEMINI_API_KEY || '').trim();
   if (!apiKey) throw new Error('GEMINI_API_KEY not configured');
 
@@ -314,6 +316,7 @@ const callGemini = async (inputText) => {
     for (const model of models) {
       const url = `https://generativelanguage.googleapis.com/${version}/models/${model}:generateContent?key=${apiKey}`;
       const res = await fetch(url, {
+        signal,
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -336,6 +339,7 @@ const callGemini = async (inputText) => {
       if (!res.ok) {
         const errorText = await res.text().catch(() => '');
         lastError = new Error(`Gemini API error (${res.status}): ${errorText}`);
+        lastError.status = res.status;
         if (isModelNotFound(res.status, errorText)) continue;
         throw lastError;
       }
@@ -388,22 +392,27 @@ exports.generateRubricFromText = async (inputText) => {
     );
   }
 
-  // Gemini lite first (fast, free tier), Groq as fallback
+  // Billing depends on the provider account, not this model selection.
+  // One shared deadline bounds the whole request, including fallback attempts.
+  const signal = AbortSignal.timeout(60000);
   const errors = [];
   if (geminiKey) {
     try {
-      return await callGemini(inputText);
+      return await callGemini(inputText, signal);
     } catch (err) {
-      errors.push('Gemini: ' + err.message);
+      errors.push(err);
     }
   }
-  if (groqKey) {
+  if (groqKey && !signal.aborted) {
     try {
-      return await callGroq(inputText);
+      return await callGroq(inputText, signal);
     } catch (err) {
-      errors.push('Groq: ' + err.message);
+      errors.push(err);
     }
   }
 
-  throw new Error('All AI providers failed: ' + errors.join('; '));
+  const error = new Error('AI providers are temporarily unavailable.');
+  error.status = signal.aborted || errors.some(item => item.name === 'TimeoutError' || item.name === 'AbortError')
+    ? 504 : errors.some(item => item.status === 429) ? 429 : 503;
+  throw error;
 };

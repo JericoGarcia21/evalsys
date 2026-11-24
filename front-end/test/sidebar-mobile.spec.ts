@@ -70,10 +70,17 @@ test('mobile Resources and Subjects expose platform actions without instructor-o
   for (const width of [320, 390, 768, 1024]) {
     await page.setViewportSize({ width, height: 844 });
     await page.goto('/subscription');
-    const selector = page.getByLabel('Grading Subject', { exact: true });
+    await expect(page.getByLabel('Grading Subject', { exact: true })).toHaveCount(0);
+    await expect(page.locator('.workspace-tools')).toContainText('Platform administration');
+    await expect(page.locator('.workspace-tools')).not.toContainText('Mobile subject');
+    const selector = page.getByLabel('Backup and reset subject scope', { exact: true });
     await expect(selector).toBeVisible();
     await selector.scrollIntoViewIfNeeded();
     expect((await selector.boundingBox())!.x + (await selector.boundingBox())!.width).toBeLessThanOrEqual(width);
+    const reset = page.getByRole('button', { name: 'Reset Subject Data', exact: true });
+    await reset.hover();
+    await expect(reset).toHaveCSS('color', 'rgb(255, 255, 255)');
+    await expect(reset).toHaveCSS('background-color', 'rgb(185, 28, 28)');
     const limit = page.getByRole('spinbutton', { name: 'Paid limit for Mobile Instructor' });
     await limit.fill('2');
     await expect(page.getByRole('button', { name: /^(Unlock|Lock) Grading$/ })).toHaveCount(0);
@@ -87,6 +94,7 @@ test('mobile Resources and Subjects expose platform actions without instructor-o
       await button.click();
     }
     await page.goto('/subjects');
+    await expect(page.locator('.workspace-tools')).toContainText('Platform administration');
     for (const name of ['Edit', 'Delete', 'Assign Instructors']) {
       const button = page.getByRole('button', { name, exact: true });
       await button.scrollIntoViewIfNeeded();

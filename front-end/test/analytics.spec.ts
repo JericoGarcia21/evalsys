@@ -38,7 +38,7 @@ async function mockAnalytics(page: Page, role = 'superadmin', initialFailure = f
 test('analytics lives in its own tab and does not add metrics to the dashboard', async ({ page }) => {
   await mockAnalytics(page);
   await page.goto('/dashboard');
-  await expect(page.getByRole('heading', { name: 'Welcome back, Analytics User' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Platform workspace' })).toBeVisible();
   await expect(page.getByRole('region', { name: 'Platform analytics' })).toHaveCount(0);
   await expect(page.getByRole('article', { name: 'Registered students', exact: true })).toHaveCount(0);
   await page.locator('aside').getByRole('link', { name: 'Analytics', exact: true }).click();
@@ -61,9 +61,12 @@ test('every Super Admin dashboard shortcut has a visible decorative icon on desk
       await expect(icon).toHaveCount(1);
       await expect(icon).toBeVisible();
       await expect(icon).toHaveAttribute('aria-hidden', 'true');
+      await expect(cards.nth(index)).toHaveCSS('display', 'grid');
+      await expect(icon).toHaveCSS('width', '18px');
       expect(await icon.locator('path, rect, circle').count()).toBeGreaterThan(0);
     }
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await page.screenshot({ path: test.info().outputPath(`platform-dashboard-${width}.png`), fullPage: true });
   }
 });
 
@@ -86,6 +89,8 @@ test('analytics period filters, chart metric and refresh work on desktop and mob
   const state = await mockAnalytics(page);
   await page.goto('/analytics');
   await expect(page.getByRole('region', { name: 'Registration trends' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Analytics', exact: true })).toHaveCSS('font-weight', '500');
+  await expect(page.getByRole('article', { name: 'Registered students', exact: true }).locator('p').last()).toHaveCSS('font-size', '13px');
   await page.getByLabel('Registration period').selectOption('7');
   await expect(page.getByText('7 calendar days · UTC daily totals', { exact: true })).toBeVisible();
   expect(state.requests).toContain(7);

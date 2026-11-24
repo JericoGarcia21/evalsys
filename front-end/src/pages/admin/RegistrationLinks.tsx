@@ -1,5 +1,5 @@
 import { getApiMessage } from '../../utils/apiError';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import api from '../../services/api';
 import { TableSkeleton } from '../../components/LoadingSkeleton';
 import { notify } from '../../utils/notify';
@@ -38,6 +38,8 @@ export default function RegistrationLinks() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const nameReminder = useRef<HTMLDialogElement>(null);
+  const createButton = useRef<HTMLButtonElement>(null);
   const [copiedToken, setCopiedToken] = useState('');
   const [linkToRemove, setLinkToRemove] = useState<RegistrationLink | null>(null);
   const [removing, setRemoving] = useState(false);
@@ -97,6 +99,7 @@ export default function RegistrationLinks() {
         expiresAt,
       });
       setSelectedSections(visibleSections.map((section) => section._id));
+      nameReminder.current?.showModal();
       loadLinks();
     } catch (err: unknown) {
       setError(getApiMessage(err, 'Failed to create registration link'));
@@ -158,6 +161,16 @@ export default function RegistrationLinks() {
       </div>
 
       {error && <div className="evl-alert-error mb-6">{error}</div>}
+      <dialog ref={nameReminder} aria-labelledby="registration-name-reminder-title" aria-describedby="registration-name-reminder-details" onClose={() => createButton.current?.focus()} className="m-auto w-[calc(100%_-_32px)] max-w-lg max-h-[calc(100dvh_-_32px)] overflow-y-auto rounded-xl border border-muted/40 bg-surface p-6 text-text backdrop:bg-dark/60">
+        <form method="dialog" onKeyDown={event => { if (event.key === 'Tab') { event.preventDefault(); event.currentTarget.querySelector('button')?.focus(); } }}>
+          <h3 id="registration-name-reminder-title" className="text-lg font-semibold">Link created — remind students to check their names</h3>
+          <div id="registration-name-reminder-details">
+          <p className="mt-2 text-sm leading-relaxed">Before sharing this link, remind students to enter their complete first name, last name, and middle name in the correct fields, exactly as recorded in your class list. If they have no middle name, leave that field blank.</p>
+          <p className="mt-2 text-sm leading-relaxed">These names are used in the member-score CSV opened in Excel. Incorrect spelling or swapped name fields can make exported scores difficult to match to your class list. Ask students to review every member’s name before submitting.</p>
+          </div>
+          <div className="mt-6 flex justify-end"><button className="evl-btn-primary">Understood</button></div>
+        </form>
+      </dialog>
 
       <div className="grid grid-cols-1 xl:grid-cols-[420px_minmax(0,1fr)] gap-6">
         <div className="evl-card p-6 h-fit">
@@ -222,6 +235,7 @@ export default function RegistrationLinks() {
             </div>
 
             <button
+              ref={createButton}
               type="submit"
               disabled={saving || !selectedSubject || !visibleSections.length || selectedSections.length === 0}
               className="evl-btn-primary w-full"

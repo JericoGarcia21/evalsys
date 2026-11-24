@@ -94,11 +94,11 @@ export default function PlatformAnalytics() {
   const circumference = 2 * Math.PI * 72;
 
   return (
-    <section aria-label="Platform analytics" className="min-w-0 max-w-[1500px] mx-auto text-text pb-8">
+    <section aria-label="Platform analytics" className="platform-analytics min-w-0 max-w-[1500px] mx-auto text-text pb-8">
       <header className="flex flex-col lg:flex-row lg:items-end justify-between gap-5 mb-7">
         <div>
-          <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary mb-2">Platform intelligence</p>
-          <h2 className="text-3xl sm:text-4xl font-bold tracking-tight">Analytics</h2>
+          <p className="text-sm text-text/65 mb-2">Platform overview</p>
+          <h2 className="evl-page-title">Analytics</h2>
           <p className="text-sm text-text/60 mt-2">Registration, participation and evaluation across your platform.</p>
         </div>
         <div className="flex flex-wrap items-center gap-3">

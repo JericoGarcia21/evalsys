@@ -39,6 +39,97 @@ const api = (method, url, user = instructor, scope = true) => {
 };
 const submit = (user = panel, scores = { quality: 8 }, selectedRubric = rubric) => api('post', '/api/evaluations/group/' + group._id, user).send({ rubricId: selectedRubric._id.toString(), scores, comments: 'QA comment' });
 
+// Mock every provider request: these checks never spend real API quota or money.
+const aiResult = (criteria = [{ label: 'Quality', maxScore: 100 }]) => ({ title: 'AI Test Rubric', criteria });
+const geminiResponse = (result = aiResult()) => new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify(result) }] } }] }), { status: 200 });
+const mockAiProvider = (t, implementation) => {
+  const previous = { gemini: process.env.GEMINI_API_KEY, groq: process.env.GROQ_API_KEY };
+  process.env.GEMINI_API_KEY = 'test-only-ai-key';
+  delete process.env.GROQ_API_KEY;
+  t.after(() => {
+    for (const [key, value] of [['GEMINI_API_KEY', previous.gemini], ['GROQ_API_KEY', previous.groq]]) {
+      if (value === undefined) delete process.env[key]; else process.env[key] = value;
+    }
+  });
+  return t.mock.method(globalThis, 'fetch', implementation);
+};
+
+test('AI credit reservation prevents concurrent requests from reusing the last credit', async t => {
+  await Admin.updateOne({ _id: instructor._id }, { aiRubricCredits: 1 });
+  let entered, release;
+  const started = new Promise(resolve => { entered = resolve; });
+  const gate = new Promise(resolve => { release = resolve; });
+  const provider = mockAiProvider(t, async (_url, options) => {
+    assert.ok(options.signal instanceof AbortSignal);
+    entered(); await gate; return geminiResponse();
+  });
+  const first = api('post', '/api/rubrics/generate-ai').send({ text: 'Quality counts for 100 points.' }).then(res => res);
+  try {
+    await started;
+    await api('post', '/api/rubrics/generate-ai').send({ text: 'Quality counts for 100 points.' }).expect(403);
+  } finally { release(); }
+  assert.equal((await first).status, 200);
+  assert.equal(provider.mock.callCount(), 1);
+  assert.equal((await Admin.findById(instructor._id)).aiRubricCredits, 0);
+});
+
+test('parallel successful AI generations each consume exactly one credit', async t => {
+  await Admin.updateOne({ _id: instructor._id }, { aiRubricCredits: 3 });
+  const provider = mockAiProvider(t, async () => geminiResponse());
+  const responses = await Promise.all(Array.from({ length: 3 }, () => api('post', '/api/rubrics/generate-ai').send({ text: 'Quality counts for 100 points.' })));
+  assert.deepEqual(responses.map(res => res.status), [200, 200, 200]);
+  assert.equal(provider.mock.callCount(), 3);
+  assert.equal((await Admin.findById(instructor._id)).aiRubricCredits, 0);
+});
+
+test('AI quota failures refund credits and never disclose provider error details', async t => {
+  mockAiProvider(t, async () => new Response('Private provider detail test-only-ai-key', { status: 429 }));
+  const res = await api('post', '/api/rubrics/generate-ai').send({ text: 'Quality counts for 100 points.' }).expect(429);
+  assert.match(res.body.message, /quota or rate limit/);
+  assert.doesNotMatch(JSON.stringify(res.body), /Private provider|test-only-ai-key/);
+  assert.equal((await Admin.findById(instructor._id)).aiRubricCredits, 5);
+});
+
+test('AI fallback after provider quota failure charges only the successful generation', async t => {
+  const provider = mockAiProvider(t, async url => String(url).includes('googleapis.com')
+    ? new Response('quota exhausted', { status: 429 })
+    : new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify(aiResult()) } }] }), { status: 200 }));
+  process.env.GROQ_API_KEY = 'test-only-fallback-key';
+  const res = await api('post', '/api/rubrics/generate-ai').send({ text: 'Quality counts for 100 points.' }).expect(200);
+  assert.equal(res.body.creditsRemaining, 4);
+  assert.equal(provider.mock.callCount(), 2);
+  assert.equal((await Admin.findById(instructor._id)).aiRubricCredits, 4);
+});
+
+test('AI timeout refunds the reserved credit and returns an actionable response', async t => {
+  mockAiProvider(t, async (_url, options) => { options.signal.throwIfAborted(); });
+  t.mock.method(AbortSignal, 'timeout', milliseconds => {
+    assert.equal(milliseconds, 60000);
+    return AbortSignal.abort(new DOMException('Provider timeout', 'TimeoutError'));
+  });
+  const res = await api('post', '/api/rubrics/generate-ai').send({ text: 'Quality counts for 100 points.' }).expect(504);
+  assert.match(res.body.message, /timed out/);
+  assert.equal((await Admin.findById(instructor._id)).aiRubricCredits, 5);
+});
+
+test('AI output rejected by rubric validation returns the credit', async t => {
+  mockAiProvider(t, async () => geminiResponse(aiResult([{ label: 'Quality', maxScore: 50 }, { label: 'Quality', maxScore: 50 }])));
+  await api('post', '/api/rubrics/generate-ai').send({ text: 'Quality counts for 100 points.' }).expect(502);
+  assert.equal((await Admin.findById(instructor._id)).aiRubricCredits, 5);
+});
+
+test('AI calls reject exhausted credits, unauthorized subjects and invalid input before contacting providers', async t => {
+  const provider = mockAiProvider(t, async () => { throw new Error('Provider must not be called'); });
+  await api('post', '/api/rubrics/generate-ai').send({ text: 'short' }).expect(400);
+  await api('post', '/api/rubrics/generate-ai', instructor, false).send({ subject: otherSubject._id.toString(), text: 'Quality counts for 100 points.' }).expect(403);
+  await api('post', '/api/rubrics/generate-ai', panel).send({ text: 'Quality counts for 100 points.' }).expect(403);
+  await api('post', '/api/rubrics/generate-ai', superadmin).send({ text: 'Quality counts for 100 points.' }).expect(403);
+  await Admin.updateOne({ _id: instructor._id }, { aiRubricCredits: 0 });
+  await api('post', '/api/rubrics/generate-ai').send({ text: 'Quality counts for 100 points.' }).expect(403);
+  assert.equal((await api('get', '/api/auth/me').expect(200)).body.aiRubricCredits, 0);
+  assert.equal(provider.mock.callCount(), 0);
+});
+
 const databaseTemplate = () => {
   const template = require('../../front-end/src/data/databaseRubric.json');
   return { title: 'Database Final Project', instructions: template.instructions, criteria: template.criteria.map(criterion => ({

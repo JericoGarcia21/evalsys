@@ -89,7 +89,7 @@ export default function Dashboard() {
   const { user } = useAuth();
 
   if (user?.role === 'superadmin') {
-    return <SuperAdminDashboard name={user.name} />;
+    return <SuperAdminDashboard />;
   }
   if (user?.role === 'admin') {
     return <AdminDashboard name={user.name} role="admin" userId={user.id || user._id || ''} />;
@@ -215,7 +215,7 @@ function AdminDashboard({ role, userId }: { name: string; role: 'admin' | 'super
 }
 
 /* Super Admin workspace */
-function SuperAdminDashboard({ name }: { name: string }) {
+function SuperAdminDashboard() {
   const superAdminCards = [
     { to: '/analytics', label: 'Analytics', desc: 'Platform totals, trends, and grading progress', icon: 'results' },
     { to: '/users', label: 'Instructors', desc: 'Create and manage instructor accounts', icon: 'users' },
@@ -228,9 +228,9 @@ function SuperAdminDashboard({ name }: { name: string }) {
   ];
 
   return (
-    <div>
+    <div className="platform-dashboard">
       <div className="mb-8">
-        <h2 data-tutorial="dashboard-welcome" className="evl-page-title">Welcome back, {name}</h2>
+        <h2 data-tutorial="dashboard-welcome" className="evl-page-title">Platform workspace</h2>
         <p className="evl-page-subtitle">
           Manage platform accounts, subjects, resources, operations, and system settings from here.
         </p>

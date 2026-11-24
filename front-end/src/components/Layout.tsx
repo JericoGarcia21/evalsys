@@ -540,7 +540,7 @@ export default function Layout({ children }: { children: ReactNode }) {
           key={`${currentInstructorId || 'self'}:${currentSubjectId || 'none'}`}
           className="workspace-content flex flex-col flex-1 min-w-0 px-4 py-6 sm:px-6 lg:px-10 lg:py-8 2xl:px-14"
         >
-          <div className="workspace-tools"><span>{currentSubject ? `${currentSubject.code} / ${currentSubject.title}` : 'Project evaluation workspace'}</span><TutorialLauncher /></div>
+          <div className="workspace-tools"><span>{user?.role === 'superadmin' ? 'Platform administration' : currentSubject ? `${currentSubject.code} / ${currentSubject.title}` : 'Project evaluation workspace'}</span><TutorialLauncher /></div>
           <div className="flex-1 min-w-0">
             {children}
           </div>

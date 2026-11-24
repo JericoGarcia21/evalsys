@@ -355,9 +355,16 @@ exports.getAIStatus = async (req, res) => {
 // Instructor: Generate a rubric using AI (Gemini). Decrements aiRubricCredits by 1.
 // Body: { subject, title?, text? } or multipart with file
 exports.generateAIRubric = async (req, res) => {
+  let creditReserved = false;
   try {
     const { subject: subjectId, title: suggestedTitle } = req.body;
     const subject = getSubjectId(req) || subjectId;
+    if (subject && (typeof subject !== 'string' || !/^[a-f0-9]{24}$/i.test(subject))) {
+      return res.status(400).json({ message: 'Select a valid subject.' });
+    }
+    if (!canAccessSubject(req, subject)) {
+      return res.status(403).json({ message: 'Subject access denied.' });
+    }
 
     const instructor = await Admin.findById(req.user._id).select('aiRubricCredits');
     if (!instructor) return res.status(404).json({ message: 'Instructor not found' });
@@ -382,19 +389,28 @@ exports.generateAIRubric = async (req, res) => {
       return res.status(400).json({ message: 'Please provide rubric text (paste or upload).' });
     }
 
+    // Reserve before contacting a provider so concurrent requests cannot reuse a credit.
+    const reservation = await Admin.findOneAndUpdate(
+      { _id: req.user._id, aiRubricCredits: { $gte: 1 } },
+      { $inc: { aiRubricCredits: -1 } },
+      { new: true }
+    ).select('aiRubricCredits');
+    if (!reservation) return res.status(403).json({ message: 'No AI rubric credits remaining. Contact your Super Admin to top up.' });
+    creditReserved = true;
     const generated = await generateRubricFromText(inputText);
 
     // Never charge a credit for a rubric the app would refuse to save.
     const generatedError = validateRubricPayload({ title: generated.title, criteria: generated.criteria });
     if (generatedError) {
+      await Admin.updateOne({ _id: req.user._id }, { $inc: { aiRubricCredits: 1 } });
+      creditReserved = false;
       return res.status(502).json({
         message: `The AI returned an unusable rubric (${generatedError}). No AI credit was used — please try again.`,
       });
     }
 
-    // Decrement AI credit
-    instructor.aiRubricCredits = Math.max(0, (instructor.aiRubricCredits || 5) - 1);
-    await instructor.save();
+    const creditsRemaining = reservation.aiRubricCredits;
+    creditReserved = false;
 
     // Fire-and-forget: audit log errors must never crash the response
     recordAuditLog(req, {
@@ -402,17 +418,30 @@ exports.generateAIRubric = async (req, res) => {
       entity: { type: 'rubric', name: generated.title },
       instructor: req.user._id,
       subject: subject || undefined,
-      metadata: { creditsRemaining: instructor.aiRubricCredits, criteriaCount: generated.criteria.length },
+      metadata: { creditsRemaining, criteriaCount: generated.criteria.length },
     }).catch(() => {});
 
     return res.json({
       ...generated,
       subject: subject || null,
-      creditsRemaining: instructor.aiRubricCredits,
-      message: `Rubric generated. ${instructor.aiRubricCredits} AI credit(s) remaining.`,
+      creditsRemaining,
+      message: `Rubric generated. ${creditsRemaining} AI credit(s) remaining.`,
     });
   } catch (err) {
-    const message = err.message || 'AI rubric generation failed';
-    return res.status(500).json({ message, error: message });
+    if (creditReserved) {
+      try {
+        await Admin.updateOne({ _id: req.user._id }, { $inc: { aiRubricCredits: 1 } });
+      } catch (refundError) {
+        console.error('AI credit refund failed for instructor', String(req.user._id));
+        return res.status(503).json({ message: 'AI generation failed and your credit could not be restored. Contact your Super Admin before retrying.' });
+      }
+    }
+    const status = [429, 503, 504].includes(err.status) ? err.status : 503;
+    const message = status === 429
+      ? 'The AI provider quota or rate limit was reached. No EvalSys AI credit was used. Try again after the provider limit resets or contact your Super Admin.'
+      : status === 504
+        ? 'AI generation timed out. No EvalSys AI credit was used. Please try again later.'
+        : 'AI generation is temporarily unavailable. No EvalSys AI credit was used. Please try again later or contact your Super Admin.';
+    return res.status(status).json({ message });
   }
 };

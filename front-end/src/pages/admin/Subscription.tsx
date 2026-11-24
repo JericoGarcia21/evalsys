@@ -428,19 +428,6 @@ export default function Subscription() {
               <p className="text-text/70 text-xs mt-0.5">Set paid allowance and subject-level feature access per instructor.</p>
             </div>
             <div className="flex flex-wrap items-center gap-3 min-w-0 w-full xl:w-auto">
-              <label htmlFor="grading-subject" className="text-[10px] font-black uppercase tracking-widest text-text/60">
-                Grading Subject
-              </label>
-              <select
-                id="grading-subject"
-                value={currentSubjectId}
-                onChange={(e) => handleSubjectChange(e.target.value)}
-                className="evl-select !py-2 !text-xs !w-full sm:!w-56 min-w-0"
-              >
-                {subjects.map((subject) => (
-                  <option key={subject._id} value={subject._id}>{subject.code}</option>
-                ))}
-              </select>
               <span className="text-[10px] font-black uppercase tracking-widest text-text/55 bg-muted/20 px-2 py-1 rounded-md">
                 {instructors.length} Instructor{instructors.length !== 1 ? 's' : ''}
               </span>
@@ -578,8 +565,9 @@ export default function Subscription() {
         </div>
         <div className="p-6 grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_auto] gap-4 items-end">
           <div>
-            <label className="evl-label">Subject Scope</label>
+            <label htmlFor="backup-subject" className="evl-label">Backup and reset subject scope</label>
             <select
+              id="backup-subject"
               value={currentSubjectId}
               onChange={(e) => handleSubjectChange(e.target.value)}
               className="evl-select max-w-xl"

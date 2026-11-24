@@ -1,5 +1,5 @@
 import { getApiMessage } from '../../utils/apiError';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import api from '../../services/api';
 import { notify } from '../../utils/notify';
 import { useConfirmDialog } from '../../hooks/useConfirmDialog';
@@ -87,7 +87,8 @@ export default function Operations() {
 }
 
 function OperationsOverview() {
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState({ activity: true, summary: true, cleanup: true });
+  const [errors, setErrors] = useState({ activity: '', summary: '', cleanup: '' });
   const [activity, setActivity] = useState<ActivityStatus | null>(null);
   const [summary, setSummary] = useState<InstructorSummary[]>([]);
   const [cleanup, setCleanup] = useState<ProposalCleanup | null>(null);
@@ -95,30 +96,31 @@ function OperationsOverview() {
   const [cleanupAction, setCleanupAction] = useState(false);
   const { confirm, ConfirmDialog } = useConfirmDialog();
 
-  const load = async () => {
-    try {
-      const [activityRes, summaryRes, cleanupRes] = await Promise.all([
-        api.get('/operations/activity'),
-        api.get('/operations/instructor-summary'),
-        api.get('/operations/proposal-orphans'),
-      ]);
-      setActivity(activityRes.data);
-      setSummary(summaryRes.data);
-      setCleanup(cleanupRes.data);
-    } catch (err: unknown) {
-      notify(getApiMessage(err, 'Failed to load operations data'), { type: 'error' });
-    } finally {
-      setLoading(false);
-    }
-  };
+  const load = useCallback(async () => {
+    // Publish each result as it arrives; storage enumeration must not block activity.
+    const request = async <T,>(key: 'activity' | 'summary' | 'cleanup', path: string, save: (data: T) => void) => {
+      try {
+        const response = await api.get<T>(path);
+        save(response.data);
+        setErrors(current => ({ ...current, [key]: '' }));
+      } catch (err: unknown) {
+        setErrors(current => ({ ...current, [key]: getApiMessage(err, 'Unable to load this section.') }));
+      } finally {
+        setLoading(current => ({ ...current, [key]: false }));
+      }
+    };
+    await Promise.all([
+      request<ActivityStatus>('activity', '/operations/activity', setActivity),
+      request<InstructorSummary[]>('summary', '/operations/instructor-summary', setSummary),
+      request<ProposalCleanup>('cleanup', '/operations/proposal-orphans', setCleanup),
+    ]);
+  }, []);
 
   useEffect(() => {
-    // This loader updates state only after awaited API responses.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     load();
     const timer = window.setInterval(() => load(), 60000);
     return () => window.clearInterval(timer);
-  }, []);
+  }, [load]);
 
   const handleBackup = async (type: string) => {
     setBackupAction(type);
@@ -159,35 +161,28 @@ function OperationsOverview() {
     }
   };
 
-  if (loading) {
-    return (
-      <div>
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-          {Array(4).fill(0).map((_, i) => (
-            <div key={i} className="h-48 rounded-xl bg-surface border border-muted/30 animate-pulse" />
-          ))}
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div>
       <ConfirmDialog />
 
       <div className="grid grid-cols-1 2xl:grid-cols-[minmax(0,1.25fr)_minmax(360px,0.75fr)] gap-5 mb-6">
-        <ActivityMonitor activity={activity} />
+        <OperationsSection name="activity" loading={loading.activity} error={errors.activity} onRetry={load}>
+          <ActivityMonitor activity={activity} />
+        </OperationsSection>
 
         <div className="space-y-5">
+          <OperationsSection name="proposal cleanup" loading={loading.cleanup} error={errors.cleanup} onRetry={load}>
           <ProposalCleanupPanel
             cleanup={cleanup}
             cleanupAction={cleanupAction}
             onCleanup={handleCleanupOrphans}
           />
+          </OperationsSection>
           <BackupCenterPanel backupAction={backupAction} onBackup={handleBackup} />
         </div>
       </div>
 
+      <OperationsSection name="instructor summary" loading={loading.summary} error={errors.summary} onRetry={load}>
       <div className="evl-card overflow-hidden mb-6">
         <div className="px-5 py-4 border-b border-muted/30">
           <h3 className="font-bold text-text text-sm">Per-Instructor Summary</h3>
@@ -234,6 +229,8 @@ function OperationsOverview() {
         </div>
       </div>
 
+      </OperationsSection>
+      <OperationsSection name="panel submissions" loading={loading.activity} error={errors.activity} onRetry={load}>
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 mt-6">
         <div className="evl-card overflow-hidden">
           <div className="px-5 py-4 border-b border-muted/30">
@@ -255,7 +252,8 @@ function OperationsOverview() {
         </div>
       </div>
 
-      {cleanup?.orphans?.length ? (
+      </OperationsSection>
+      {!errors.cleanup && cleanup?.orphans?.length ? (
         <div className="evl-card overflow-hidden mt-6">
           <div className="px-5 py-4 border-b border-muted/30">
             <h3 className="font-bold text-text text-sm">Orphan Proposal Files</h3>
@@ -284,6 +282,14 @@ function OperationsOverview() {
       ) : null}
     </div>
   );
+}
+
+function OperationsSection({ name, loading, error, onRetry, children }: {
+  name: string; loading: boolean; error: string; onRetry: () => Promise<void>; children: ReactNode;
+}) {
+  if (loading) return <div role="status" aria-label={`Loading ${name}`} className="evl-card p-6 text-sm text-text/70">Loading {name}…</div>;
+  if (error) return <div role="alert" className="evl-card p-6"><p className="text-sm text-danger">{error}</p><button type="button" className="evl-btn-secondary mt-4" onClick={() => void onRetry()}>Retry {name}</button></div>;
+  return children;
 }
 
 function ActivityMonitor({ activity }: { activity: ActivityStatus | null }) {

@@ -129,6 +129,44 @@
 .instructor-dashboard .workspace-shortcut .workspace-shortcut-action { grid-column:2; margin-top:12px; font-size:13px; font-weight:500; }
 .instructor-dashboard :focus-visible { outline:3px solid var(--evl-primary); outline-offset:3px; }
 @media(max-width:640px) { .instructor-dashboard .workspace-shortcut { padding:20px; column-gap:12px; } }
+/* Apply the compact shortcut composition to the platform dashboard too. */
+.platform-dashboard .workspace-shortcut { display:grid; grid-template-columns:40px minmax(0,1fr); column-gap:16px; padding:24px; }
+.platform-dashboard .workspace-shortcut > div:first-child { grid-column:1; grid-row:1 / 4; margin:0; }
+.platform-dashboard .workspace-shortcut > div:first-child > div { background:#f1f5f9; color:#526176; }
+.platform-dashboard .workspace-shortcut svg { width:18px; height:18px; stroke-width:1.5; }
+.platform-dashboard .workspace-shortcut h3,.platform-dashboard .workspace-shortcut p,
+.platform-dashboard .workspace-shortcut .workspace-shortcut-action { grid-column:2; }
+.platform-dashboard .workspace-shortcut .workspace-shortcut-action { margin-top:12px; }
+.workspace-shell .evl-btn-danger { color:#b91c1c; border-color:#b91c1c40; background:white; }
+.workspace-shell .evl-btn-danger.bg-danger { color:white; background:#b91c1c; border-color:#b91c1c; }
+.workspace-shell .evl-btn-ghost.text-danger { color:#b91c1c; }
+.workspace-shell .evl-btn-danger:not(:disabled):hover,
+.workspace-shell button.text-danger:not(:disabled):hover { color:white; background:#b91c1c; border-color:#b91c1c; }
+.workspace-shell .evl-btn-danger:not(:disabled):active,
+.workspace-shell button.text-danger:not(:disabled):active { color:white; background:#991b1b; border-color:#991b1b; }
+/* Analytics uses page-specific markup rather than shared cards and tables. */
+.platform-analytics { width:100%; }
+.platform-analytics header { margin-bottom:32px; gap:24px; }
+.platform-analytics .text-xs,.platform-analytics .text-\[11px\],.platform-analytics .text-\[10px\] { font-size:13px; line-height:1.6; }
+.platform-analytics .font-bold,.platform-analytics .font-semibold { font-weight:500; }
+.platform-analytics .text-text\/30,.platform-analytics .text-text\/35,
+.platform-analytics .text-text\/40,.platform-analytics .text-text\/45,
+.platform-analytics .text-text\/50 { color:#64748b; }
+.platform-analytics [aria-label="Analytics report exports"] { padding-block:16px; margin-bottom:24px; }
+.platform-analytics [aria-label="Registration trends"],
+.platform-analytics [aria-label="Grading progress"],
+.platform-analytics [aria-label="Subject breakdown"] { padding-block:32px; }
+.platform-analytics [aria-label="Registration trends"] svg > line { stroke:#64748b; stroke-opacity:.2; }
+.platform-analytics article { padding:24px 16px; }
+.platform-analytics article > p:first-of-type { font-size:40px; line-height:1.2; font-weight:500; letter-spacing:-1px; }
+.platform-analytics table th { font-weight:500; letter-spacing:0; }
+.platform-analytics table thead { color:#526176; }
+.platform-analytics button { min-height:40px; }
+@media(max-width:640px) {
+  .platform-dashboard .workspace-shortcut { padding:20px; column-gap:12px; }
+  .platform-analytics article { padding:20px 12px; }
+  .platform-analytics article > p:first-of-type { font-size:32px; }
+}
 .workspace-skip { position: fixed; z-index: 100; top: -100px; left: 16px; padding: 12px 20px; color: white; background: var(--evl-primary); }
 .workspace-skip:focus { top: 12px; }
 .grading-view-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 18px; margin-bottom: 22px; }

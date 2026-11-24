@@ -366,7 +366,7 @@ export default function RegisterGroup() {
                   </div>
                 ))}
               </div>
-              <p className="text-[10px] text-text/60 mt-3 font-medium">Last Name and First Name are required. Middle Name is optional.</p>
+              <p className="text-[10px] text-text/60 mt-3 font-medium">Use your exact name as recorded in STEPS. First and last names are required; include your middle name if applicable.</p>
             </div>
 
             <div data-tutorial="registration-document" className="p-6 md:p-8 border-b border-muted/30">
